@@ -71,7 +71,7 @@ class HotkeyManager: ObservableObject {
     }
 
     private var keyPressStartTime: Date?
-    private let briefPressThreshold = 1.5
+    private let briefPressThreshold = 1.0
     private var isHandsFreeMode = false
     private var currentPrompt: String?
 
