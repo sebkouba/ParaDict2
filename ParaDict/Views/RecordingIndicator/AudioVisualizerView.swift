@@ -6,7 +6,7 @@ struct WaveformVisualizer: View {
     let isActive: Bool
 
     private let pointCount = 48
-    private let waveHeight: CGFloat = 24
+    private let waveHeight: CGFloat = 28
     private let waveWidth: CGFloat = 80
 
     @State private var phases: [Double]
@@ -74,11 +74,12 @@ struct WaveformVisualizer: View {
     private func updateWaveform(with power: Double) {
         let normalizedPower = max(0, min(1, power))
 
-        // Map power to amplitude with some boost for visibility
-        let newAmplitude = normalizedPower * 1.5
+        // Aggressive amplitude mapping for more reactivity
+        // Apply curve to make quieter sounds more visible
+        let boostedPower = pow(normalizedPower, 0.6) * 2.5
 
-        withAnimation(.easeOut(duration: 0.1)) {
-            targetAmplitude = max(0.15, newAmplitude)  // Minimum visible amplitude
+        withAnimation(.easeOut(duration: 0.05)) {
+            targetAmplitude = max(0.2, boostedPower)
         }
     }
 
@@ -90,10 +91,10 @@ struct WaveformVisualizer: View {
 
     private func startPhaseAnimation() {
         // Continuously animate phase shifts for flowing motion
-        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+        Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { _ in
             Task { @MainActor in
                 for i in 0..<phases.count {
-                    phases[i] += 0.15 * Double(i + 1)
+                    phases[i] += 0.25 * Double(i + 1)
                 }
             }
         }
