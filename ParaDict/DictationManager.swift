@@ -71,6 +71,12 @@ class DictationManager: ObservableObject {
     func startRecording(mode: DictationMode, prompt: String?) async {
         logger.notice("startRecording called - current state: \(String(describing: self.state)), mode: \(mode.rawValue)")
 
+        // Allow starting from error state (user wants to try again)
+        if case .error = state {
+            logger.notice("Clearing error state to start new recording")
+            state = .idle
+        }
+
         guard state == .idle else {
             logger.warning("Cannot start recording - state is not idle: \(String(describing: self.state))")
             return

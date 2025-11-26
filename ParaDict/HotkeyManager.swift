@@ -90,6 +90,7 @@ class HotkeyManager: ObservableObject {
         if isHandsFreeMode {
             logger.notice("Exiting hands-free mode, stopping recording")
             isHandsFreeMode = false
+            isRecording = false  // Set immediately to prevent race condition
             onStopRecording?()
             return
         }
@@ -115,8 +116,13 @@ class HotkeyManager: ObservableObject {
             logger.notice("Key held for \(String(format: "%.2f", pressDuration)) seconds (threshold: \(self.briefPressThreshold)s)")
 
             if pressDuration < briefPressThreshold {
-                isHandsFreeMode = true
-                logger.notice("Hands-free mode activated - press shortcut again to stop recording")
+                // Only activate hands-free mode if recording actually started
+                if isRecording {
+                    isHandsFreeMode = true
+                    logger.notice("Hands-free mode activated - press shortcut again to stop recording")
+                } else {
+                    logger.notice("Brief press but recording not active - ignoring")
+                }
             } else {
                 logger.notice("Long press released - stopping recording")
                 onStopRecording?()
