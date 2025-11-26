@@ -29,10 +29,11 @@ class DictationManager: ObservableObject {
     @Published var lastTranscription: String?
     @Published var lastEnhancement: String?
 
-    private let recorder = Recorder()
+    let recorder = Recorder()  // Exposed for audio meter observation
     private let transcriptionService = ParakeetTranscriptionService.shared
     private let llmClient = LLMClient.shared
     private let logger = Logger(subsystem: "com.paradict", category: "DictationManager")
+    private let indicatorManager = RecordingIndicatorWindowManager.shared
 
     private var currentMode: DictationMode = .local
     private var currentPrompt: String?
@@ -135,6 +136,7 @@ class DictationManager: ObservableObject {
             try await recorder.startRecording(toOutputFile: url)
             state = .recording
             hotkeyManager.isRecording = true
+            indicatorManager.show()
             logger.notice("Recording started successfully in \(mode.rawValue) mode")
         } catch {
             state = .error("Failed to start recording: \(error.localizedDescription)")
@@ -193,6 +195,7 @@ class DictationManager: ObservableObject {
             let trimmedTranscription = transcription.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedTranscription.isEmpty {
                 logger.warning("Transcription is empty - no speech detected")
+                indicatorManager.hide()
                 state = .error("No speech detected. Please check microphone permission and try speaking louder.")
                 Task {
                     try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -227,6 +230,7 @@ class DictationManager: ObservableObject {
                     logger.notice("Copying enhanced text to clipboard (no accessibility)...")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(enhanced, forType: .string)
+                    indicatorManager.hide()
                     state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
                     Task {
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -246,6 +250,7 @@ class DictationManager: ObservableObject {
                     logger.notice("Copying transcription to clipboard (no accessibility)...")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(transcription, forType: .string)
+                    indicatorManager.hide()
                     state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
                     Task {
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -258,9 +263,11 @@ class DictationManager: ObservableObject {
             }
 
             logger.notice("Processing complete - returning to idle state")
+            indicatorManager.hide()
             state = .idle
         } catch {
             logger.error("Processing failed: \(error.localizedDescription)")
+            indicatorManager.hide()
             state = .error(error.localizedDescription)
 
             // Reset to idle after a delay
@@ -286,6 +293,7 @@ class DictationManager: ObservableObject {
             recorder.stopRecording()
             hotkeyManager.isRecording = false
             hotkeyManager.cancelRecording()
+            indicatorManager.hide()
 
             if let url = recordingURL {
                 try? FileManager.default.removeItem(at: url)

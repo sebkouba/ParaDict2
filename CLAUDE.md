@@ -74,3 +74,6 @@ Config is YAML at `~/Library/Application Support/ParaDict/config.yaml`:
 - `llm`: provider, model, api_key_env
 - `hotkeys`: array of shortcut → mode → prompt mappings
 - `custom_vocabulary`: words for transcription hints
+
+**Reference Codebase:** `/Users/sebastian/code/VoiceInk`
+If you are having problems with implementation, or I tell you to look at the reference implementation at this location, there's a Swift application that is more feature-rich than what we've built thus far. You can always go there to look for working code.
