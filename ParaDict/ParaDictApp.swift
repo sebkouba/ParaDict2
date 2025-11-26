@@ -20,26 +20,21 @@ struct ParaDictApp: App {
     @State private var showMenuBarIcon = true
 
     init() {
-        logger.info("ParaDict initializing...")
+        logger.notice("ParaDict initializing...")
 
-        // Set up default keyboard shortcuts if not already set
-        if KeyboardShortcuts.getShortcut(for: .localDictation) == nil {
-            logger.info("Setting default local dictation shortcut: Ctrl+Cmd+T")
-            KeyboardShortcuts.setShortcut(.init(.t, modifiers: [.control, .command]), for: .localDictation)
-        } else {
-            logger.info("Local dictation shortcut already configured")
-        }
+        // Shortcuts are now managed by ConfigManager - it loads from config.yaml
+        // and applies them during its initialization
 
         // Request microphone permission early (on next run loop to avoid init issues)
         DispatchQueue.main.async {
             let manager = PermissionManager.shared
             if manager.audioPermissionStatus == .notDetermined {
-                logger.info("Audio permission not determined - requesting on startup...")
+                logger.notice("Audio permission not determined - requesting on startup...")
                 manager.requestAudioPermission()
             }
         }
 
-        logger.info("ParaDict initialization complete")
+        logger.notice("ParaDict initialization complete")
     }
 
     var body: some Scene {
@@ -117,6 +112,9 @@ struct MainContentView: View {
 }
 
 struct ShortcutsSettingsView: View {
+    // Timer to periodically sync shortcuts (Recorder widget doesn't have a callback)
+    @State private var syncTimer: Timer?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Keyboard Shortcuts")
@@ -146,5 +144,22 @@ struct ShortcutsSettingsView: View {
             Spacer()
         }
         .padding()
+        .onAppear {
+            // Start a timer to periodically sync shortcuts to config
+            // (KeyboardShortcuts.Recorder doesn't have a change callback)
+            syncTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                Task { @MainActor in
+                    ConfigManager.shared.syncShortcutsFromUI()
+                }
+            }
+        }
+        .onDisappear {
+            syncTimer?.invalidate()
+            syncTimer = nil
+            // Final sync when leaving the view
+            Task { @MainActor in
+                ConfigManager.shared.syncShortcutsFromUI()
+            }
+        }
     }
 }

@@ -39,29 +39,29 @@ class DictationManager: ObservableObject {
     private var recordingURL: URL?
 
     private init() {
-        logger.info("DictationManager initializing...")
+        logger.notice("DictationManager initializing...")
         setupHotkeyManager()
-        logger.info("DictationManager initialized")
+        logger.notice("DictationManager initialized")
     }
 
     private func setupHotkeyManager() {
-        logger.info("Setting up HotkeyManager callbacks...")
+        logger.notice("Setting up HotkeyManager callbacks...")
 
         HotkeyManager.shared.onStartRecording = { [weak self] mode, prompt in
-            self?.logger.info("onStartRecording callback triggered - mode: \(mode.rawValue)")
+            self?.logger.notice("onStartRecording callback triggered - mode: \(mode.rawValue)")
             Task { @MainActor in
                 await self?.startRecording(mode: mode, prompt: prompt)
             }
         }
 
         HotkeyManager.shared.onStopRecording = { [weak self] in
-            self?.logger.info("onStopRecording callback triggered")
+            self?.logger.notice("onStopRecording callback triggered")
             Task { @MainActor in
                 await self?.stopRecording()
             }
         }
 
-        logger.info("HotkeyManager callbacks configured")
+        logger.notice("HotkeyManager callbacks configured")
     }
 
     private var hotkeyManager: HotkeyManager {
@@ -69,7 +69,7 @@ class DictationManager: ObservableObject {
     }
 
     func startRecording(mode: DictationMode, prompt: String?) async {
-        logger.info("startRecording called - current state: \(String(describing: self.state)), mode: \(mode.rawValue)")
+        logger.notice("startRecording called - current state: \(String(describing: self.state)), mode: \(mode.rawValue)")
 
         guard state == .idle else {
             logger.warning("Cannot start recording - state is not idle: \(String(describing: self.state))")
@@ -79,11 +79,11 @@ class DictationManager: ObservableObject {
         // Check microphone permission BEFORE recording
         let permissionManager = PermissionManager.shared
         let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        logger.info("Checking audio permission before recording - status: \(audioStatus.rawValue)")
+        logger.notice("Checking audio permission before recording - status: \(audioStatus.rawValue)")
 
         if audioStatus == .notDetermined {
             // Request permission
-            logger.info("Audio permission not determined - requesting...")
+            logger.notice("Audio permission not determined - requesting...")
             let granted = await permissionManager.requestAudioPermissionAsync()
             if !granted {
                 logger.error("Audio permission denied - cannot record")
@@ -108,7 +108,7 @@ class DictationManager: ObservableObject {
             return
         }
 
-        logger.info("Audio permission verified - proceeding with recording")
+        logger.notice("Audio permission verified - proceeding with recording")
 
         currentMode = mode
         currentPrompt = prompt
@@ -123,13 +123,13 @@ class DictationManager: ObservableObject {
             return
         }
 
-        logger.info("Recording to: \(url.path)")
+        logger.notice("Recording to: \(url.path)")
 
         do {
             try await recorder.startRecording(toOutputFile: url)
             state = .recording
             hotkeyManager.isRecording = true
-            logger.info("Recording started successfully in \(mode.rawValue) mode")
+            logger.notice("Recording started successfully in \(mode.rawValue) mode")
         } catch {
             state = .error("Failed to start recording: \(error.localizedDescription)")
             logger.error("Failed to start recording: \(error.localizedDescription)")
@@ -137,7 +137,7 @@ class DictationManager: ObservableObject {
     }
 
     func stopRecording() async {
-        logger.info("stopRecording called - current state: \(String(describing: self.state))")
+        logger.notice("stopRecording called - current state: \(String(describing: self.state))")
 
         guard state == .recording else {
             logger.warning("Cannot stop recording - state is not recording: \(String(describing: self.state))")
@@ -146,7 +146,7 @@ class DictationManager: ObservableObject {
 
         recorder.stopRecording()
         hotkeyManager.isRecording = false
-        logger.info("Recorder stopped")
+        logger.notice("Recorder stopped")
 
         guard let url = recordingURL else {
             logger.error("No recording URL available")
@@ -157,19 +157,19 @@ class DictationManager: ObservableObject {
         // Check file exists and has content
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let size = attrs[.size] as? Int64 {
-            logger.info("Recording file size: \(size) bytes")
+            logger.notice("Recording file size: \(size) bytes")
         }
 
         await processRecording(url: url)
     }
 
     private func processRecording(url: URL) async {
-        logger.info("processRecording called - file: \(url.lastPathComponent)")
+        logger.notice("processRecording called - file: \(url.lastPathComponent)")
         state = .transcribing
         hotkeyManager.isProcessing = true
 
         defer {
-            logger.info("Cleaning up recording file")
+            logger.notice("Cleaning up recording file")
             try? FileManager.default.removeItem(at: url)
             recordingURL = nil
             hotkeyManager.isProcessing = false
@@ -178,10 +178,10 @@ class DictationManager: ObservableObject {
 
         do {
             // Transcribe with Parakeet
-            logger.info("Starting Parakeet transcription...")
+            logger.notice("Starting Parakeet transcription...")
             let transcription = try await transcriptionService.transcribe(audioURL: url)
             lastTranscription = transcription
-            logger.info("Transcription complete (\(transcription.count) chars): \(transcription.prefix(100))...")
+            logger.notice("Transcription complete (\(transcription.count) chars): \(transcription.prefix(100))...")
 
             // Check for empty transcription (indicates silent recording or no speech)
             let trimmedTranscription = transcription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -206,19 +206,19 @@ class DictationManager: ObservableObject {
             // Check if we need LLM enhancement
             if currentMode == .enhanced, let prompt = currentPrompt ?? defaultEnhancementPrompt {
                 state = .enhancing
-                logger.info("Starting LLM enhancement with prompt: \(prompt.prefix(50))...")
+                logger.notice("Starting LLM enhancement with prompt: \(prompt.prefix(50))...")
 
                 let enhanced = try await llmClient.enhance(text: transcription, systemPrompt: prompt)
                 lastEnhancement = enhanced
-                logger.info("Enhancement complete (\(enhanced.count) chars)")
+                logger.notice("Enhancement complete (\(enhanced.count) chars)")
 
                 // Paste the enhanced text
                 if canPaste {
-                    logger.info("Pasting enhanced text at cursor...")
+                    logger.notice("Pasting enhanced text at cursor...")
                     CursorPaster.pasteAtCursor(enhanced)
                 } else {
                     // Fall back to just copying to clipboard
-                    logger.info("Copying enhanced text to clipboard (no accessibility)...")
+                    logger.notice("Copying enhanced text to clipboard (no accessibility)...")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(enhanced, forType: .string)
                     state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
@@ -233,11 +233,11 @@ class DictationManager: ObservableObject {
             } else {
                 // Local mode - paste transcription directly
                 if canPaste {
-                    logger.info("Pasting transcription at cursor (local mode)...")
+                    logger.notice("Pasting transcription at cursor (local mode)...")
                     CursorPaster.pasteAtCursor(transcription)
                 } else {
                     // Fall back to just copying to clipboard
-                    logger.info("Copying transcription to clipboard (no accessibility)...")
+                    logger.notice("Copying transcription to clipboard (no accessibility)...")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(transcription, forType: .string)
                     state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
@@ -251,7 +251,7 @@ class DictationManager: ObservableObject {
                 }
             }
 
-            logger.info("Processing complete - returning to idle state")
+            logger.notice("Processing complete - returning to idle state")
             state = .idle
         } catch {
             logger.error("Processing failed: \(error.localizedDescription)")
@@ -261,7 +261,7 @@ class DictationManager: ObservableObject {
             Task {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 if case .error = self.state {
-                    logger.info("Resetting from error state to idle")
+                    logger.notice("Resetting from error state to idle")
                     self.state = .idle
                 }
             }
@@ -271,11 +271,11 @@ class DictationManager: ObservableObject {
     }
 
     private var defaultEnhancementPrompt: String? {
-        ConfigManager.shared.config.hotkeys.first { $0.mode == .enhanced }?.prompt
+        ConfigManager.shared.enhancedDictationPrompt
     }
 
     func cancelRecording() {
-        logger.info("cancelRecording called - current state: \(String(describing: self.state))")
+        logger.notice("cancelRecording called - current state: \(String(describing: self.state))")
         if state == .recording {
             recorder.stopRecording()
             hotkeyManager.isRecording = false

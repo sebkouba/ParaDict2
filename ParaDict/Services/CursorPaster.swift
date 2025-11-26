@@ -7,11 +7,11 @@ private let logger = Logger(subsystem: "com.paradict", category: "CursorPaster")
 class CursorPaster {
 
     static func pasteAtCursor(_ text: String) {
-        logger.info("pasteAtCursor called - text length: \(text.count) chars")
+        logger.notice("pasteAtCursor called - text length: \(text.count) chars")
 
         // Check accessibility permission first
         let isTrusted = AXIsProcessTrusted()
-        logger.info("Accessibility trusted: \(isTrusted)")
+        logger.notice("Accessibility trusted: \(isTrusted)")
 
         if !isTrusted {
             logger.error("Accessibility permission not granted - cannot paste")
@@ -20,14 +20,14 @@ class CursorPaster {
 
         let pasteboard = NSPasteboard.general
         let preserveClipboard = !UserDefaults.standard.bool(forKey: "preserveTranscriptInClipboard")
-        logger.info("Preserve clipboard: \(preserveClipboard)")
+        logger.notice("Preserve clipboard: \(preserveClipboard)")
 
         var savedContents: [(NSPasteboard.PasteboardType, Data)] = []
 
         // Save clipboard contents if we plan to restore them
         if preserveClipboard {
             let currentItems = pasteboard.pasteboardItems ?? []
-            logger.info("Saving \(currentItems.count) clipboard items")
+            logger.notice("Saving \(currentItems.count) clipboard items")
 
             for item in currentItems {
                 for type in item.types {
@@ -40,15 +40,15 @@ class CursorPaster {
 
         pasteboard.clearContents()
         let success = pasteboard.setString(text, forType: .string)
-        logger.info("Set clipboard string: \(success)")
+        logger.notice("Set clipboard string: \(success)")
 
         if preserveClipboard {
             pasteboard.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
         }
 
-        logger.info("Scheduling Cmd+V keystroke in 50ms...")
+        logger.notice("Scheduling Cmd+V keystroke in 50ms...")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            logger.info("Executing Cmd+V keystroke")
+            logger.notice("Executing Cmd+V keystroke")
             pasteUsingCommandV()
         }
 
@@ -56,7 +56,7 @@ class CursorPaster {
         if preserveClipboard {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 if !savedContents.isEmpty {
-                    logger.info("Restoring \(savedContents.count) clipboard items")
+                    logger.notice("Restoring \(savedContents.count) clipboard items")
                     pasteboard.clearContents()
                     for (type, data) in savedContents {
                         pasteboard.setData(data, forType: type)
@@ -88,11 +88,11 @@ class CursorPaster {
         vUp?.post(tap: .cghidEventTap)
         cmdUp?.post(tap: .cghidEventTap)
 
-        logger.info("Cmd+V keystroke sent")
+        logger.notice("Cmd+V keystroke sent")
     }
 
     static func pressEnter() {
-        logger.info("pressEnter called")
+        logger.notice("pressEnter called")
         guard AXIsProcessTrusted() else {
             logger.error("pressEnter: Accessibility not trusted")
             return
@@ -102,6 +102,6 @@ class CursorPaster {
         let enterUp = CGEvent(keyboardEventSource: source, virtualKey: 0x24, keyDown: false)
         enterDown?.post(tap: .cghidEventTap)
         enterUp?.post(tap: .cghidEventTap)
-        logger.info("Enter keystroke sent")
+        logger.notice("Enter keystroke sent")
     }
 }

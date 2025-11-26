@@ -16,37 +16,37 @@ class HotkeyManager: ObservableObject {
     var onStopRecording: (() -> Void)?
 
     init() {
-        logger.info("HotkeyManager initializing...")
+        logger.notice("HotkeyManager initializing...")
         setupKeyboardShortcuts()
     }
 
     func setupKeyboardShortcuts() {
-        logger.info("Setting up keyboard shortcut handlers...")
+        logger.notice("Setting up keyboard shortcut handlers...")
 
         // Log current shortcuts
         if let localShortcut = KeyboardShortcuts.getShortcut(for: .localDictation) {
-            logger.info("Local dictation shortcut: \(localShortcut.description)")
+            logger.notice("Local dictation shortcut: \(localShortcut.description)")
         } else {
             logger.warning("No local dictation shortcut configured")
         }
 
         if let enhancedShortcut = KeyboardShortcuts.getShortcut(for: .enhancedDictation) {
-            logger.info("Enhanced dictation shortcut: \(enhancedShortcut.description)")
+            logger.notice("Enhanced dictation shortcut: \(enhancedShortcut.description)")
         } else {
-            logger.info("No enhanced dictation shortcut configured (optional)")
+            logger.notice("No enhanced dictation shortcut configured (optional)")
         }
 
         // Local dictation shortcut
         KeyboardShortcuts.onKeyDown(for: .localDictation) { [weak self] in
             Task { @MainActor in
-                self?.logger.info("LOCAL DICTATION: Key DOWN detected")
+                self?.logger.notice("LOCAL DICTATION: Key DOWN detected")
                 self?.handleShortcutDown(mode: .local, prompt: nil)
             }
         }
 
         KeyboardShortcuts.onKeyUp(for: .localDictation) { [weak self] in
             Task { @MainActor in
-                self?.logger.info("LOCAL DICTATION: Key UP detected")
+                self?.logger.notice("LOCAL DICTATION: Key UP detected")
                 self?.handleShortcutUp()
             }
         }
@@ -54,21 +54,20 @@ class HotkeyManager: ObservableObject {
         // Enhanced dictation shortcut
         KeyboardShortcuts.onKeyDown(for: .enhancedDictation) { [weak self] in
             Task { @MainActor in
-                self?.logger.info("ENHANCED DICTATION: Key DOWN detected")
-                let config = ConfigManager.shared.config
-                let prompt = config.hotkeys.first { $0.mode == .enhanced }?.prompt
+                self?.logger.notice("ENHANCED DICTATION: Key DOWN detected")
+                let prompt = ConfigManager.shared.enhancedDictationPrompt
                 self?.handleShortcutDown(mode: .enhanced, prompt: prompt)
             }
         }
 
         KeyboardShortcuts.onKeyUp(for: .enhancedDictation) { [weak self] in
             Task { @MainActor in
-                self?.logger.info("ENHANCED DICTATION: Key UP detected")
+                self?.logger.notice("ENHANCED DICTATION: Key UP detected")
                 self?.handleShortcutUp()
             }
         }
 
-        logger.info("Keyboard shortcuts configured successfully")
+        logger.notice("Keyboard shortcuts configured successfully")
     }
 
     private var keyPressStartTime: Date?
@@ -77,7 +76,7 @@ class HotkeyManager: ObservableObject {
     private var currentPrompt: String?
 
     private func handleShortcutDown(mode: DictationMode, prompt: String?) {
-        logger.info("handleShortcutDown called - mode: \(mode.rawValue), isProcessing: \(self.isProcessing), isRecording: \(self.isRecording), isHandsFreeMode: \(self.isHandsFreeMode)")
+        logger.notice("handleShortcutDown called - mode: \(mode.rawValue), isProcessing: \(self.isProcessing), isRecording: \(self.isRecording), isHandsFreeMode: \(self.isHandsFreeMode)")
 
         guard !isProcessing else {
             logger.warning("Ignoring shortcut - currently processing")
@@ -89,22 +88,22 @@ class HotkeyManager: ObservableObject {
         currentPrompt = prompt
 
         if isHandsFreeMode {
-            logger.info("Exiting hands-free mode, stopping recording")
+            logger.notice("Exiting hands-free mode, stopping recording")
             isHandsFreeMode = false
             onStopRecording?()
             return
         }
 
         if !isRecording {
-            logger.info("Starting recording in \(mode.rawValue) mode")
+            logger.notice("Starting recording in \(mode.rawValue) mode")
             onStartRecording?(mode, prompt)
         } else {
-            logger.info("Already recording, ignoring key down")
+            logger.notice("Already recording, ignoring key down")
         }
     }
 
     private func handleShortcutUp() {
-        logger.info("handleShortcutUp called - isProcessing: \(self.isProcessing), keyPressStartTime: \(String(describing: self.keyPressStartTime))")
+        logger.notice("handleShortcutUp called - isProcessing: \(self.isProcessing), keyPressStartTime: \(String(describing: self.keyPressStartTime))")
 
         guard !isProcessing else {
             logger.warning("Ignoring key up - currently processing")
@@ -113,13 +112,13 @@ class HotkeyManager: ObservableObject {
 
         if let startTime = keyPressStartTime {
             let pressDuration = Date().timeIntervalSince(startTime)
-            logger.info("Key held for \(String(format: "%.2f", pressDuration)) seconds (threshold: \(self.briefPressThreshold)s)")
+            logger.notice("Key held for \(String(format: "%.2f", pressDuration)) seconds (threshold: \(self.briefPressThreshold)s)")
 
             if pressDuration < briefPressThreshold {
                 isHandsFreeMode = true
-                logger.info("Hands-free mode activated - press shortcut again to stop recording")
+                logger.notice("Hands-free mode activated - press shortcut again to stop recording")
             } else {
-                logger.info("Long press released - stopping recording")
+                logger.notice("Long press released - stopping recording")
                 onStopRecording?()
             }
         } else {
@@ -130,7 +129,7 @@ class HotkeyManager: ObservableObject {
     }
 
     func cancelRecording() {
-        logger.info("cancelRecording called - resetting state")
+        logger.notice("cancelRecording called - resetting state")
         isHandsFreeMode = false
         keyPressStartTime = nil
         activeMode = nil

@@ -39,12 +39,14 @@ class AudioDeviceManager: ObservableObject {
 
         if status == noErr {
             fallbackDeviceID = defaultDeviceID
-            logger.info("Fallback device ID: \(defaultDeviceID)")
+            logger.notice("Fallback device ID: \(defaultDeviceID)")
         }
     }
 
     private func loadSelectedDevice() {
-        selectedDeviceUID = UserDefaults.standard.string(forKey: "selectedAudioDeviceUID")
+        // Device is now loaded from ConfigManager, not UserDefaults
+        // This is called before ConfigManager is fully initialized,
+        // so we don't read from it here. ConfigManager will call applyAudioDevice() later.
     }
 
     func loadAvailableDevices() {
@@ -91,20 +93,34 @@ class AudioDeviceManager: ObservableObject {
 
         DispatchQueue.main.async {
             self.availableDevices = devices
-            self.logger.info("Found \(devices.count) input devices")
+            self.logger.notice("Found \(devices.count) input devices")
         }
     }
 
-    func selectDevice(uid: String) {
+    /// Select an audio device by UID. Set fromUI=true when called from user interaction.
+    func selectDevice(uid: String, fromUI: Bool = false) {
         selectedDeviceUID = uid
-        UserDefaults.standard.set(uid, forKey: "selectedAudioDeviceUID")
-        logger.info("Selected device UID: \(uid)")
+        logger.notice("Selected device UID: \(uid)")
+
+        // Sync back to config file if this was a user action
+        if fromUI {
+            Task { @MainActor in
+                ConfigManager.shared.syncAudioDeviceFromUI()
+            }
+        }
     }
 
-    func useSystemDefault() {
+    /// Use the system default device. Set fromUI=true when called from user interaction.
+    func useSystemDefault(fromUI: Bool = false) {
         selectedDeviceUID = nil
-        UserDefaults.standard.removeObject(forKey: "selectedAudioDeviceUID")
-        logger.info("Using system default device")
+        logger.notice("Using system default device")
+
+        // Sync back to config file if this was a user action
+        if fromUI {
+            Task { @MainActor in
+                ConfigManager.shared.syncAudioDeviceFromUI()
+            }
+        }
     }
 
     func getCurrentDevice() -> AudioDeviceID {

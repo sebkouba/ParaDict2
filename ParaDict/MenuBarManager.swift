@@ -9,7 +9,7 @@ class MenuBarManager: ObservableObject {
     @Published var isMenuBarOnly: Bool {
         didSet {
             UserDefaults.standard.set(isMenuBarOnly, forKey: "IsMenuBarOnly")
-            logger.info("isMenuBarOnly changed to: \(self.isMenuBarOnly)")
+            logger.notice("isMenuBarOnly changed to: \(self.isMenuBarOnly)")
             updateAppActivationPolicy()
         }
     }
@@ -19,7 +19,7 @@ class MenuBarManager: ObservableObject {
         self.isMenuBarOnly = UserDefaults.standard.object(forKey: "IsMenuBarOnly") != nil
             ? UserDefaults.standard.bool(forKey: "IsMenuBarOnly")
             : false
-        logger.info("MenuBarManager initialized - isMenuBarOnly: \(self.isMenuBarOnly)")
+        logger.notice("MenuBarManager initialized - isMenuBarOnly: \(self.isMenuBarOnly)")
     }
 
     func toggleMenuBarOnly() {
@@ -27,14 +27,14 @@ class MenuBarManager: ObservableObject {
     }
 
     func showMainWindow() {
-        logger.info("showMainWindow called")
+        logger.notice("showMainWindow called")
         isMenuBarOnly = false
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         // Find and show any window
         for window in NSApplication.shared.windows {
-            logger.info("Found window: \(window.identifier?.rawValue ?? "nil") - isVisible: \(window.isVisible)")
+            logger.notice("Found window: \(window.identifier?.rawValue ?? "nil") - isVisible: \(window.isVisible)")
             if !window.isVisible {
                 window.makeKeyAndOrderFront(nil)
             }
@@ -45,10 +45,10 @@ class MenuBarManager: ObservableObject {
         DispatchQueue.main.async {
             let application = NSApplication.shared
             if self.isMenuBarOnly {
-                logger.info("Setting activation policy to accessory")
+                logger.notice("Setting activation policy to accessory")
                 application.setActivationPolicy(.accessory)
             } else {
-                logger.info("Setting activation policy to regular")
+                logger.notice("Setting activation policy to regular")
                 application.setActivationPolicy(.regular)
                 application.activate(ignoringOtherApps: true)
             }

@@ -19,19 +19,19 @@ struct MenuBarView: View {
             Divider()
 
             Button("Open ParaDict") {
-                logger.info("Opening main window")
+                logger.notice("Opening main window")
                 menuBarManager.showMainWindow()
             }
 
             Button("Open Config File") {
-                logger.info("Opening config file")
+                logger.notice("Opening config file")
                 NSWorkspace.shared.open(URL(fileURLWithPath: configManager.configFilePath))
             }
 
             Divider()
 
             Button("Quit ParaDict") {
-                logger.info("Quit requested")
+                logger.notice("Quit requested")
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q", modifiers: .command)

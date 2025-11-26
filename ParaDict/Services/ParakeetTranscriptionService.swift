@@ -32,16 +32,16 @@ class ParakeetTranscriptionService {
     private let logger = Logger(subsystem: "com.paradict", category: "ParakeetTranscriptionService")
 
     private init() {
-        logger.info("ParakeetTranscriptionService initialized")
+        logger.notice("ParakeetTranscriptionService initialized")
     }
 
     private func ensureModelsLoaded() async throws {
         if asrManager != nil {
-            logger.info("ASR models already loaded")
+            logger.notice("ASR models already loaded")
             return
         }
 
-        logger.info("Loading Parakeet v3 models...")
+        logger.notice("Loading Parakeet v3 models...")
         let manager = AsrManager(config: .default)
         let models = try await AsrModels.loadFromCache(
             configuration: nil,
@@ -49,11 +49,11 @@ class ParakeetTranscriptionService {
         )
         try await manager.initialize(models: models)
         self.asrManager = manager
-        logger.info("Parakeet v3 models loaded successfully")
+        logger.notice("Parakeet v3 models loaded successfully")
     }
 
     func transcribe(audioURL: URL) async throws -> String {
-        logger.info("transcribe called with URL: \(audioURL.path)")
+        logger.notice("transcribe called with URL: \(audioURL.path)")
 
         // Check file exists
         guard FileManager.default.fileExists(atPath: audioURL.path) else {
@@ -64,7 +64,7 @@ class ParakeetTranscriptionService {
         // Get file size
         if let attrs = try? FileManager.default.attributesOfItem(atPath: audioURL.path),
            let size = attrs[.size] as? Int64 {
-            logger.info("Audio file size: \(size) bytes")
+            logger.notice("Audio file size: \(size) bytes")
         }
 
         try await ensureModelsLoaded()
@@ -75,7 +75,7 @@ class ParakeetTranscriptionService {
         }
 
         let audioSamples = try readAudioSamples(from: audioURL)
-        logger.info("Read \(audioSamples.count) audio samples")
+        logger.notice("Read \(audioSamples.count) audio samples")
 
         if audioSamples.isEmpty {
             logger.error("No audio samples read from file")
@@ -86,25 +86,25 @@ class ParakeetTranscriptionService {
         let maxSample = audioSamples.max() ?? 0
         let minSample = audioSamples.min() ?? 0
         let avgAbsSample = audioSamples.reduce(0) { $0 + abs($1) } / Float(audioSamples.count)
-        logger.info("Audio stats - min: \(minSample), max: \(maxSample), avgAbs: \(avgAbsSample)")
+        logger.notice("Audio stats - min: \(minSample), max: \(maxSample), avgAbs: \(avgAbsSample)")
 
         if avgAbsSample < 0.001 {
             logger.warning("Audio appears to be silent (avgAbs < 0.001)")
         }
 
         let durationSeconds = Double(audioSamples.count) / 16000.0
-        logger.info("Transcribing audio: \(String(format: "%.1f", durationSeconds))s (\(audioSamples.count) samples)")
+        logger.notice("Transcribing audio: \(String(format: "%.1f", durationSeconds))s (\(audioSamples.count) samples)")
 
         var speechAudio = audioSamples
 
         // Use VAD for longer audio (>20s)
         if durationSeconds >= 20.0 {
-            logger.info("Audio > 20s, using VAD")
+            logger.notice("Audio > 20s, using VAD")
             let vadConfig = VadConfig(defaultThreshold: 0.7)
             if vadManager == nil {
                 do {
                     vadManager = try await VadManager(config: vadConfig)
-                    logger.info("VAD initialized")
+                    logger.notice("VAD initialized")
                 } catch {
                     logger.notice("VAD init failed; using full audio: \(error.localizedDescription)")
                 }
@@ -113,7 +113,7 @@ class ParakeetTranscriptionService {
             if let vadManager {
                 do {
                     let segments = try await vadManager.segmentSpeechAudio(audioSamples)
-                    logger.info("VAD found \(segments.count) speech segments")
+                    logger.notice("VAD found \(segments.count) speech segments")
                     speechAudio = segments.isEmpty ? audioSamples : segments.flatMap { $0 }
                 } catch {
                     logger.notice("VAD segmentation failed; using full audio: \(error.localizedDescription)")
@@ -121,18 +121,18 @@ class ParakeetTranscriptionService {
             }
         }
 
-        logger.info("Starting ASR transcription with \(speechAudio.count) samples...")
+        logger.notice("Starting ASR transcription with \(speechAudio.count) samples...")
         let result = try await asrManager.transcribe(speechAudio)
-        logger.info("ASR result - text length: \(result.text.count), text: '\(result.text.prefix(200))'")
+        logger.notice("ASR result - text length: \(result.text.count), text: '\(result.text.prefix(200))'")
 
         return result.text
     }
 
     private func readAudioSamples(from url: URL) throws -> [Float] {
-        logger.info("Reading audio samples from: \(url.lastPathComponent)")
+        logger.notice("Reading audio samples from: \(url.lastPathComponent)")
 
         let data = try Data(contentsOf: url)
-        logger.info("Read \(data.count) bytes from file")
+        logger.notice("Read \(data.count) bytes from file")
 
         guard data.count > 44 else {
             logger.error("File too small - only \(data.count) bytes (need > 44 for WAV header)")
@@ -143,7 +143,7 @@ class ParakeetTranscriptionService {
         let headerBytes = [UInt8](data.prefix(44))
         let riff = String(bytes: headerBytes[0..<4], encoding: .ascii) ?? "?"
         let wave = String(bytes: headerBytes[8..<12], encoding: .ascii) ?? "?"
-        logger.info("WAV header - RIFF: '\(riff)', WAVE: '\(wave)'")
+        logger.notice("WAV header - RIFF: '\(riff)', WAVE: '\(wave)'")
 
         // Extract format info from WAV header
         let audioFormat = UInt16(headerBytes[20]) | (UInt16(headerBytes[21]) << 8)
@@ -151,7 +151,7 @@ class ParakeetTranscriptionService {
         let sampleRate = UInt32(headerBytes[24]) | (UInt32(headerBytes[25]) << 8) | (UInt32(headerBytes[26]) << 16) | (UInt32(headerBytes[27]) << 24)
         let bitsPerSample = UInt16(headerBytes[34]) | (UInt16(headerBytes[35]) << 8)
 
-        logger.info("WAV format - audioFormat: \(audioFormat), channels: \(numChannels), sampleRate: \(sampleRate), bitsPerSample: \(bitsPerSample)")
+        logger.notice("WAV format - audioFormat: \(audioFormat), channels: \(numChannels), sampleRate: \(sampleRate), bitsPerSample: \(bitsPerSample)")
 
         // Skip WAV header (44 bytes) and convert 16-bit PCM to float
         let floats = stride(from: 44, to: data.count, by: 2).map {
@@ -161,12 +161,12 @@ class ParakeetTranscriptionService {
             }
         }
 
-        logger.info("Converted to \(floats.count) float samples")
+        logger.notice("Converted to \(floats.count) float samples")
         return floats
     }
 
     func cleanup() {
-        logger.info("Cleaning up ASR resources")
+        logger.notice("Cleaning up ASR resources")
         asrManager?.cleanup()
         asrManager = nil
         vadManager = nil

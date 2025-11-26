@@ -14,7 +14,7 @@ class PermissionManager: ObservableObject {
     @Published var isScreenRecordingEnabled = false
 
     init() {
-        logger.info("PermissionManager initializing...")
+        logger.notice("PermissionManager initializing...")
         setupNotificationObservers()
         checkAllPermissions()
     }
@@ -41,7 +41,7 @@ class PermissionManager: ObservableObject {
     }
 
     @objc private func applicationDidBecomeActive() {
-        logger.info("App became active - rechecking permissions")
+        logger.notice("App became active - rechecking permissions")
         checkAllPermissions()
     }
 
@@ -54,43 +54,43 @@ class PermissionManager: ObservableObject {
     func checkAccessibilityPermissions() {
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
         let accessibilityEnabled = AXIsProcessTrustedWithOptions(options)
-        logger.info("Accessibility check: \(accessibilityEnabled)")
+        logger.notice("Accessibility check: \(accessibilityEnabled)")
         DispatchQueue.main.async {
             self.isAccessibilityEnabled = accessibilityEnabled
         }
     }
 
     func requestAccessibilityPermission() {
-        logger.info("Requesting accessibility permission (will prompt)")
+        logger.notice("Requesting accessibility permission (will prompt)")
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
         _ = AXIsProcessTrustedWithOptions(options)
     }
 
     func checkScreenRecordingPermission() {
         let enabled = CGPreflightScreenCaptureAccess()
-        logger.info("Screen recording check: \(enabled)")
+        logger.notice("Screen recording check: \(enabled)")
         DispatchQueue.main.async {
             self.isScreenRecordingEnabled = enabled
         }
     }
 
     func requestScreenRecordingPermission() {
-        logger.info("Requesting screen recording permission")
+        logger.notice("Requesting screen recording permission")
         CGRequestScreenCaptureAccess()
     }
 
     func checkAudioPermissionStatus() {
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
-        logger.info("Audio permission status: \(status.rawValue) (0=notDetermined, 1=restricted, 2=denied, 3=authorized)")
+        logger.notice("Audio permission status: \(status.rawValue) (0=notDetermined, 1=restricted, 2=denied, 3=authorized)")
         DispatchQueue.main.async {
             self.audioPermissionStatus = status
         }
     }
 
     func requestAudioPermission() {
-        logger.info("Requesting audio permission...")
+        logger.notice("Requesting audio permission...")
         AVCaptureDevice.requestAccess(for: .audio) { granted in
-            logger.info("Audio permission response: \(granted)")
+            logger.notice("Audio permission response: \(granted)")
             DispatchQueue.main.async {
                 self.audioPermissionStatus = granted ? .authorized : .denied
             }
@@ -99,18 +99,18 @@ class PermissionManager: ObservableObject {
 
     @MainActor
     func requestAudioPermissionAsync() async -> Bool {
-        logger.info("Requesting audio permission (async)...")
+        logger.notice("Requesting audio permission (async)...")
 
         // If already authorized, return immediately
         if audioPermissionStatus == .authorized {
-            logger.info("Audio permission already authorized")
+            logger.notice("Audio permission already authorized")
             return true
         }
 
         // If not determined, request it
         if audioPermissionStatus == .notDetermined {
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
-            logger.info("Audio permission response: \(granted)")
+            logger.notice("Audio permission response: \(granted)")
             audioPermissionStatus = granted ? .authorized : .denied
             return granted
         }
@@ -243,7 +243,7 @@ struct PermissionsView: View {
                         isGranted: permissionManager.audioPermissionStatus == .authorized,
                         buttonTitle: permissionManager.audioPermissionStatus == .notDetermined ? "Request Permission" : "Open System Settings",
                         buttonAction: {
-                            logger.info("Audio permission button clicked - status: \(permissionManager.audioPermissionStatus.rawValue)")
+                            logger.notice("Audio permission button clicked - status: \(permissionManager.audioPermissionStatus.rawValue)")
                             if permissionManager.audioPermissionStatus == .notDetermined {
                                 permissionManager.requestAudioPermission()
                             } else {
@@ -263,7 +263,7 @@ struct PermissionsView: View {
                         isGranted: permissionManager.isAccessibilityEnabled,
                         buttonTitle: "Open System Settings",
                         buttonAction: {
-                            logger.info("Accessibility permission button clicked")
+                            logger.notice("Accessibility permission button clicked")
                             permissionManager.requestAccessibilityPermission()
                             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                                 NSWorkspace.shared.open(url)
@@ -280,7 +280,7 @@ struct PermissionsView: View {
                         isGranted: permissionManager.isScreenRecordingEnabled,
                         buttonTitle: "Request Permission",
                         buttonAction: {
-                            logger.info("Screen recording permission button clicked")
+                            logger.notice("Screen recording permission button clicked")
                             permissionManager.requestScreenRecordingPermission()
                             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
                                 NSWorkspace.shared.open(url)
@@ -294,7 +294,7 @@ struct PermissionsView: View {
         }
         .background(Color(NSColor.controlBackgroundColor))
         .onAppear {
-            logger.info("PermissionsView appeared")
+            logger.notice("PermissionsView appeared")
             permissionManager.checkAllPermissions()
         }
     }

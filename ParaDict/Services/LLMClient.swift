@@ -105,7 +105,7 @@ class LLMClient {
         urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        logger.info("Sending request to Groq API with model: \(config.model)")
+        logger.notice("Sending request to Groq API with model: \(config.model)")
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
