@@ -7,6 +7,8 @@ import os
 private let logger = Logger(subsystem: "com.paradict", category: "Permissions")
 
 class PermissionManager: ObservableObject {
+    static let shared = PermissionManager()
+
     @Published var audioPermissionStatus = AVCaptureDevice.authorizationStatus(for: .audio)
     @Published var isAccessibilityEnabled = false
     @Published var isScreenRecordingEnabled = false
@@ -15,6 +17,14 @@ class PermissionManager: ObservableObject {
         logger.info("PermissionManager initializing...")
         setupNotificationObservers()
         checkAllPermissions()
+    }
+
+    var canRecord: Bool {
+        audioPermissionStatus == .authorized
+    }
+
+    var canPaste: Bool {
+        isAccessibilityEnabled
     }
 
     deinit {
@@ -85,6 +95,29 @@ class PermissionManager: ObservableObject {
                 self.audioPermissionStatus = granted ? .authorized : .denied
             }
         }
+    }
+
+    @MainActor
+    func requestAudioPermissionAsync() async -> Bool {
+        logger.info("Requesting audio permission (async)...")
+
+        // If already authorized, return immediately
+        if audioPermissionStatus == .authorized {
+            logger.info("Audio permission already authorized")
+            return true
+        }
+
+        // If not determined, request it
+        if audioPermissionStatus == .notDetermined {
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            logger.info("Audio permission response: \(granted)")
+            audioPermissionStatus = granted ? .authorized : .denied
+            return granted
+        }
+
+        // Already denied or restricted
+        logger.warning("Audio permission denied or restricted: \(self.audioPermissionStatus.rawValue)")
+        return false
     }
 }
 
@@ -177,7 +210,7 @@ struct PermissionCard: View {
 }
 
 struct PermissionsView: View {
-    @StateObject private var permissionManager = PermissionManager()
+    @StateObject private var permissionManager = PermissionManager.shared
 
     var body: some View {
         ScrollView {

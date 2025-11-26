@@ -1,5 +1,6 @@
 import SwiftUI
 import KeyboardShortcuts
+import AVFoundation
 import os
 
 private let logger = Logger(subsystem: "com.paradict", category: "App")
@@ -14,6 +15,7 @@ struct ParaDictApp: App {
     @StateObject private var configManager = ConfigManager.shared
     @StateObject private var dictationManager = DictationManager.shared
     @StateObject private var menuBarManager = MenuBarManager()
+    @StateObject private var permissionManager = PermissionManager.shared
 
     @State private var showMenuBarIcon = true
 
@@ -26,6 +28,15 @@ struct ParaDictApp: App {
             KeyboardShortcuts.setShortcut(.init(.t, modifiers: [.control, .command]), for: .localDictation)
         } else {
             logger.info("Local dictation shortcut already configured")
+        }
+
+        // Request microphone permission early (on next run loop to avoid init issues)
+        DispatchQueue.main.async {
+            let manager = PermissionManager.shared
+            if manager.audioPermissionStatus == .notDetermined {
+                logger.info("Audio permission not determined - requesting on startup...")
+                manager.requestAudioPermission()
+            }
         }
 
         logger.info("ParaDict initialization complete")

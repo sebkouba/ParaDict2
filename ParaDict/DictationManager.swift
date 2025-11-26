@@ -1,5 +1,7 @@
 import Foundation
 import Combine
+import AVFoundation
+import AppKit
 import os
 
 enum DictationState: Equatable {
@@ -74,6 +76,40 @@ class DictationManager: ObservableObject {
             return
         }
 
+        // Check microphone permission BEFORE recording
+        let permissionManager = PermissionManager.shared
+        let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        logger.info("Checking audio permission before recording - status: \(audioStatus.rawValue)")
+
+        if audioStatus == .notDetermined {
+            // Request permission
+            logger.info("Audio permission not determined - requesting...")
+            let granted = await permissionManager.requestAudioPermissionAsync()
+            if !granted {
+                logger.error("Audio permission denied - cannot record")
+                state = .error("Microphone access denied. Please grant permission in System Settings > Privacy & Security > Microphone")
+                Task {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    if case .error = self.state {
+                        self.state = .idle
+                    }
+                }
+                return
+            }
+        } else if audioStatus != .authorized {
+            logger.error("Audio permission not authorized (status: \(audioStatus.rawValue)) - cannot record")
+            state = .error("Microphone access required. Please grant permission in System Settings > Privacy & Security > Microphone")
+            Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                if case .error = self.state {
+                    self.state = .idle
+                }
+            }
+            return
+        }
+
+        logger.info("Audio permission verified - proceeding with recording")
+
         currentMode = mode
         currentPrompt = prompt
 
@@ -147,6 +183,26 @@ class DictationManager: ObservableObject {
             lastTranscription = transcription
             logger.info("Transcription complete (\(transcription.count) chars): \(transcription.prefix(100))...")
 
+            // Check for empty transcription (indicates silent recording or no speech)
+            let trimmedTranscription = transcription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedTranscription.isEmpty {
+                logger.warning("Transcription is empty - no speech detected")
+                state = .error("No speech detected. Please check microphone permission and try speaking louder.")
+                Task {
+                    try? await Task.sleep(nanoseconds: 4_000_000_000)
+                    if case .error = self.state {
+                        self.state = .idle
+                    }
+                }
+                return
+            }
+
+            // Check accessibility permission before attempting to paste
+            let canPaste = AXIsProcessTrusted()
+            if !canPaste {
+                logger.warning("Accessibility permission not granted - copying to clipboard only")
+            }
+
             // Check if we need LLM enhancement
             if currentMode == .enhanced, let prompt = currentPrompt ?? defaultEnhancementPrompt {
                 state = .enhancing
@@ -157,12 +213,42 @@ class DictationManager: ObservableObject {
                 logger.info("Enhancement complete (\(enhanced.count) chars)")
 
                 // Paste the enhanced text
-                logger.info("Pasting enhanced text at cursor...")
-                CursorPaster.pasteAtCursor(enhanced)
+                if canPaste {
+                    logger.info("Pasting enhanced text at cursor...")
+                    CursorPaster.pasteAtCursor(enhanced)
+                } else {
+                    // Fall back to just copying to clipboard
+                    logger.info("Copying enhanced text to clipboard (no accessibility)...")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(enhanced, forType: .string)
+                    state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
+                    Task {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        if case .error = self.state {
+                            self.state = .idle
+                        }
+                    }
+                    return
+                }
             } else {
                 // Local mode - paste transcription directly
-                logger.info("Pasting transcription at cursor (local mode)...")
-                CursorPaster.pasteAtCursor(transcription)
+                if canPaste {
+                    logger.info("Pasting transcription at cursor (local mode)...")
+                    CursorPaster.pasteAtCursor(transcription)
+                } else {
+                    // Fall back to just copying to clipboard
+                    logger.info("Copying transcription to clipboard (no accessibility)...")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(transcription, forType: .string)
+                    state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
+                    Task {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        if case .error = self.state {
+                            self.state = .idle
+                        }
+                    }
+                    return
+                }
             }
 
             logger.info("Processing complete - returning to idle state")
