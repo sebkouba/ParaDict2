@@ -79,13 +79,15 @@ class PromptManager: ObservableObject {
     }
 
     func loadPrompt(named name: String) -> String? {
-        let fileURL = promptsDirectory.appendingPathComponent("\(name).md")
+        // Strip .md extension if provided (config can use either "default" or "default.md")
+        let baseName = name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+        let fileURL = promptsDirectory.appendingPathComponent("\(baseName).md")
         do {
             let content = try String(contentsOf: fileURL, encoding: .utf8)
-            logger.notice("Loaded prompt '\(name)' (\(content.count) chars)")
+            logger.notice("Loaded prompt '\(baseName)' (\(content.count) chars)")
             return content
         } catch {
-            logger.error("Failed to load prompt '\(name)': \(error.localizedDescription)")
+            logger.error("Failed to load prompt '\(baseName)': \(error.localizedDescription)")
             return nil
         }
     }
