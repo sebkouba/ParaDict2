@@ -23,7 +23,19 @@ xcodebuild -project ParaDict.xcodeproj -scheme ParaDict clean build
 xcodebuild -list -project ParaDict.xcodeproj
 ```
 
-Use the `xcode-build` agent for building and automatically fixing Swift compilation errors.
+### When to use xcode-build agent vs direct xcodebuild
+
+**Use direct xcodebuild** (via Bash tool) for:
+- Simple builds after code changes
+- Verifying a fix worked
+- Quick "does it compile?" checks
+
+**Use xcode-build agent** only when:
+- Build fails with errors that need diagnosing and fixing
+- Multiple related errors need to be analyzed together
+- You need the analyze → fix → rebuild loop
+
+The agent costs ~10k tokens per invocation. Don't use it for simple verification builds.
 
 ## Architecture Overview
 

@@ -17,9 +17,22 @@
 		9E32EC5C2ED71A7100ED3EB2 /* ParaDict.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParaDict.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9E32EC5F2ED71A7100ED3EB3 /* Exceptions for "ParaDict" folder in "ParaDict" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9E32EC5B2ED71A7100ED3EB2 /* ParaDict */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9E32EC5E2ED71A7100ED3EB2 /* ParaDict */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9E32EC5F2ED71A7100ED3EB3 /* Exceptions for "ParaDict" folder in "ParaDict" target */,
+			);
 			path = ParaDict;
 			sourceTree = "<group>";
 		};
