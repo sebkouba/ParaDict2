@@ -8,6 +8,7 @@ struct LLMSettingsView: View {
     @State private var showAPIKey: Bool = false
     @State private var testResult: String?
     @State private var isTestingConnection: Bool = false
+    @State private var editingPrompt: String?
 
     var body: some View {
         ScrollView {
@@ -32,6 +33,9 @@ struct LLMSettingsView: View {
                 Spacer()
             }
             .padding()
+        }
+        .sheet(item: $editingPrompt) { promptName in
+            PromptEditorSheet(promptName: promptName, onDismiss: { editingPrompt = nil })
         }
     }
 
@@ -227,15 +231,25 @@ struct LLMSettingsView: View {
                         .italic()
                 } else {
                     ForEach(PromptManager.shared.availablePrompts, id: \.self) { prompt in
-                        HStack {
-                            Image(systemName: "doc.text")
-                                .foregroundColor(.secondary)
-                            Text(prompt)
-                                .font(.system(.caption, design: .monospaced))
-                            Text(".md")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                        Button {
+                            editingPrompt = prompt
+                        } label: {
+                            HStack {
+                                Image(systemName: "doc.text")
+                                    .foregroundColor(.accentColor)
+                                Text(prompt)
+                                    .font(.system(.caption, design: .monospaced))
+                                Text(".md")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Image(systemName: "pencil")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 2)
                     }
                 }
 
@@ -277,6 +291,147 @@ struct LLMSettingsView: View {
             isTestingConnection = false
             testResult = result.success ? "Connection successful!" : result.message
         }
+    }
+}
+
+// MARK: - String Identifiable Extension
+
+extension String: @retroactive Identifiable {
+    public var id: String { self }
+}
+
+// MARK: - Prompt Editor Sheet
+
+struct PromptEditorSheet: View {
+    let promptName: String
+    let onDismiss: () -> Void
+
+    @State private var content: String = ""
+    @State private var saveStatus: SaveStatus = .idle
+    @State private var saveTask: Task<Void, Never>?
+
+    enum SaveStatus {
+        case idle
+        case saving
+        case saved
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(promptName + ".md")
+                        .font(.headline)
+                    Text(PromptManager.shared.getPromptsDirectoryPath())
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Spacer()
+
+                // Save status
+                HStack(spacing: 6) {
+                    switch saveStatus {
+                    case .idle:
+                        EmptyView()
+                    case .saving:
+                        ProgressView()
+                            .scaleEffect(0.6)
+                        Text("Saving...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    case .saved:
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Saved")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                }
+                .frame(width: 80, alignment: .trailing)
+
+                Button("Done") {
+                    // Save immediately if there are pending changes
+                    saveTask?.cancel()
+                    saveImmediately()
+                    onDismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // Editor
+            TextEditor(text: $content)
+                .font(.system(.body, design: .monospaced))
+                .padding(8)
+                .onChange(of: content) { _, _ in
+                    scheduleAutoSave()
+                }
+        }
+        .frame(minWidth: 600, minHeight: 400)
+        .onAppear {
+            loadContent()
+        }
+    }
+
+    private func loadContent() {
+        if let loaded = PromptManager.shared.loadPrompt(named: promptName) {
+            content = loaded
+        } else {
+            content = "# \(promptName)\n\nEnter your prompt here..."
+        }
+    }
+
+    private func scheduleAutoSave() {
+        // Cancel any pending save
+        saveTask?.cancel()
+
+        // Schedule new save after 0.8 second debounce
+        saveTask = Task {
+            saveStatus = .idle
+            try? await Task.sleep(nanoseconds: 800_000_000)
+
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                saveStatus = .saving
+            }
+
+            // Small delay to show "Saving..." state
+            try? await Task.sleep(nanoseconds: 200_000_000)
+
+            guard !Task.isCancelled else { return }
+
+            do {
+                try PromptManager.shared.createPrompt(name: promptName, content: content)
+                await MainActor.run {
+                    saveStatus = .saved
+                }
+
+                // Reset to idle after showing "Saved"
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    if saveStatus == .saved {
+                        saveStatus = .idle
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    saveStatus = .idle
+                }
+            }
+        }
+    }
+
+    private func saveImmediately() {
+        try? PromptManager.shared.createPrompt(name: promptName, content: content)
     }
 }
 
