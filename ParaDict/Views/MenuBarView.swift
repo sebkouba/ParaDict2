@@ -30,6 +30,26 @@ struct MenuBarView: View {
 
             Divider()
 
+            if dictationManager.lastTranscription != nil || dictationManager.lastEnhancement != nil {
+                if let transcription = dictationManager.lastTranscription {
+                    Button("Copy Last Transcription") {
+                        logger.notice("Copying last transcription to clipboard")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(transcription, forType: .string)
+                    }
+                }
+
+                if let enhancement = dictationManager.lastEnhancement {
+                    Button("Copy Last Enhancement") {
+                        logger.notice("Copying last enhancement to clipboard")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(enhancement, forType: .string)
+                    }
+                }
+
+                Divider()
+            }
+
             Button("Quit ParaDict") {
                 logger.notice("Quit requested")
                 NSApplication.shared.terminate(nil)

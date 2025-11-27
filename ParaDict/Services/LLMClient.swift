@@ -259,6 +259,12 @@ class LLMClient: ObservableObject {
 
         logger.notice("Sending request to Groq API with model: \(request.model)")
 
+        // Log message details for debugging
+        for (index, msg) in request.messages.enumerated() {
+            let contentPreview = msg.content.prefix(100)
+            logger.notice("  Message[\(index)] role=\(msg.role), content_length=\(msg.content.count), preview: \(contentPreview)...")
+        }
+
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -286,6 +292,9 @@ class LLMClient: ObservableObject {
         guard let content = completion.choices.first?.message.content else {
             throw LLMError.emptyResponse
         }
+
+        let responsePreview = content.prefix(100)
+        logger.notice("LLM response (length=\(content.count)): \(responsePreview)...")
 
         return content
     }
