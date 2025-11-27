@@ -45,31 +45,44 @@ class HotkeyManager: ObservableObject {
         let shortcuts = ConfigManager.shared.config.shortcuts
         logger.notice("Applying shortcuts from config: \(shortcuts.count) shortcuts")
 
-        // Apply local shortcut (first shortcut with mode .local)
-        if let localConfig = shortcuts.first(where: { $0.mode == .local }) {
-            if let shortcutStr = localConfig.shortcut,
-               let shortcut = ShortcutParser.parse(shortcutStr) {
-                let current = KeyboardShortcuts.getShortcut(for: .localDictation)
-                if current != shortcut {
-                    KeyboardShortcuts.setShortcut(shortcut, for: .localDictation)
-                    logger.notice("Set local dictation shortcut: \(shortcutStr)")
-                }
-            } else if localConfig.shortcut == nil {
-                KeyboardShortcuts.setShortcut(nil, for: .localDictation)
+        // Get the desired shortcuts from config
+        let localConfig = shortcuts.first(where: { $0.mode == .local })
+        let enhancedConfig = shortcuts.first(where: { $0.mode == .enhanced })
+
+        let desiredLocal = localConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
+        let desiredEnhanced = enhancedConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
+
+        let currentLocal = KeyboardShortcuts.getShortcut(for: .localDictation)
+        let currentEnhanced = KeyboardShortcuts.getShortcut(for: .enhancedDictation)
+
+        // Check if we need to swap (new local == old enhanced, or new enhanced == old local)
+        // In this case, we must clear both first to avoid conflicts
+        let needsClear = (desiredLocal != nil && desiredLocal == currentEnhanced) ||
+                         (desiredEnhanced != nil && desiredEnhanced == currentLocal)
+
+        if needsClear {
+            logger.notice("Clearing shortcuts before swap to avoid conflicts")
+            KeyboardShortcuts.setShortcut(nil, for: .localDictation)
+            KeyboardShortcuts.setShortcut(nil, for: .enhancedDictation)
+        }
+
+        // Apply local shortcut
+        if currentLocal != desiredLocal || needsClear {
+            KeyboardShortcuts.setShortcut(desiredLocal, for: .localDictation)
+            if let str = localConfig?.shortcut {
+                logger.notice("Set local dictation shortcut: \(str)")
+            } else {
+                logger.notice("Cleared local dictation shortcut")
             }
         }
 
-        // Apply enhanced shortcut (first shortcut with mode .enhanced)
-        if let enhancedConfig = shortcuts.first(where: { $0.mode == .enhanced }) {
-            if let shortcutStr = enhancedConfig.shortcut,
-               let shortcut = ShortcutParser.parse(shortcutStr) {
-                let current = KeyboardShortcuts.getShortcut(for: .enhancedDictation)
-                if current != shortcut {
-                    KeyboardShortcuts.setShortcut(shortcut, for: .enhancedDictation)
-                    logger.notice("Set enhanced dictation shortcut: \(shortcutStr)")
-                }
-            } else if enhancedConfig.shortcut == nil {
-                KeyboardShortcuts.setShortcut(nil, for: .enhancedDictation)
+        // Apply enhanced shortcut
+        if currentEnhanced != desiredEnhanced || needsClear {
+            KeyboardShortcuts.setShortcut(desiredEnhanced, for: .enhancedDictation)
+            if let str = enhancedConfig?.shortcut {
+                logger.notice("Set enhanced dictation shortcut: \(str)")
+            } else {
+                logger.notice("Cleared enhanced dictation shortcut")
             }
         }
     }

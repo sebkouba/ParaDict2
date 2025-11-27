@@ -26,6 +26,15 @@ struct ChatSettingsView: View {
                 }
                 Spacer()
 
+                Button(action: clearChat) {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Clear")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(messages.isEmpty)
+
                 Button(action: openConfigFile) {
                     HStack {
                         Image(systemName: "doc.text")
@@ -93,6 +102,10 @@ struct ChatSettingsView: View {
 
     private func openConfigFile() {
         NSWorkspace.shared.open(URL(fileURLWithPath: configManager.configFilePath))
+    }
+
+    private func clearChat() {
+        messages.removeAll()
     }
 
     private func sendMessage() {
