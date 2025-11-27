@@ -50,6 +50,11 @@ class CursorPaster {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             logger.notice("Executing Cmd+V keystroke")
             pasteUsingCommandV()
+
+            // Start tracking for edits after paste completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                TranscriptionEditTracker.shared.startTracking(originalText: text)
+            }
         }
 
         // Restore clipboard after paste
