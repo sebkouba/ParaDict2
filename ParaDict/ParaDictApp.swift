@@ -22,6 +22,9 @@ struct ParaDictApp: App {
     init() {
         logger.notice("ParaDict initializing...")
 
+        // Initialize PromptManager to copy bundled prompts
+        _ = PromptManager.shared
+
         // Shortcuts are now managed by ConfigManager - it loads from config.yaml
         // and applies them during its initialization
 
@@ -101,6 +104,12 @@ struct MainContentView: View {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
 
+            LLMSettingsView()
+                .environmentObject(configManager)
+                .tabItem {
+                    Label("LLM", systemImage: "sparkles")
+                }
+
             ChatSettingsView()
                 .environmentObject(configManager)
                 .tabItem {
@@ -112,6 +121,7 @@ struct MainContentView: View {
 }
 
 struct ShortcutsSettingsView: View {
+    @EnvironmentObject var configManager: ConfigManager
     // Timer to periodically sync shortcuts (Recorder widget doesn't have a callback)
     @State private var syncTimer: Timer?
 
@@ -137,9 +147,26 @@ struct ShortcutsSettingsView: View {
                         .foregroundColor(.secondary)
                         .font(.caption)
                     KeyboardShortcuts.Recorder("Shortcut:", name: .enhancedDictation)
+
+                    Divider()
+
+                    // Show current prompt file
+                    if let enhancedConfig = configManager.config.shortcuts.first(where: { $0.mode == .enhanced }) {
+                        HStack {
+                            Text("Prompt file:")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text(enhancedConfig.promptFile ?? "none")
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                    }
                 }
                 .padding(.vertical, 8)
             }
+
+            Text("Configure prompts and LLM settings in the LLM tab.")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
             Spacer()
         }
@@ -149,7 +176,7 @@ struct ShortcutsSettingsView: View {
             // (KeyboardShortcuts.Recorder doesn't have a change callback)
             syncTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 Task { @MainActor in
-                    ConfigManager.shared.syncShortcutsFromUI()
+                    HotkeyManager.shared.syncShortcutsToConfig()
                 }
             }
         }
@@ -158,7 +185,7 @@ struct ShortcutsSettingsView: View {
             syncTimer = nil
             // Final sync when leaving the view
             Task { @MainActor in
-                ConfigManager.shared.syncShortcutsFromUI()
+                HotkeyManager.shared.syncShortcutsToConfig()
             }
         }
     }

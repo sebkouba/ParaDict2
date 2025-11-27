@@ -214,6 +214,24 @@ class DictationManager: ObservableObject {
 
             // Check if we need LLM enhancement
             if currentMode == .enhanced, let prompt = currentPrompt ?? defaultEnhancementPrompt {
+                // Check if LLM is configured
+                guard llmClient.isConfigured else {
+                    logger.warning("LLM enhancement requested but no API key configured - falling back to raw transcription")
+                    indicatorManager.hide()
+                    state = .error("LLM not configured. Add your Groq API key in Settings > LLM")
+                    // Still paste the raw transcription
+                    if canPaste {
+                        CursorPaster.pasteAtCursor(transcription)
+                    }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        if case .error = self.state {
+                            self.state = .idle
+                        }
+                    }
+                    return
+                }
+
                 state = .enhancing
                 logger.notice("Starting LLM enhancement with prompt: \(prompt.prefix(50))...")
 
@@ -284,7 +302,12 @@ class DictationManager: ObservableObject {
     }
 
     private var defaultEnhancementPrompt: String? {
-        ConfigManager.shared.enhancedDictationPrompt
+        // Get the prompt file from the enhanced shortcut config
+        guard let enhancedConfig = ConfigManager.shared.config.shortcuts.first(where: { $0.mode == .enhanced }),
+              let promptFile = enhancedConfig.promptFile else {
+            return nil
+        }
+        return PromptManager.shared.loadPrompt(named: promptFile)
     }
 
     func cancelRecording() {
@@ -306,10 +329,4 @@ class DictationManager: ObservableObject {
     var audioMeter: AudioMeter {
         recorder.audioMeter
     }
-}
-
-// Singleton accessor for HotkeyManager
-extension HotkeyManager {
-    @MainActor
-    static let shared = HotkeyManager()
 }

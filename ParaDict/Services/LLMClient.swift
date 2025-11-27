@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import os
 
 struct ChatMessage: Codable {
@@ -31,31 +32,160 @@ struct ChatCompletionResponse: Codable {
 
 enum LLMError: LocalizedError {
     case noAPIKey
+    case invalidAPIKey
     case requestFailed(String)
     case invalidResponse
     case emptyResponse
+    case networkError(Error)
+    case rateLimitExceeded
+    case serverError(Int)
 
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
-            return "API key not found. Set GROQ_API_KEY environment variable."
+            return "API key not configured. Please add your Groq API key in Settings."
+        case .invalidAPIKey:
+            return "Invalid API key. Please check your Groq API key."
         case .requestFailed(let message):
             return "LLM request failed: \(message)"
         case .invalidResponse:
             return "Invalid response from LLM"
         case .emptyResponse:
             return "Empty response from LLM"
+        case .networkError(let error):
+            return "Network error: \(error.localizedDescription)"
+        case .rateLimitExceeded:
+            return "Rate limit exceeded. Please wait and try again."
+        case .serverError(let code):
+            return "Server error (HTTP \(code)). Please try again."
         }
     }
 }
 
-class LLMClient {
+@MainActor
+class LLMClient: ObservableObject {
     static let shared = LLMClient()
 
     private let logger = Logger(subsystem: "com.paradict", category: "LLMClient")
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
 
-    private init() {}
+    // API Key storage
+    private let apiKeyStorageKey = "GROQAPIKey"
+
+    @Published var isAPIKeyValid: Bool = false
+    @Published var isValidating: Bool = false
+    @Published var lastValidationError: String?
+
+    private init() {
+        // Check if we have a stored API key on init
+        if let _ = getStoredAPIKey() {
+            isAPIKeyValid = true
+        }
+    }
+
+    // MARK: - API Key Management
+
+    var isConfigured: Bool {
+        getStoredAPIKey() != nil
+    }
+
+    func getStoredAPIKey() -> String? {
+        // First check UserDefaults
+        if let key = UserDefaults.standard.string(forKey: apiKeyStorageKey), !key.isEmpty {
+            return key
+        }
+        // Fall back to environment variable for backwards compatibility
+        if let key = ProcessInfo.processInfo.environment["GROQ_API_KEY"], !key.isEmpty {
+            return key
+        }
+        return nil
+    }
+
+    func saveAPIKey(_ key: String) async -> Bool {
+        isValidating = true
+        lastValidationError = nil
+
+        defer { isValidating = false }
+
+        // Validate the key first
+        do {
+            let isValid = try await validateAPIKey(key)
+            if isValid {
+                UserDefaults.standard.set(key, forKey: apiKeyStorageKey)
+                isAPIKeyValid = true
+                logger.notice("API key saved and validated successfully")
+                return true
+            } else {
+                lastValidationError = "API key validation failed"
+                isAPIKeyValid = false
+                return false
+            }
+        } catch {
+            lastValidationError = error.localizedDescription
+            isAPIKeyValid = false
+            logger.error("API key validation error: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    func clearAPIKey() {
+        UserDefaults.standard.removeObject(forKey: apiKeyStorageKey)
+        isAPIKeyValid = false
+        lastValidationError = nil
+        logger.notice("API key cleared")
+    }
+
+    func validateAPIKey(_ key: String) async throws -> Bool {
+        logger.notice("Validating API key...")
+
+        let model = ConfigManager.shared.config.llm.model
+
+        let request = ChatCompletionRequest(
+            model: model,
+            messages: [ChatMessage(role: "user", content: "test")],
+            temperature: 0.1,
+            maxTokens: 5
+        )
+
+        var urlRequest = URLRequest(url: URL(string: baseURL)!)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        urlRequest.timeoutInterval = 15
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw LLMError.invalidResponse
+            }
+
+            switch httpResponse.statusCode {
+            case 200...299:
+                logger.notice("API key validated successfully (HTTP \(httpResponse.statusCode))")
+                return true
+            case 401:
+                logger.error("API key invalid (HTTP 401)")
+                throw LLMError.invalidAPIKey
+            case 429:
+                // Rate limited but key is valid
+                logger.notice("API key valid but rate limited")
+                return true
+            default:
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                logger.error("API validation failed: HTTP \(httpResponse.statusCode) - \(errorMessage)")
+                throw LLMError.requestFailed("HTTP \(httpResponse.statusCode)")
+            }
+        } catch let error as LLMError {
+            throw error
+        } catch {
+            logger.error("Network error during validation: \(error.localizedDescription)")
+            throw LLMError.networkError(error)
+        }
+    }
+
+    // MARK: - LLM Requests
 
     func enhance(text: String, systemPrompt: String) async throws -> String {
         let messages = [
@@ -66,7 +196,7 @@ class LLMClient {
     }
 
     func chat(messages: [ChatMessage], configContext: String? = nil) async throws -> String {
-        guard let apiKey = ConfigManager.shared.apiKey else {
+        guard let apiKey = getStoredAPIKey() else {
             throw LLMError.noAPIKey
         }
 
@@ -99,13 +229,35 @@ class LLMClient {
             maxTokens: 2048
         )
 
+        return try await makeRequestWithRetry(request: request, apiKey: apiKey)
+    }
+
+    private func makeRequestWithRetry(request: ChatCompletionRequest, apiKey: String, retryCount: Int = 0) async throws -> String {
+        let maxRetries = 3
+        let baseDelay: UInt64 = 1_000_000_000 // 1 second
+
+        do {
+            return try await makeRequest(request: request, apiKey: apiKey)
+        } catch LLMError.rateLimitExceeded, LLMError.serverError {
+            if retryCount < maxRetries {
+                let delay = baseDelay * UInt64(1 << retryCount) // Exponential backoff
+                logger.notice("Retrying request (attempt \(retryCount + 2)/\(maxRetries + 1)) after \(delay / 1_000_000_000)s delay")
+                try await Task.sleep(nanoseconds: delay)
+                return try await makeRequestWithRetry(request: request, apiKey: apiKey, retryCount: retryCount + 1)
+            }
+            throw LLMError.rateLimitExceeded
+        }
+    }
+
+    private func makeRequest(request: ChatCompletionRequest, apiKey: String) async throws -> String {
         var urlRequest = URLRequest(url: URL(string: baseURL)!)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        urlRequest.timeoutInterval = 30
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        logger.notice("Sending request to Groq API with model: \(config.model)")
+        logger.notice("Sending request to Groq API with model: \(request.model)")
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
@@ -113,7 +265,17 @@ class LLMClient {
             throw LLMError.invalidResponse
         }
 
-        guard httpResponse.statusCode == 200 else {
+        switch httpResponse.statusCode {
+        case 200:
+            break
+        case 401:
+            isAPIKeyValid = false
+            throw LLMError.invalidAPIKey
+        case 429:
+            throw LLMError.rateLimitExceeded
+        case 500...599:
+            throw LLMError.serverError(httpResponse.statusCode)
+        default:
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
             logger.error("API error: \(httpResponse.statusCode) - \(errorMessage)")
             throw LLMError.requestFailed("HTTP \(httpResponse.statusCode): \(errorMessage)")
@@ -126,5 +288,24 @@ class LLMClient {
         }
 
         return content
+    }
+
+    // MARK: - Connection Test
+
+    func testConnection() async -> (success: Bool, message: String) {
+        guard let apiKey = getStoredAPIKey() else {
+            return (false, "No API key configured")
+        }
+
+        do {
+            let isValid = try await validateAPIKey(apiKey)
+            if isValid {
+                return (true, "Connected to Groq API successfully")
+            } else {
+                return (false, "API key validation failed")
+            }
+        } catch {
+            return (false, error.localizedDescription)
+        }
     }
 }

@@ -10,7 +10,7 @@ struct AppConfig: Codable {
     var app: AppSettings
     var audio: AudioSettings
     var llm: LLMSettings
-    var shortcuts: ShortcutsConfig
+    var shortcuts: [ShortcutConfig]
     var customVocabulary: [String]
 
     enum CodingKeys: String, CodingKey {
@@ -23,37 +23,25 @@ struct AppConfig: Codable {
             app: AppSettings(),
             audio: AudioSettings(),
             llm: LLMSettings(),
-            shortcuts: ShortcutsConfig(),
+            shortcuts: [
+                ShortcutConfig(name: "local", shortcut: "ctrl+cmd+t", mode: .local, promptFile: nil),
+                ShortcutConfig(name: "enhanced", shortcut: nil, mode: .enhanced, promptFile: "default")
+            ],
             customVocabulary: ["Parakeet", "Groq"]
         )
     }
 }
 
-struct ShortcutsConfig: Codable {
-    var localDictation: ShortcutEntry
-    var enhancedDictation: ShortcutEntry
+struct ShortcutConfig: Codable, Identifiable {
+    var id: String { name }
+    var name: String
+    var shortcut: String?
+    var mode: DictationMode
+    var promptFile: String?
 
     enum CodingKeys: String, CodingKey {
-        case localDictation = "local_dictation"
-        case enhancedDictation = "enhanced_dictation"
-    }
-
-    init() {
-        localDictation = ShortcutEntry(shortcut: "ctrl+cmd+t", prompt: nil)
-        enhancedDictation = ShortcutEntry(
-            shortcut: nil,
-            prompt: "Clean up this transcription. Fix grammar, punctuation, and formatting. Output only the cleaned text."
-        )
-    }
-}
-
-struct ShortcutEntry: Codable {
-    var shortcut: String?  // e.g., "ctrl+cmd+t", "cmd+shift+d", or null
-    var prompt: String?    // LLM prompt for enhanced mode
-
-    init(shortcut: String?, prompt: String?) {
-        self.shortcut = shortcut
-        self.prompt = prompt
+        case name, shortcut, mode
+        case promptFile = "prompt_file"
     }
 }
 
@@ -75,12 +63,10 @@ struct AudioSettings: Codable {
 
 struct LLMSettings: Codable {
     var provider: String = "groq"
-    var model: String = "kimi-k2"
-    var apiKeyEnv: String = "GROQ_API_KEY"
+    var model: String = "moonshotai/kimi-k2-instruct-0905"
 
     enum CodingKeys: String, CodingKey {
         case provider, model
-        case apiKeyEnv = "api_key_env"
     }
 }
 
@@ -133,7 +119,7 @@ struct ShortcutParser {
         if shortcut.modifiers.contains(.shift) { parts.append("shift") }
         if shortcut.modifiers.contains(.command) { parts.append("cmd") }
 
-        if let keyString = stringForKeyCode(UInt16(shortcut.key!.rawValue)) {
+        if let key = shortcut.key, let keyString = stringForKeyCode(UInt16(key.rawValue)) {
             parts.append(keyString)
         }
 
@@ -226,7 +212,6 @@ class ConfigManager: ObservableObject {
 
         loadConfig()
         setupFileWatcher()
-        setupShortcutObservers()
     }
 
     // MARK: - Load/Save
@@ -288,29 +273,13 @@ class ConfigManager: ObservableObject {
 
         logger.notice("Applying config to subsystems...")
 
-        // Apply shortcuts
-        applyShortcut(config.shortcuts.localDictation.shortcut, to: .localDictation)
-        applyShortcut(config.shortcuts.enhancedDictation.shortcut, to: .enhancedDictation)
+        // Notify HotkeyManager to reconfigure shortcuts
+        NotificationCenter.default.post(name: .configDidChange, object: nil)
 
         // Apply audio device
         applyAudioDevice()
 
         logger.notice("Config applied to subsystems")
-    }
-
-    private func applyShortcut(_ shortcutString: String?, to name: KeyboardShortcuts.Name) {
-        if let str = shortcutString, let shortcut = ShortcutParser.parse(str) {
-            let current = KeyboardShortcuts.getShortcut(for: name)
-            if current != shortcut {
-                logger.notice("Setting shortcut for \(name.rawValue): \(str)")
-                KeyboardShortcuts.setShortcut(shortcut, for: name)
-            }
-        } else if shortcutString == nil {
-            if KeyboardShortcuts.getShortcut(for: name) != nil {
-                logger.notice("Clearing shortcut for \(name.rawValue)")
-                KeyboardShortcuts.setShortcut(nil, for: name)
-            }
-        }
     }
 
     private func applyAudioDevice() {
@@ -325,56 +294,6 @@ class ConfigManager: ObservableObject {
             if audioManager.selectedDeviceUID != deviceUID {
                 audioManager.selectDevice(uid: deviceUID)
             }
-        }
-    }
-
-    // MARK: - Sync from Subsystems to Config
-
-    private func setupShortcutObservers() {
-        // Observe local dictation shortcut changes
-        KeyboardShortcuts.onKeyUp(for: .localDictation) { }  // Dummy to register
-
-        // We need to poll or use a different approach since KeyboardShortcuts
-        // doesn't have a direct "shortcut changed" callback for the Recorder widget.
-        // We'll sync when the shortcut is used or when the app becomes active.
-    }
-
-    /// Call this to sync the current KeyboardShortcuts state back to config
-    func syncShortcutsFromUI() {
-        guard !isApplyingConfig else { return }
-
-        var changed = false
-
-        // Sync local dictation
-        if let shortcut = KeyboardShortcuts.getShortcut(for: .localDictation) {
-            let str = ShortcutParser.toString(shortcut)
-            if config.shortcuts.localDictation.shortcut != str {
-                config.shortcuts.localDictation.shortcut = str
-                changed = true
-                logger.notice("Synced local dictation shortcut from UI: \(str)")
-            }
-        } else if config.shortcuts.localDictation.shortcut != nil {
-            config.shortcuts.localDictation.shortcut = nil
-            changed = true
-            logger.notice("Cleared local dictation shortcut from UI")
-        }
-
-        // Sync enhanced dictation
-        if let shortcut = KeyboardShortcuts.getShortcut(for: .enhancedDictation) {
-            let str = ShortcutParser.toString(shortcut)
-            if config.shortcuts.enhancedDictation.shortcut != str {
-                config.shortcuts.enhancedDictation.shortcut = str
-                changed = true
-                logger.notice("Synced enhanced dictation shortcut from UI: \(str)")
-            }
-        } else if config.shortcuts.enhancedDictation.shortcut != nil {
-            config.shortcuts.enhancedDictation.shortcut = nil
-            changed = true
-            logger.notice("Cleared enhanced dictation shortcut from UI")
-        }
-
-        if changed {
-            saveConfig()
         }
     }
 
@@ -421,11 +340,20 @@ class ConfigManager: ObservableObject {
         configURL.path
     }
 
-    var apiKey: String? {
-        ProcessInfo.processInfo.environment[config.llm.apiKeyEnv]
+    /// Get shortcut config by name
+    func shortcut(named name: String) -> ShortcutConfig? {
+        config.shortcuts.first { $0.name == name }
     }
 
-    var enhancedDictationPrompt: String? {
-        config.shortcuts.enhancedDictation.prompt
+    /// Get the prompt content for a shortcut (loads from file)
+    func promptForShortcut(_ shortcutConfig: ShortcutConfig) -> String? {
+        guard let promptFile = shortcutConfig.promptFile else { return nil }
+        return PromptManager.shared.loadPrompt(named: promptFile)
     }
+}
+
+// MARK: - Notification for config changes
+
+extension Notification.Name {
+    static let configDidChange = Notification.Name("configDidChange")
 }
