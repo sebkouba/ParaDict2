@@ -34,6 +34,7 @@ class DictationManager: ObservableObject {
     private let llmClient = LLMClient.shared
     private let logger = Logger(subsystem: "com.paradict", category: "DictationManager")
     private let indicatorManager = RecordingIndicatorWindowManager.shared
+    private let historyLogger = TranscriptionHistoryLogger.shared
 
     private var currentMode: DictationMode = .local
     private var currentPrompt: String?
@@ -243,6 +244,15 @@ class DictationManager: ObservableObject {
                 if canPaste {
                     logger.notice("Pasting enhanced text at cursor...")
                     CursorPaster.pasteAtCursor(enhanced)
+
+                    // Log enhanced transcription with prompt and response
+                    let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    historyLogger.logEnhancedTranscription(
+                        transcription: transcription,
+                        llmPrompt: prompt,
+                        llmResponse: enhanced,
+                        targetApp: targetApp
+                    )
                 } else {
                     // Fall back to just copying to clipboard
                     logger.notice("Copying enhanced text to clipboard (no accessibility)...")
@@ -263,6 +273,13 @@ class DictationManager: ObservableObject {
                 if canPaste {
                     logger.notice("Pasting transcription at cursor (local mode)...")
                     CursorPaster.pasteAtCursor(transcription)
+
+                    // Log local transcription
+                    let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    historyLogger.logLocalTranscription(
+                        transcription: transcription,
+                        targetApp: targetApp
+                    )
                 } else {
                     // Fall back to just copying to clipboard
                     logger.notice("Copying transcription to clipboard (no accessibility)...")

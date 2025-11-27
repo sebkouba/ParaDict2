@@ -28,13 +28,29 @@ Tracks when users edit text that was pasted from speech-to-text transcriptions. 
    - If transcription was edited → extracts just the edited region using prefix/suffix anchoring
    - Logs: `original transcription` → `edited version`
 
-### Log File Location
+### Log File Locations
 
+**1. Transcription History (complete log of all dictations):**
+```
+~/Library/Application Support/ParaDict/transcription_history.csv
+```
+
+CSV columns:
+- `timestamp` - ISO8601 timestamp
+- `event_type` - `local_transcription`, `enhanced_transcription`, or `failed_transcription`
+- `mode` - `local` or `enhanced`
+- `target_app` - Bundle ID of the app where text was pasted
+- `transcription` - Raw transcription from Parakeet
+- `llm_prompt` - System prompt sent to LLM (empty for local mode)
+- `llm_response` - LLM response (empty for local mode)
+- `final_output` - What was actually pasted
+
+**2. Transcription Edits (user corrections):**
 ```
 ~/Library/Application Support/ParaDict/transcription_edits.log
 ```
 
-Format (tab-separated):
+Tab-separated format:
 ```
 [ISO8601 timestamp]\t[original transcription]\t[edited text]\t[app bundle id]
 ```
@@ -43,8 +59,10 @@ Newlines in text are escaped as `\n` literal.
 
 ### Key Files
 
-- `ParaDict/Services/TranscriptionEditTracker.swift` - Main tracking logic
+- `ParaDict/Services/TranscriptionHistoryLogger.swift` - Complete transcription history logging
+- `ParaDict/Services/TranscriptionEditTracker.swift` - User edit tracking (delta learning)
 - `ParaDict/Services/CursorPaster.swift` - Integration point (calls tracker after paste)
+- `ParaDict/DictationManager.swift` - Main orchestration (calls history logger)
 - `specs/delta-learn.md` - Original feature spec
 
 ### Known Issues / TODO
