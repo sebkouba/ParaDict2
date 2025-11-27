@@ -2,9 +2,9 @@ import Foundation
 import AppKit
 import os
 
-private let logger = Logger(subsystem: "com.paradict", category: "CursorPaster")
+private let logger = Logger(subsystem: "com.paradict", category: "PastingService")
 
-class CursorPaster {
+class PastingService {
 
     static func pasteAtCursor(_ text: String) {
         logger.notice("pasteAtCursor called - text length: \(text.count) chars")

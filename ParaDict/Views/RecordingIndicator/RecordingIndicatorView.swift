@@ -40,9 +40,9 @@ struct RecordingIndicatorView: View {
     }
 
     private var statusView: some View {
-        RecorderStatusDisplay(
+        RecordingStatusDisplay(
             currentState: dictationManager.state,
-            recorder: dictationManager.recorder
+            recordingService: dictationManager.recordingService
         )
     }
 
@@ -79,9 +79,9 @@ struct RecordingIndicatorView: View {
     }
 }
 
-struct RecorderStatusDisplay: View {
+struct RecordingStatusDisplay: View {
     let currentState: DictationState
-    @ObservedObject var recorder: Recorder
+    @ObservedObject var recordingService: RecordingService
 
     var body: some View {
         Group {
@@ -107,7 +107,7 @@ struct RecorderStatusDisplay: View {
                 }
             } else if currentState == .recording {
                 WaveformVisualizer(
-                    recorder: recorder,
+                    recordingService: recordingService,
                     color: .white,
                     isActive: true
                 )

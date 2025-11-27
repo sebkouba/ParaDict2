@@ -10,11 +10,11 @@ struct AudioMeter: Equatable {
 }
 
 @MainActor
-class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
+class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
     private var recorder: AVAudioRecorder?
-    private let logger = Logger(subsystem: "com.paradict", category: "Recorder")
+    private let logger = Logger(subsystem: "com.paradict", category: "RecordingService")
     private let deviceManager = AudioDeviceManager.shared
-    private let mediaController = MediaController.shared
+    private let mediaControlService = MediaControlService.shared
     private var deviceObserver: NSObjectProtocol?
     private var isReconfiguring = false
 
@@ -23,7 +23,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     private var audioMeterUpdateTask: Task<Void, Never>?
 
-    enum RecorderError: LocalizedError {
+    enum RecordingError: LocalizedError {
         case couldNotStartRecording
 
         var errorDescription: String? {
@@ -40,7 +40,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     }
 
     private func setupDeviceChangeObserver() {
-        deviceObserver = AudioDeviceConfiguration.createDeviceChangeObserver { [weak self] in
+        deviceObserver = AudioDeviceConfig.createDeviceChangeObserver { [weak self] in
             Task {
                 await self?.handleDeviceChange()
             }
@@ -70,7 +70,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         let deviceID = deviceManager.getCurrentDevice()
         if deviceID != 0 {
             do {
-                try AudioDeviceConfiguration.setDefaultInputDevice(deviceID)
+                try AudioDeviceConfig.setDefaultInputDevice(deviceID)
             } catch {
                 logger.warning("Failed to configure audio session: \(error.localizedDescription)")
             }
@@ -93,7 +93,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
             if recorder?.record() == false {
                 logger.error("Could not start recording")
-                throw RecorderError.couldNotStartRecording
+                throw RecordingError.couldNotStartRecording
             }
 
             isRecording = true
@@ -102,7 +102,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
             let config = ConfigManager.shared.config
             if config.app.muteDuringRecording {
                 Task {
-                    _ = await mediaController.muteSystemAudio()
+                    _ = await mediaControlService.muteSystemAudio()
                 }
             }
 
@@ -118,7 +118,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         } catch {
             logger.error("Failed to create audio recorder: \(error.localizedDescription)")
             stopRecording()
-            throw RecorderError.couldNotStartRecording
+            throw RecordingError.couldNotStartRecording
         }
     }
 
@@ -130,7 +130,7 @@ class Recorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         isRecording = false
 
         Task {
-            await mediaController.unmuteSystemAudio()
+            await mediaControlService.unmuteSystemAudio()
         }
     }
 

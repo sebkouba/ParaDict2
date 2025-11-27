@@ -14,8 +14,8 @@ enum AudioConfigurationError: LocalizedError {
     }
 }
 
-class AudioDeviceConfiguration {
-    private static let logger = Logger(subsystem: "com.paradict", category: "AudioDeviceConfiguration")
+class AudioDeviceConfig {
+    private static let logger = Logger(subsystem: "com.paradict", category: "AudioDeviceConfig")
 
     static func getDefaultInputDevice() -> AudioDeviceID? {
         var defaultDeviceID = AudioDeviceID(0)

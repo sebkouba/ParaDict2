@@ -29,7 +29,7 @@ class DictationManager: ObservableObject {
     @Published var lastTranscription: String?
     @Published var lastEnhancement: String?
 
-    let recorder = Recorder()  // Exposed for audio meter observation
+    let recordingService = RecordingService()  // Exposed for audio meter observation
     private let transcriptionService = ParakeetTranscriptionService.shared
     private let llmClient = LLMClient.shared
     private let logger = Logger(subsystem: "com.paradict", category: "DictationManager")
@@ -134,7 +134,7 @@ class DictationManager: ObservableObject {
         logger.notice("Recording to: \(url.path)")
 
         do {
-            try await recorder.startRecording(toOutputFile: url)
+            try await recordingService.startRecording(toOutputFile: url)
             state = .recording
             hotkeyManager.isRecording = true
             indicatorManager.show()
@@ -153,9 +153,9 @@ class DictationManager: ObservableObject {
             return
         }
 
-        recorder.stopRecording()
+        recordingService.stopRecording()
         hotkeyManager.isRecording = false
-        logger.notice("Recorder stopped")
+        logger.notice("RecordingService stopped")
 
         guard let url = recordingURL else {
             logger.error("No recording URL available")
@@ -222,7 +222,7 @@ class DictationManager: ObservableObject {
                     state = .error("LLM not configured. Add your Groq API key in Settings > LLM")
                     // Still paste the raw transcription
                     if canPaste {
-                        CursorPaster.pasteAtCursor(transcription)
+                        PastingService.pasteAtCursor(transcription)
                     }
                     Task {
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -243,7 +243,7 @@ class DictationManager: ObservableObject {
                 // Paste the enhanced text
                 if canPaste {
                     logger.notice("Pasting enhanced text at cursor...")
-                    CursorPaster.pasteAtCursor(enhanced)
+                    PastingService.pasteAtCursor(enhanced)
 
                     // Log enhanced transcription with prompt and response
                     let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -272,7 +272,7 @@ class DictationManager: ObservableObject {
                 // Local mode - paste transcription directly
                 if canPaste {
                     logger.notice("Pasting transcription at cursor (local mode)...")
-                    CursorPaster.pasteAtCursor(transcription)
+                    PastingService.pasteAtCursor(transcription)
 
                     // Log local transcription
                     let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -330,7 +330,7 @@ class DictationManager: ObservableObject {
     func cancelRecording() {
         logger.notice("cancelRecording called - current state: \(String(describing: self.state))")
         if state == .recording {
-            recorder.stopRecording()
+            recordingService.stopRecording()
             hotkeyManager.isRecording = false
             hotkeyManager.cancelRecording()
             indicatorManager.hide()
@@ -344,6 +344,6 @@ class DictationManager: ObservableObject {
     }
 
     var audioMeter: AudioMeter {
-        recorder.audioMeter
+        recordingService.audioMeter
     }
 }

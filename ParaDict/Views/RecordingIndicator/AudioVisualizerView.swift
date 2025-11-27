@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WaveformVisualizer: View {
-    @ObservedObject var recorder: Recorder
+    @ObservedObject var recordingService: RecordingService
     let color: Color
     let isActive: Bool
 
@@ -13,8 +13,8 @@ struct WaveformVisualizer: View {
     @State private var amplitudes: [Double]
     @State private var targetAmplitude: Double = 0
 
-    init(recorder: Recorder, color: Color, isActive: Bool) {
-        self.recorder = recorder
+    init(recordingService: RecordingService, color: Color, isActive: Bool) {
+        self.recordingService = recordingService
         self.color = color
         self.isActive = isActive
 
@@ -56,7 +56,7 @@ struct WaveformVisualizer: View {
             context.stroke(path, with: .color(color), lineWidth: 2.5)
         }
         .frame(width: waveWidth, height: waveHeight)
-        .onChange(of: recorder.audioMeter) { _, newValue in
+        .onChange(of: recordingService.audioMeter) { _, newValue in
             if isActive {
                 updateWaveform(with: newValue.averagePower)
             }

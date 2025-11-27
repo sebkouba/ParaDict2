@@ -2,8 +2,8 @@ import AppKit
 import Foundation
 import Combine
 
-class MediaController: ObservableObject {
-    static let shared = MediaController()
+class MediaControlService: ObservableObject {
+    static let shared = MediaControlService()
 
     private var didMuteAudio = false
     private var wasAudioMutedBeforeRecording = false
