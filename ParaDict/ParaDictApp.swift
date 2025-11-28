@@ -8,6 +8,8 @@ private let logger = Logger(subsystem: "com.paradict", category: "App")
 extension KeyboardShortcuts.Name {
     static let localDictation = Self("localDictation")
     static let enhancedDictation = Self("enhancedDictation")
+    static let replyDictation = Self("replyDictation")
+    // Future shortcuts can be added here (e.g., customDictation1, customDictation2)
 }
 
 @main
@@ -157,6 +159,29 @@ struct ShortcutsSettingsView: View {
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                             Text(enhancedConfig.promptFile ?? "none")
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+
+            GroupBox("Reply Dictation") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Select text, press shortcut, speak instructions to generate a response")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    KeyboardShortcuts.Recorder("Shortcut:", name: .replyDictation)
+
+                    Divider()
+
+                    // Show current prompt file
+                    if let replyConfig = configManager.config.shortcuts.first(where: { $0.mode == .reply }) {
+                        HStack {
+                            Text("Prompt file:")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text(replyConfig.promptFile ?? "none")
                                 .font(.system(.caption, design: .monospaced))
                         }
                     }

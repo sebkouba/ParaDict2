@@ -12,7 +12,8 @@ class HotkeyManager: ObservableObject {
     @Published var isProcessing = false
     @Published var activeMode: DictationMode?
 
-    var onStartRecording: ((DictationMode, String?) -> Void)?
+    /// Callback: (mode, prompt, selectionContext) -> Void
+    var onStartRecording: ((DictationMode, String?, String?) -> Void)?
     var onStopRecording: (() -> Void)?
 
     private var configObserver: NSObjectProtocol?
@@ -48,22 +49,28 @@ class HotkeyManager: ObservableObject {
         // Get the desired shortcuts from config
         let localConfig = shortcuts.first(where: { $0.mode == .local })
         let enhancedConfig = shortcuts.first(where: { $0.mode == .enhanced })
+        let replyConfig = shortcuts.first(where: { $0.mode == .reply })
 
         let desiredLocal = localConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
         let desiredEnhanced = enhancedConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
+        let desiredReply = replyConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
 
         let currentLocal = KeyboardShortcuts.getShortcut(for: .localDictation)
         let currentEnhanced = KeyboardShortcuts.getShortcut(for: .enhancedDictation)
+        let currentReply = KeyboardShortcuts.getShortcut(for: .replyDictation)
 
-        // Check if we need to swap (new local == old enhanced, or new enhanced == old local)
-        // In this case, we must clear both first to avoid conflicts
-        let needsClear = (desiredLocal != nil && desiredLocal == currentEnhanced) ||
-                         (desiredEnhanced != nil && desiredEnhanced == currentLocal)
+        // Check if we need to clear all shortcuts first to avoid conflicts
+        let allDesired = [desiredLocal, desiredEnhanced, desiredReply].compactMap { $0 }
+        let allCurrent = [currentLocal, currentEnhanced, currentReply].compactMap { $0 }
+        let needsClear = allDesired.contains { desired in
+            allCurrent.contains { current in desired == current }
+        }
 
         if needsClear {
-            logger.notice("Clearing shortcuts before swap to avoid conflicts")
+            logger.notice("Clearing shortcuts before applying to avoid conflicts")
             KeyboardShortcuts.setShortcut(nil, for: .localDictation)
             KeyboardShortcuts.setShortcut(nil, for: .enhancedDictation)
+            KeyboardShortcuts.setShortcut(nil, for: .replyDictation)
         }
 
         // Apply local shortcut
@@ -83,6 +90,16 @@ class HotkeyManager: ObservableObject {
                 logger.notice("Set enhanced dictation shortcut: \(str)")
             } else {
                 logger.notice("Cleared enhanced dictation shortcut")
+            }
+        }
+
+        // Apply reply shortcut
+        if currentReply != desiredReply || needsClear {
+            KeyboardShortcuts.setShortcut(desiredReply, for: .replyDictation)
+            if let str = replyConfig?.shortcut {
+                logger.notice("Set reply dictation shortcut: \(str)")
+            } else {
+                logger.notice("Cleared reply dictation shortcut")
             }
         }
     }
@@ -106,11 +123,18 @@ class HotkeyManager: ObservableObject {
             logger.notice("No enhanced dictation shortcut configured (optional)")
         }
 
+        if let replyShortcut = KeyboardShortcuts.getShortcut(for: .replyDictation) {
+            logger.notice("Reply dictation shortcut: \(replyShortcut.description)")
+        } else {
+            logger.notice("No reply dictation shortcut configured (optional)")
+        }
+
         // Local dictation shortcut
         KeyboardShortcuts.onKeyDown(for: .localDictation) { [weak self] in
             Task { @MainActor in
                 self?.logger.notice("LOCAL DICTATION: Key DOWN detected")
-                self?.handleShortcutDown(mode: .local, promptFile: nil)
+                let config = ConfigManager.shared.config.shortcuts.first(where: { $0.mode == .local })
+                await self?.handleShortcutDown(mode: .local, shortcutConfig: config)
             }
         }
 
@@ -125,10 +149,8 @@ class HotkeyManager: ObservableObject {
         KeyboardShortcuts.onKeyDown(for: .enhancedDictation) { [weak self] in
             Task { @MainActor in
                 self?.logger.notice("ENHANCED DICTATION: Key DOWN detected")
-                // Get the prompt file from config
-                let shortcuts = ConfigManager.shared.config.shortcuts
-                let promptFile = shortcuts.first(where: { $0.mode == .enhanced })?.promptFile
-                self?.handleShortcutDown(mode: .enhanced, promptFile: promptFile)
+                let config = ConfigManager.shared.config.shortcuts.first(where: { $0.mode == .enhanced })
+                await self?.handleShortcutDown(mode: .enhanced, shortcutConfig: config)
             }
         }
 
@@ -139,15 +161,32 @@ class HotkeyManager: ObservableObject {
             }
         }
 
+        // Reply dictation shortcut
+        KeyboardShortcuts.onKeyDown(for: .replyDictation) { [weak self] in
+            Task { @MainActor in
+                self?.logger.notice("REPLY DICTATION: Key DOWN detected")
+                let config = ConfigManager.shared.config.shortcuts.first(where: { $0.mode == .reply })
+                await self?.handleShortcutDown(mode: .reply, shortcutConfig: config)
+            }
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .replyDictation) { [weak self] in
+            Task { @MainActor in
+                self?.logger.notice("REPLY DICTATION: Key UP detected")
+                self?.handleShortcutUp()
+            }
+        }
+
         logger.notice("Keyboard shortcuts configured successfully")
     }
 
     private var keyPressStartTime: Date?
     private let briefPressThreshold = 1.0
     private var isHandsFreeMode = false
-    private var currentPromptFile: String?
+    private var currentShortcutConfig: ShortcutConfig?
+    private var capturedSelection: String?
 
-    private func handleShortcutDown(mode: DictationMode, promptFile: String?) {
+    private func handleShortcutDown(mode: DictationMode, shortcutConfig: ShortcutConfig?) async {
         logger.notice("handleShortcutDown called - mode: \(mode.rawValue), isProcessing: \(self.isProcessing), isRecording: \(self.isRecording), isHandsFreeMode: \(self.isHandsFreeMode)")
 
         guard !isProcessing else {
@@ -157,7 +196,7 @@ class HotkeyManager: ObservableObject {
 
         keyPressStartTime = Date()
         activeMode = mode
-        currentPromptFile = promptFile
+        currentShortcutConfig = shortcutConfig
 
         if isHandsFreeMode {
             logger.notice("Exiting hands-free mode, stopping recording")
@@ -169,15 +208,27 @@ class HotkeyManager: ObservableObject {
 
         if !isRecording {
             logger.notice("Starting recording in \(mode.rawValue) mode")
+
+            // Capture selection if this shortcut requires it
+            var selectionContext: String? = nil
+            if shortcutConfig?.shouldCaptureSelection == true {
+                logger.notice("Capturing selected text for context...")
+                selectionContext = await SelectionService.shared.captureSelectedText()
+                if selectionContext == nil {
+                    logger.notice("No text selected - proceeding without context")
+                }
+            }
+            capturedSelection = selectionContext
+
             // Load prompt content from file if specified
             var promptContent: String? = nil
-            if let file = promptFile {
+            if let file = shortcutConfig?.promptFile {
                 promptContent = PromptManager.shared.loadPrompt(named: file)
                 if promptContent == nil {
                     logger.warning("Could not load prompt file: \(file)")
                 }
             }
-            onStartRecording?(mode, promptContent)
+            onStartRecording?(mode, promptContent, selectionContext)
         } else {
             logger.notice("Already recording, ignoring key down")
         }
@@ -219,7 +270,8 @@ class HotkeyManager: ObservableObject {
         isHandsFreeMode = false
         keyPressStartTime = nil
         activeMode = nil
-        currentPromptFile = nil
+        currentShortcutConfig = nil
+        capturedSelection = nil
     }
 
     /// Sync current KeyboardShortcuts state back to config
@@ -262,6 +314,30 @@ class HotkeyManager: ObservableObject {
                 shortcuts[idx].shortcut = nil
                 changed = true
                 logger.notice("Cleared enhanced dictation shortcut from UI")
+            }
+        }
+
+        // Sync reply dictation
+        if let replyShortcut = KeyboardShortcuts.getShortcut(for: .replyDictation) {
+            let str = ShortcutParser.toString(replyShortcut)
+            if let idx = shortcuts.firstIndex(where: { $0.mode == .reply }) {
+                if shortcuts[idx].shortcut != str {
+                    shortcuts[idx].shortcut = str
+                    changed = true
+                    logger.notice("Synced reply dictation shortcut from UI: \(str)")
+                }
+            } else {
+                // Entry doesn't exist - add it (migration case)
+                shortcuts.append(ShortcutConfig(name: "reply", shortcut: str, mode: .reply, promptFile: "reply", captureSelection: true))
+                changed = true
+                logger.notice("Added reply dictation shortcut entry: \(str)")
+            }
+        } else {
+            if let idx = shortcuts.firstIndex(where: { $0.mode == .reply }),
+               shortcuts[idx].shortcut != nil {
+                shortcuts[idx].shortcut = nil
+                changed = true
+                logger.notice("Cleared reply dictation shortcut from UI")
             }
         }
 

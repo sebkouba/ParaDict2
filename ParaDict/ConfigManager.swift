@@ -24,8 +24,9 @@ struct AppConfig: Codable {
             audio: AudioSettings(),
             llm: LLMSettings(),
             shortcuts: [
-                ShortcutConfig(name: "local", shortcut: "ctrl+cmd+t", mode: .local, promptFile: nil),
-                ShortcutConfig(name: "enhanced", shortcut: nil, mode: .enhanced, promptFile: "default")
+                ShortcutConfig(name: "local", shortcut: "ctrl+cmd+t", mode: .local, promptFile: nil, captureSelection: nil),
+                ShortcutConfig(name: "enhanced", shortcut: nil, mode: .enhanced, promptFile: "default", captureSelection: nil),
+                ShortcutConfig(name: "reply", shortcut: nil, mode: .reply, promptFile: "reply", captureSelection: true)
             ],
             customVocabulary: ["Parakeet", "Groq"]
         )
@@ -38,10 +39,17 @@ struct ShortcutConfig: Codable, Identifiable {
     var shortcut: String?
     var mode: DictationMode
     var promptFile: String?
+    var captureSelection: Bool?  // If true, capture highlighted text before recording
 
     enum CodingKeys: String, CodingKey {
         case name, shortcut, mode
         case promptFile = "prompt_file"
+        case captureSelection = "capture_selection"
+    }
+
+    /// Whether this shortcut should capture selected text
+    var shouldCaptureSelection: Bool {
+        captureSelection ?? (mode == .reply)  // Default true for reply mode
     }
 }
 
@@ -73,6 +81,7 @@ struct LLMSettings: Codable {
 enum DictationMode: String, Codable {
     case local      // Parakeet only
     case enhanced   // Parakeet + LLM
+    case reply      // Parakeet + LLM with selection context
 }
 
 // MARK: - Shortcut String Parsing
@@ -223,6 +232,9 @@ class ConfigManager: ObservableObject {
                 let decoder = YAMLDecoder()
                 config = try decoder.decode(AppConfig.self, from: yamlString)
                 logger.notice("Config loaded successfully")
+
+                // Migrate: add any missing shortcut modes from defaults
+                migrateShortcuts()
             } else {
                 // Create default config file
                 saveConfig()
@@ -233,6 +245,28 @@ class ConfigManager: ObservableObject {
             logger.error("Failed to load config: \(error.localizedDescription)")
             config = AppConfig.default
             applyConfigToSubsystems()
+        }
+    }
+
+    /// Add any missing shortcut modes from default config (for migration)
+    private func migrateShortcuts() {
+        let defaultShortcuts = AppConfig.default.shortcuts
+        var needsSave = false
+
+        for defaultShortcut in defaultShortcuts {
+            // Check if this mode exists in current config
+            if !config.shortcuts.contains(where: { $0.mode == defaultShortcut.mode }) {
+                // Add the missing shortcut (without a key binding - user will set it)
+                var newShortcut = defaultShortcut
+                newShortcut.shortcut = nil  // Don't auto-assign a shortcut
+                config.shortcuts.append(newShortcut)
+                logger.notice("Migrated missing shortcut: \(defaultShortcut.name) (mode: \(defaultShortcut.mode.rawValue))")
+                needsSave = true
+            }
+        }
+
+        if needsSave {
+            saveConfig()
         }
     }
 

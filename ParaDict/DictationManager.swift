@@ -38,6 +38,7 @@ class DictationManager: ObservableObject {
 
     private var currentMode: DictationMode = .local
     private var currentPrompt: String?
+    private var currentSelectionContext: String?
     private var recordingURL: URL?
 
     private init() {
@@ -49,10 +50,10 @@ class DictationManager: ObservableObject {
     private func setupHotkeyManager() {
         logger.notice("Setting up HotkeyManager callbacks...")
 
-        HotkeyManager.shared.onStartRecording = { [weak self] mode, prompt in
-            self?.logger.notice("onStartRecording callback triggered - mode: \(mode.rawValue)")
+        HotkeyManager.shared.onStartRecording = { [weak self] mode, prompt, selectionContext in
+            self?.logger.notice("onStartRecording callback triggered - mode: \(mode.rawValue), hasContext: \(selectionContext != nil)")
             Task { @MainActor in
-                await self?.startRecording(mode: mode, prompt: prompt)
+                await self?.startRecording(mode: mode, prompt: prompt, selectionContext: selectionContext)
             }
         }
 
@@ -70,8 +71,8 @@ class DictationManager: ObservableObject {
         HotkeyManager.shared
     }
 
-    func startRecording(mode: DictationMode, prompt: String?) async {
-        logger.notice("startRecording called - current state: \(String(describing: self.state)), mode: \(mode.rawValue)")
+    func startRecording(mode: DictationMode, prompt: String?, selectionContext: String? = nil) async {
+        logger.notice("startRecording called - current state: \(String(describing: self.state)), mode: \(mode.rawValue), hasContext: \(selectionContext != nil)")
 
         // Allow starting from error state (user wants to try again)
         if case .error = state {
@@ -120,6 +121,7 @@ class DictationManager: ObservableObject {
 
         currentMode = mode
         currentPrompt = prompt
+        currentSelectionContext = selectionContext
 
         // Create temporary file for recording
         let tempDir = FileManager.default.temporaryDirectory
@@ -213,8 +215,8 @@ class DictationManager: ObservableObject {
                 logger.warning("Accessibility permission not granted - copying to clipboard only")
             }
 
-            // Check if we need LLM enhancement
-            if currentMode == .enhanced, let prompt = currentPrompt ?? defaultEnhancementPrompt {
+            // Check if we need LLM enhancement (enhanced or reply mode)
+            if (currentMode == .enhanced || currentMode == .reply), let prompt = currentPrompt ?? defaultEnhancementPrompt {
                 // Check if LLM is configured
                 guard llmClient.isConfigured else {
                     logger.warning("LLM enhancement requested but no API key configured - falling back to raw transcription")
@@ -236,7 +238,24 @@ class DictationManager: ObservableObject {
                 state = .enhancing
                 logger.notice("Starting LLM enhancement with prompt: \(prompt.prefix(50))...")
 
-                let enhanced = try await llmClient.enhance(text: transcription, systemPrompt: prompt)
+                // Build the user message based on mode
+                let userMessage: String
+                if currentMode == .reply, let context = currentSelectionContext {
+                    // Reply mode: include highlighted text and user instructions
+                    userMessage = """
+                    HIGHLIGHTED TEXT:
+                    \(context)
+
+                    USER INSTRUCTIONS:
+                    \(transcription)
+                    """
+                    logger.notice("Reply mode with context (\(context.count) chars)")
+                } else {
+                    // Enhanced mode: just the transcription
+                    userMessage = transcription
+                }
+
+                let enhanced = try await llmClient.enhance(text: userMessage, systemPrompt: prompt)
                 lastEnhancement = enhanced
                 logger.notice("Enhancement complete (\(enhanced.count) chars)")
 
@@ -316,6 +335,7 @@ class DictationManager: ObservableObject {
         }
 
         currentPrompt = nil
+        currentSelectionContext = nil
     }
 
     private var defaultEnhancementPrompt: String? {
