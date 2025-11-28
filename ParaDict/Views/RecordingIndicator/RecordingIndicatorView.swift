@@ -106,7 +106,7 @@ struct RecordingStatusDisplay: View {
                     ProgressAnimation(color: .white)
                 }
             } else if currentState == .recording {
-                WaveformVisualizer(
+                DotMatrixVisualizer(
                     recordingService: recordingService,
                     color: Color(red: 0, green: 1, blue: 0.2),
                     isActive: true
