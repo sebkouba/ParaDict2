@@ -284,6 +284,60 @@ struct DotMatrixVisualizer: View {
     }
 }
 
+// MARK: - Dot Matrix Progress Indicator (spreading from center)
+struct DotMatrixProgressIndicator: View {
+    let color: Color
+    let startTime: Date
+
+    private let columns = 12
+    private let rows = 5
+    private let waveHeight: CGFloat = 32
+    private let waveWidth: CGFloat = 90
+    private let cycleTime: Double = 0.5
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let elapsed = timeline.date.timeIntervalSince(startTime)
+            let cycleElapsed = elapsed.truncatingRemainder(dividingBy: cycleTime * 2)
+            let progress = cycleElapsed < cycleTime
+                ? cycleElapsed / cycleTime
+                : 1.0 - ((cycleElapsed - cycleTime) / cycleTime)
+
+            Canvas { context, size in
+                drawDots(context: context, size: size, progress: progress)
+            }
+        }
+        .frame(width: waveWidth, height: waveHeight)
+    }
+
+    private func drawDots(context: GraphicsContext, size: CGSize, progress: Double) {
+        let dotSize = min(size.width / CGFloat(columns), size.height / CGFloat(rows)) * 0.6
+        let xSpacing = size.width / CGFloat(columns)
+        let ySpacing = size.height / CGFloat(rows)
+        let midCol = Double(columns - 1) / 2.0
+        let midRow = Double(rows - 1) / 2.0
+        let maxDistance = sqrt(midCol * midCol + midRow * midRow)
+
+        for col in 0..<columns {
+            for row in 0..<rows {
+                let distanceFromCenterX = abs(Double(col) - midCol)
+                let distanceFromCenterY = abs(Double(row) - midRow)
+                let distance = sqrt(distanceFromCenterX * distanceFromCenterX + distanceFromCenterY * distanceFromCenterY)
+                let normalizedDistance = distance / maxDistance
+
+                let isActive = normalizedDistance <= progress
+
+                let x = CGFloat(col) * xSpacing + xSpacing / 2
+                let y = CGFloat(row) * ySpacing + ySpacing / 2
+                let opacity = isActive ? 0.8 : 0.1
+
+                let rect = CGRect(x: x - dotSize / 2, y: y - dotSize / 2, width: dotSize, height: dotSize)
+                context.fill(Circle().path(in: rect), with: .color(color.opacity(opacity)))
+            }
+        }
+    }
+}
+
 // MARK: - Test View with all 5 styles
 struct VisualizerTestView: View {
     @ObservedObject var recordingService: RecordingService

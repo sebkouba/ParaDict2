@@ -83,28 +83,18 @@ struct RecordingStatusDisplay: View {
     let currentState: DictationState
     @ObservedObject var recordingService: RecordingService
 
+    private let matrixGreen = Color(red: 0, green: 1, blue: 0.2)
+    private let matrixBlue = Color(red: 0.3, green: 0.6, blue: 1.0)
+    private let matrixYellow = Color(red: 1.0, green: 0.8, blue: 0.2)
+
+    @State private var processingStartTime: Date = Date()
+
     var body: some View {
         Group {
             if currentState == .enhancing {
-                VStack(spacing: 2) {
-                    Text("Enhancing")
-                        .foregroundColor(.white)
-                        .font(.system(size: 11, weight: .medium, design: .default))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-
-                    ProgressAnimation(color: .white)
-                }
+                DotMatrixProgressIndicator(color: matrixYellow, startTime: processingStartTime)
             } else if currentState == .transcribing {
-                VStack(spacing: 2) {
-                    Text("Transcribing")
-                        .foregroundColor(.white)
-                        .font(.system(size: 11, weight: .medium, design: .default))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-
-                    ProgressAnimation(color: .white)
-                }
+                DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
             } else if currentState == .recording {
                 DotMatrixVisualizer(
                     recordingService: recordingService,
@@ -113,6 +103,13 @@ struct RecordingStatusDisplay: View {
                 )
             } else {
                 StaticWaveform(color: .white)
+            }
+        }
+        .animation(nil, value: currentState)
+        .onChange(of: currentState) { oldState, newState in
+            // Reset timer when transitioning from recording to transcribing
+            if oldState == .recording && newState == .transcribing {
+                processingStartTime = Date()
             }
         }
     }
