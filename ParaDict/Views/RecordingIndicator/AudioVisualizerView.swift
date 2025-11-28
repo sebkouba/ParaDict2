@@ -5,55 +5,18 @@ struct WaveformVisualizer: View {
     let color: Color
     let isActive: Bool
 
-    private let pointCount = 48
-    private let waveHeight: CGFloat = 28
-    private let waveWidth: CGFloat = 80
+    private let pointCount = 60
+    private let waveHeight: CGFloat = 32
+    private let waveWidth: CGFloat = 90
+    private let lineCount = 12
 
-    @State private var phases: [Double]
-    @State private var amplitudes: [Double]
-    @State private var targetAmplitude: Double = 0
-
-    init(recordingService: RecordingService, color: Color, isActive: Bool) {
-        self.recordingService = recordingService
-        self.color = color
-        self.isActive = isActive
-
-        // Initialize with random phases for organic look
-        _phases = State(initialValue: (0..<3).map { _ in Double.random(in: 0...Double.pi * 2) })
-        _amplitudes = State(initialValue: [0.3, 0.2, 0.15])
-    }
+    @State private var time: Double = 0
+    @State private var audioLevel: Double = 0.3
+    @State private var timer: Timer?
 
     var body: some View {
         Canvas { context, size in
-            let midY = size.height / 2
-
-            var path = Path()
-            path.move(to: CGPoint(x: 0, y: midY))
-
-            for i in 0..<pointCount {
-                let x = (CGFloat(i) / CGFloat(pointCount - 1)) * size.width
-                let normalizedX = Double(i) / Double(pointCount - 1)
-
-                // Combine multiple sine waves for organic movement
-                var y = midY
-                for j in 0..<phases.count {
-                    let frequency = Double(j + 1) * 2.0
-                    let wave = sin(normalizedX * Double.pi * frequency + phases[j])
-                    y += CGFloat(wave * amplitudes[j] * targetAmplitude) * (waveHeight / 2)
-                }
-
-                // Taper at edges
-                let edgeFactor = sin(normalizedX * Double.pi)
-                y = midY + (y - midY) * edgeFactor
-
-                if i == 0 {
-                    path.move(to: CGPoint(x: x, y: y))
-                } else {
-                    path.addLine(to: CGPoint(x: x, y: y))
-                }
-            }
-
-            context.stroke(path, with: .color(color), lineWidth: 2.5)
+            drawWaves(context: context, size: size)
         }
         .frame(width: waveWidth, height: waveHeight)
         .onChange(of: recordingService.audioMeter) { _, newValue in
@@ -62,42 +25,94 @@ struct WaveformVisualizer: View {
             }
         }
         .onChange(of: isActive) { _, newValue in
-            if !newValue {
-                resetWaveform()
+            if newValue {
+                startAnimation()
+            } else {
+                stopAnimation()
             }
         }
         .onAppear {
-            startPhaseAnimation()
+            if isActive {
+                startAnimation()
+            }
+        }
+        .onDisappear {
+            stopAnimation()
+        }
+    }
+
+    private func startAnimation() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { _ in
+            Task { @MainActor in
+                time += 0.06
+            }
+        }
+    }
+
+    private func stopAnimation() {
+        timer?.invalidate()
+        timer = nil
+        withAnimation(.easeOut(duration: 0.3)) {
+            audioLevel = 0.1
         }
     }
 
     private func updateWaveform(with power: Double) {
         let normalizedPower = max(0, min(1, power))
-
-        // Aggressive amplitude mapping for more reactivity
-        // Apply curve to make quieter sounds more visible
-        let boostedPower = pow(normalizedPower, 0.6) * 2.5
-
-        withAnimation(.easeOut(duration: 0.05)) {
-            targetAmplitude = max(0.2, boostedPower)
+        let boostedPower = pow(normalizedPower, 0.5) * 2.0
+        withAnimation(.easeOut(duration: 0.08)) {
+            audioLevel = max(0.3, min(1.5, boostedPower))
         }
     }
 
-    private func resetWaveform() {
-        withAnimation(.easeOut(duration: 0.2)) {
-            targetAmplitude = 0
-        }
-    }
+    private func drawWaves(context: GraphicsContext, size: CGSize) {
+        let midY = size.height / 2
 
-    private func startPhaseAnimation() {
-        // Continuously animate phase shifts for flowing motion
-        Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { _ in
-            Task { @MainActor in
-                for i in 0..<phases.count {
-                    phases[i] += 0.25 * Double(i + 1)
+        for lineIndex in 0..<lineCount {
+            let lineOffset = Double(lineIndex) / Double(lineCount)
+            let centerDistance = abs(lineOffset - 0.5) * 2
+            let opacity = 0.15 + (1.0 - centerDistance) * 0.25
+
+            var path = Path()
+
+            for i in 0..<pointCount {
+                let progress = Double(i) / Double(pointCount - 1)
+                let x = CGFloat(progress) * size.width
+
+                let y = calculateWaveY(
+                    normalizedX: progress,
+                    lineOffset: lineOffset,
+                    midY: midY
+                )
+
+                if i == 0 {
+                    path.move(to: CGPoint(x: x, y: y))
+                } else {
+                    path.addLine(to: CGPoint(x: x, y: y))
                 }
             }
+
+            context.stroke(path, with: .color(color.opacity(opacity)), lineWidth: 1.2)
         }
+    }
+
+    private func calculateWaveY(normalizedX: Double, lineOffset: Double, midY: CGFloat) -> CGFloat {
+        let envelope = sin(normalizedX * Double.pi)
+
+        let phase1 = normalizedX * Double.pi * 3 + time * 2 + lineOffset * Double.pi
+        let phase2 = normalizedX * Double.pi * 5 + time * 1.3 + lineOffset * Double.pi * 0.7
+        let phase3 = normalizedX * Double.pi * 2 + time * 0.8 + lineOffset * Double.pi * 1.3
+
+        let freq1 = sin(phase1)
+        let freq2 = sin(phase2) * 0.5
+        let freq3 = sin(phase3) * 0.3
+
+        let ampPhase = normalizedX * Double.pi * 2 + time * 0.5 + lineOffset * 3
+        let ampMod = 0.5 + 0.5 * sin(ampPhase)
+
+        let wave = (freq1 + freq2 + freq3) * envelope * ampMod * audioLevel
+        return midY + CGFloat(wave) * (waveHeight / 2)
     }
 }
 

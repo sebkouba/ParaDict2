@@ -108,7 +108,7 @@ struct RecordingStatusDisplay: View {
             } else if currentState == .recording {
                 WaveformVisualizer(
                     recordingService: recordingService,
-                    color: .white,
+                    color: Color(red: 0, green: 1, blue: 0.2),
                     isActive: true
                 )
             } else {
