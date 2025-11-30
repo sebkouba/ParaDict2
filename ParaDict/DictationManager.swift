@@ -29,6 +29,10 @@ class DictationManager: ObservableObject {
     @Published var lastTranscription: String?
     @Published var lastEnhancement: String?
 
+    /// Tracks the last text that was actually pasted (for correction feature)
+    private var lastPastedText: String?
+    private let correctionWindowManager = CorrectionWindowManager.shared
+
     let recordingService = RecordingService()  // Exposed for audio meter observation
     private let transcriptionService = ParakeetTranscriptionService.shared
     private let llmClient = LLMClient.shared
@@ -209,6 +213,28 @@ class DictationManager: ObservableObject {
                 return
             }
 
+            // Check for "correction" keyword to trigger correction popup
+            if isCorrectionKeyword(trimmedTranscription) {
+                logger.notice("Correction keyword detected")
+                indicatorManager.hide()
+
+                if let previousText = lastPastedText {
+                    logger.notice("Opening correction window for previous text: \(previousText.prefix(50))...")
+                    correctionWindowManager.show(originalText: previousText)
+                } else {
+                    logger.warning("No previous dictation to correct")
+                    state = .error("No previous dictation to correct")
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        if case .error = self.state {
+                            self.state = .idle
+                        }
+                    }
+                }
+                state = .idle
+                return
+            }
+
             // Check accessibility permission before attempting to paste
             let canPaste = AXIsProcessTrusted()
             if !canPaste {
@@ -263,6 +289,7 @@ class DictationManager: ObservableObject {
                 if canPaste {
                     logger.notice("Pasting enhanced text at cursor...")
                     PastingService.pasteAtCursor(enhanced)
+                    lastPastedText = enhanced
 
                     // Log enhanced transcription with prompt and response
                     let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -292,6 +319,7 @@ class DictationManager: ObservableObject {
                 if canPaste {
                     logger.notice("Pasting transcription at cursor (local mode)...")
                     PastingService.pasteAtCursor(transcription)
+                    lastPastedText = transcription
 
                     // Log local transcription
                     let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -365,5 +393,13 @@ class DictationManager: ObservableObject {
 
     var audioMeter: AudioMeter {
         recordingService.audioMeter
+    }
+
+    /// Check if the transcription is just the correction keyword
+    private func isCorrectionKeyword(_ text: String) -> Bool {
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        // Match "correction", "correct", or common variations with punctuation
+        let correctionPatterns = ["correction", "correction.", "correct", "correct."]
+        return correctionPatterns.contains(normalized)
     }
 }
