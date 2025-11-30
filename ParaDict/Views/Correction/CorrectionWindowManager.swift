@@ -43,9 +43,6 @@ class CorrectionWindowManager: ObservableObject {
     private func initializeWindow(originalTranscription: String, llmOutput: String) {
         deinitializeWindow()
 
-        let metrics = CorrectionPanel.calculateWindowMetrics()
-        let panel = CorrectionPanel(contentRect: metrics)
-
         let correctionView = CorrectionView(
             originalTranscription: originalTranscription,
             llmOutput: llmOutput,
@@ -63,6 +60,12 @@ class CorrectionWindowManager: ObservableObject {
         )
 
         let hostingController = NSHostingController(rootView: correctionView)
+
+        // Calculate the ideal size based on content
+        let fittingSize = hostingController.sizeThatFits(in: NSSize(width: 540, height: CGFloat.greatestFiniteMagnitude))
+        let contentRect = CorrectionPanel.calculateWindowMetrics(for: fittingSize)
+        let panel = CorrectionPanel(contentRect: contentRect)
+
         panel.contentView = hostingController.view
 
         self.correctionPanel = panel

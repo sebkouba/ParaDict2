@@ -32,13 +32,14 @@ class CorrectionPanel: NSPanel {
         standardWindowButton(.zoomButton)?.isHidden = true
     }
 
-    static func calculateWindowMetrics() -> NSRect {
+    static func calculateWindowMetrics(for size: NSSize? = nil) -> NSRect {
         guard let screen = NSScreen.main else {
-            return NSRect(x: 0, y: 0, width: 440, height: 320)
+            let defaultSize = size ?? NSSize(width: 540, height: 450)
+            return NSRect(x: 0, y: 0, width: defaultSize.width, height: defaultSize.height)
         }
 
-        let width: CGFloat = 440
-        let height: CGFloat = 320
+        let width = size?.width ?? 540
+        let height = size?.height ?? 450
 
         let visibleFrame = screen.visibleFrame
         let centerX = visibleFrame.midX - (width / 2)
@@ -53,8 +54,6 @@ class CorrectionPanel: NSPanel {
     }
 
     func show() {
-        let metrics = CorrectionPanel.calculateWindowMetrics()
-        setFrame(metrics, display: true)
         makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
