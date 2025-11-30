@@ -3,7 +3,8 @@ import os
 
 private let logger = Logger(subsystem: "com.paradict", category: "CorrectionLogger")
 
-/// Logs user corrections (original text, corrected text, and explanation) to a TSV file.
+/// Logs user corrections to a TSV file.
+/// Columns: timestamp, original_transcription (Parakeet), llm_output (what was pasted), correction, explanation
 class CorrectionLogger {
     static let shared = CorrectionLogger()
 
@@ -31,7 +32,7 @@ class CorrectionLogger {
         }
 
         if !FileManager.default.fileExists(atPath: logFilePath.path) {
-            let header = "timestamp\toriginal\tcorrection\texplanation\n"
+            let header = "timestamp\toriginal_transcription\tllm_output\tcorrection\texplanation\n"
             do {
                 try header.write(to: logFilePath, atomically: true, encoding: .utf8)
                 logger.notice("Created corrections log file with header")
@@ -42,14 +43,20 @@ class CorrectionLogger {
     }
 
     /// Log a correction entry
-    func logCorrection(original: String, correction: String, explanation: String?) {
+    /// - Parameters:
+    ///   - originalTranscription: Raw transcription from Parakeet/FluidAudio
+    ///   - llmOutput: What was actually pasted (may be LLM-enhanced, or same as original if local mode)
+    ///   - correction: User's corrected text
+    ///   - explanation: Optional explanation of why correction was needed
+    func logCorrection(originalTranscription: String, llmOutput: String, correction: String, explanation: String?) {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let timestamp = formatter.string(from: Date())
 
         let fields = [
             timestamp,
-            escapeTSVField(original),
+            escapeTSVField(originalTranscription),
+            escapeTSVField(llmOutput),
             escapeTSVField(correction),
             escapeTSVField(explanation ?? "")
         ]
@@ -63,7 +70,7 @@ class CorrectionLogger {
                 fileHandle.write(data)
             }
             fileHandle.closeFile()
-            logger.notice("Logged correction: original=\(original.prefix(50))..., correction=\(correction.prefix(50))...")
+            logger.notice("Logged correction: transcription=\(originalTranscription.prefix(30))..., llm=\(llmOutput.prefix(30))..., correction=\(correction.prefix(30))...")
         } catch {
             logger.error("Failed to append to corrections log: \(error.localizedDescription)")
         }

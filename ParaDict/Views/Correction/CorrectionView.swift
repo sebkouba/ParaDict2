@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct CorrectionView: View {
-    let originalText: String
+    let originalTranscription: String
+    let llmOutput: String
     let onSubmit: (String, String?) -> Void
     let onCancel: () -> Void
 
@@ -9,11 +10,17 @@ struct CorrectionView: View {
     @State private var explanation: String = ""
     @FocusState private var isCorrectionFocused: Bool
 
-    init(originalText: String, onSubmit: @escaping (String, String?) -> Void, onCancel: @escaping () -> Void) {
-        self.originalText = originalText
+    /// Whether LLM enhancement was used (transcription differs from pasted output)
+    private var wasEnhanced: Bool {
+        originalTranscription != llmOutput
+    }
+
+    init(originalTranscription: String, llmOutput: String, onSubmit: @escaping (String, String?) -> Void, onCancel: @escaping () -> Void) {
+        self.originalTranscription = originalTranscription
+        self.llmOutput = llmOutput
         self.onSubmit = onSubmit
         self.onCancel = onCancel
-        self._correctedText = State(initialValue: originalText)
+        self._correctedText = State(initialValue: llmOutput)
     }
 
     var body: some View {
@@ -22,15 +29,29 @@ struct CorrectionView: View {
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Original:")
+                Text("Original transcription:")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                Text(originalText)
+                Text(originalTranscription)
                     .font(.body)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(nsColor: .controlBackgroundColor))
                     .cornerRadius(6)
+            }
+
+            if wasEnhanced {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LLM output (pasted):")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Text(llmOutput)
+                        .font(.body)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(6)
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {

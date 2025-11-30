@@ -29,7 +29,9 @@ class DictationManager: ObservableObject {
     @Published var lastTranscription: String?
     @Published var lastEnhancement: String?
 
-    /// Tracks the last text that was actually pasted (for correction feature)
+    /// Tracks the last raw transcription from Parakeet (for correction feature)
+    private var lastRawTranscription: String?
+    /// Tracks the last text that was actually pasted - may be LLM-enhanced (for correction feature)
     private var lastPastedText: String?
     private let correctionWindowManager = CorrectionWindowManager.shared
 
@@ -218,9 +220,9 @@ class DictationManager: ObservableObject {
                 logger.notice("Correction keyword detected")
                 indicatorManager.hide()
 
-                if let previousText = lastPastedText {
-                    logger.notice("Opening correction window for previous text: \(previousText.prefix(50))...")
-                    correctionWindowManager.show(originalText: previousText)
+                if let rawTranscription = lastRawTranscription, let pastedText = lastPastedText {
+                    logger.notice("Opening correction window - raw: \(rawTranscription.prefix(30))..., pasted: \(pastedText.prefix(30))...")
+                    correctionWindowManager.show(originalTranscription: rawTranscription, llmOutput: pastedText)
                 } else {
                     logger.warning("No previous dictation to correct")
                     state = .error("No previous dictation to correct")
@@ -289,6 +291,7 @@ class DictationManager: ObservableObject {
                 if canPaste {
                     logger.notice("Pasting enhanced text at cursor...")
                     PastingService.pasteAtCursor(enhanced)
+                    lastRawTranscription = transcription
                     lastPastedText = enhanced
 
                     // Log enhanced transcription with prompt and response
@@ -319,6 +322,7 @@ class DictationManager: ObservableObject {
                 if canPaste {
                     logger.notice("Pasting transcription at cursor (local mode)...")
                     PastingService.pasteAtCursor(transcription)
+                    lastRawTranscription = transcription
                     lastPastedText = transcription
 
                     // Log local transcription

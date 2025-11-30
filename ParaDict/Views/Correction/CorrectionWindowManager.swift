@@ -15,14 +15,18 @@ class CorrectionWindowManager: ObservableObject {
 
     private init() {}
 
-    func show(originalText: String) {
+    /// Show the correction window
+    /// - Parameters:
+    ///   - originalTranscription: Raw transcription from Parakeet
+    ///   - llmOutput: What was actually pasted (may be same as transcription if local mode)
+    func show(originalTranscription: String, llmOutput: String) {
         if isVisible {
             hide()
         }
 
-        logger.notice("Showing correction window for text: \(originalText.prefix(50))...")
+        logger.notice("Showing correction window - transcription: \(originalTranscription.prefix(30))..., llmOutput: \(llmOutput.prefix(30))...")
 
-        initializeWindow(originalText: originalText)
+        initializeWindow(originalTranscription: originalTranscription, llmOutput: llmOutput)
         isVisible = true
         correctionPanel?.show()
     }
@@ -36,16 +40,22 @@ class CorrectionWindowManager: ObservableObject {
         deinitializeWindow()
     }
 
-    private func initializeWindow(originalText: String) {
+    private func initializeWindow(originalTranscription: String, llmOutput: String) {
         deinitializeWindow()
 
         let metrics = CorrectionPanel.calculateWindowMetrics()
         let panel = CorrectionPanel(contentRect: metrics)
 
         let correctionView = CorrectionView(
-            originalText: originalText,
+            originalTranscription: originalTranscription,
+            llmOutput: llmOutput,
             onSubmit: { [weak self] correctedText, explanation in
-                self?.handleSubmit(original: originalText, correction: correctedText, explanation: explanation)
+                self?.handleSubmit(
+                    originalTranscription: originalTranscription,
+                    llmOutput: llmOutput,
+                    correction: correctedText,
+                    explanation: explanation
+                )
             },
             onCancel: { [weak self] in
                 self?.hide()
@@ -68,11 +78,12 @@ class CorrectionWindowManager: ObservableObject {
         correctionPanel = nil
     }
 
-    private func handleSubmit(original: String, correction: String, explanation: String?) {
-        logger.notice("Saving correction - original: \(original.prefix(30))..., correction: \(correction.prefix(30))...")
+    private func handleSubmit(originalTranscription: String, llmOutput: String, correction: String, explanation: String?) {
+        logger.notice("Saving correction - transcription: \(originalTranscription.prefix(30))..., correction: \(correction.prefix(30))...")
 
         CorrectionLogger.shared.logCorrection(
-            original: original,
+            originalTranscription: originalTranscription,
+            llmOutput: llmOutput,
             correction: correction,
             explanation: explanation
         )
