@@ -168,7 +168,7 @@ struct ShortcutsSettingsView: View {
 
             GroupBox("Reply Dictation") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Select text, press shortcut, speak instructions to generate a response")
+                    Text("Copy text, click target field, press shortcut and speak to generate a response")
                         .foregroundColor(.secondary)
                         .font(.caption)
                     KeyboardShortcuts.Recorder("Shortcut:", name: .replyDictation)

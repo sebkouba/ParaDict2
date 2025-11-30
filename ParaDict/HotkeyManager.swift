@@ -209,13 +209,13 @@ class HotkeyManager: ObservableObject {
         if !isRecording {
             logger.notice("Starting recording in \(mode.rawValue) mode")
 
-            // Capture selection if this shortcut requires it
+            // Read clipboard context if this shortcut requires it
             var selectionContext: String? = nil
             if shortcutConfig?.shouldCaptureSelection == true {
-                logger.notice("Capturing selected text for context...")
-                selectionContext = await SelectionService.shared.captureSelectedText()
+                logger.notice("Reading clipboard for context...")
+                selectionContext = SelectionService.shared.getClipboardContext()
                 if selectionContext == nil {
-                    logger.notice("No text selected - proceeding without context")
+                    logger.notice("Clipboard empty - proceeding without context")
                 }
             }
             capturedSelection = selectionContext
