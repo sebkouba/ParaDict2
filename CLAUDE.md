@@ -21,7 +21,12 @@ xcodebuild -project ParaDict.xcodeproj -scheme ParaDict clean build
 
 # List available schemes
 xcodebuild -list -project ParaDict.xcodeproj
+
+# Stop and restart Xcode (run after successful build)
+osascript -e 'tell application "Xcode" to activate' -e 'delay 0.3' -e 'tell application "System Events" to keystroke "." using command down' -e 'delay 0.5' -e 'tell application "System Events" to keystroke "r" using command down'
 ```
+
+**After successful builds:** Always stop and restart Xcode using the osascript command above. This lets the user see logs in the Xcode console.
 
 ### When to use xcode-build agent vs direct xcodebuild
 

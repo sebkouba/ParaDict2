@@ -3,7 +3,7 @@ import os
 
 private let logger = Logger(subsystem: "com.paradict", category: "CorrectionLogger")
 
-/// Logs user corrections to a TSV file.
+/// Logs user corrections to a TSV file and immediately appends them to the custom dictionary.
 /// Columns: timestamp, original_transcription (Parakeet), llm_output (what was pasted), correction, explanation
 class CorrectionLogger {
     static let shared = CorrectionLogger()
@@ -42,7 +42,7 @@ class CorrectionLogger {
         }
     }
 
-    /// Log a correction entry
+    /// Log a correction entry and immediately append it to the custom dictionary
     /// - Parameters:
     ///   - originalTranscription: Raw transcription from Parakeet/FluidAudio
     ///   - llmOutput: What was actually pasted (may be LLM-enhanced, or same as original if local mode)
@@ -74,6 +74,37 @@ class CorrectionLogger {
         } catch {
             logger.error("Failed to append to corrections log: \(error.localizedDescription)")
         }
+
+        // Immediately append the correction to the custom dictionary
+        appendToDictionary(llmOutput: llmOutput, correction: correction)
+    }
+
+    /// Append a correction entry to the dictionary.md file
+    private func appendToDictionary(llmOutput: String, correction: String) {
+        // Only add if there's an actual difference
+        guard llmOutput != correction else {
+            logger.notice("Correction matches LLM output, skipping dictionary update")
+            return
+        }
+
+        // Build the correction entry
+        let entry = "- \"\(llmOutput)\" → \"\(correction)\"\n"
+
+        // Load current dictionary
+        guard var dictionary = DictionaryManager.shared.loadDictionary() else {
+            logger.error("Could not load dictionary to append correction")
+            return
+        }
+
+        // Append to the end of the dictionary
+        if !dictionary.hasSuffix("\n") {
+            dictionary += "\n"
+        }
+        dictionary += entry
+
+        // Save the updated dictionary
+        DictionaryManager.shared.saveDictionary(dictionary)
+        logger.notice("Appended correction to dictionary: \(llmOutput.prefix(20))... → \(correction.prefix(20))...")
     }
 
     /// Escape a field for TSV (replace tabs and newlines)

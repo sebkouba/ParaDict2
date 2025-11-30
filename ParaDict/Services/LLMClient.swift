@@ -188,8 +188,14 @@ class LLMClient: ObservableObject {
     // MARK: - LLM Requests
 
     func enhance(text: String, systemPrompt: String) async throws -> String {
+        // Append custom dictionary to the system prompt if available
+        var fullSystemPrompt = systemPrompt
+        if let dictionary = DictionaryManager.shared.loadDictionary(), !dictionary.isEmpty {
+            fullSystemPrompt += "\n\n---\n\n\(dictionary)"
+        }
+
         let messages = [
-            ChatMessage(role: "system", content: systemPrompt),
+            ChatMessage(role: "system", content: fullSystemPrompt),
             ChatMessage(role: "user", content: text)
         ]
         return try await chat(messages: messages)
