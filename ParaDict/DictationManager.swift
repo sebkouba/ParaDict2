@@ -70,6 +70,13 @@ class DictationManager: ObservableObject {
             }
         }
 
+        HotkeyManager.shared.onCancelRecording = { [weak self] in
+            self?.logger.notice("onCancelRecording callback triggered (Escape pressed)")
+            Task { @MainActor in
+                self?.cancelRecording()
+            }
+        }
+
         logger.notice("HotkeyManager callbacks configured")
     }
 

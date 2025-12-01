@@ -15,8 +15,10 @@ class HotkeyManager: ObservableObject {
     /// Callback: (mode, prompt, selectionContext) -> Void
     var onStartRecording: ((DictationMode, String?, String?) -> Void)?
     var onStopRecording: (() -> Void)?
+    var onCancelRecording: (() -> Void)?
 
     private var configObserver: NSObjectProtocol?
+    private var escapeKeyMonitor: Any?
 
     init() {
         logger.notice("HotkeyManager initializing...")
@@ -40,6 +42,48 @@ class HotkeyManager: ObservableObject {
         if let observer = configObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        // Clean up escape monitor directly (can't call MainActor methods from deinit)
+        if let monitor = escapeKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    // MARK: - Escape Key Monitor
+
+    private func startEscapeKeyMonitor() {
+        guard escapeKeyMonitor == nil else { return }
+
+        escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // 53 is the Escape key code
+                Task { @MainActor in
+                    self?.handleEscapePressed()
+                }
+            }
+        }
+        logger.notice("Escape key monitor started")
+    }
+
+    private func stopEscapeKeyMonitor() {
+        if let monitor = escapeKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            escapeKeyMonitor = nil
+            logger.notice("Escape key monitor stopped")
+        }
+    }
+
+    private func handleEscapePressed() {
+        guard isRecording || isProcessing else { return }
+
+        logger.notice("Escape pressed - cancelling dictation")
+        isHandsFreeMode = false
+        keyPressStartTime = nil
+        isRecording = false
+        isProcessing = false
+        activeMode = nil
+        currentShortcutConfig = nil
+        capturedSelection = nil
+        stopEscapeKeyMonitor()
+        onCancelRecording?()
     }
 
     private func applyShortcutsFromConfig() {
@@ -202,6 +246,7 @@ class HotkeyManager: ObservableObject {
             logger.notice("Exiting hands-free mode, stopping recording")
             isHandsFreeMode = false
             isRecording = false  // Set immediately to prevent race condition
+            stopEscapeKeyMonitor()
             onStopRecording?()
             return
         }
@@ -228,6 +273,7 @@ class HotkeyManager: ObservableObject {
                     logger.warning("Could not load prompt file: \(file)")
                 }
             }
+            startEscapeKeyMonitor()
             onStartRecording?(mode, promptContent, selectionContext)
         } else {
             logger.notice("Already recording, ignoring key down")
@@ -256,6 +302,7 @@ class HotkeyManager: ObservableObject {
                 }
             } else {
                 logger.notice("Long press released - stopping recording")
+                stopEscapeKeyMonitor()
                 onStopRecording?()
             }
         } else {
@@ -272,6 +319,7 @@ class HotkeyManager: ObservableObject {
         activeMode = nil
         currentShortcutConfig = nil
         capturedSelection = nil
+        stopEscapeKeyMonitor()
     }
 
     /// Sync current KeyboardShortcuts state back to config
