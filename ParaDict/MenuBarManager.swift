@@ -32,11 +32,23 @@ class MenuBarManager: ObservableObject {
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
 
-        // Find and show any window
-        for window in NSApplication.shared.windows {
-            logger.notice("Found window: \(window.identifier?.rawValue ?? "nil") - isVisible: \(window.isVisible)")
-            if !window.isVisible {
-                window.makeKeyAndOrderFront(nil)
+        // Find the main window (not menu bar popover windows)
+        if let mainWindow = NSApplication.shared.windows.first(where: { window in
+            // Skip menu bar extra windows and other utility windows
+            window.level == .normal && window.canBecomeKey
+        }) {
+            logger.notice("Bringing main window to front: \(mainWindow.identifier?.rawValue ?? "nil")")
+            mainWindow.makeKeyAndOrderFront(nil)
+            mainWindow.orderFrontRegardless()
+        } else {
+            // Fallback: try to show any available window
+            for window in NSApplication.shared.windows {
+                logger.notice("Found window: \(window.identifier?.rawValue ?? "nil") - isVisible: \(window.isVisible), level: \(window.level.rawValue)")
+                if window.canBecomeKey {
+                    window.makeKeyAndOrderFront(nil)
+                    window.orderFrontRegardless()
+                    break
+                }
             }
         }
     }
