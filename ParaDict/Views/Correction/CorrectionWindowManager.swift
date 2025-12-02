@@ -46,12 +46,11 @@ class CorrectionWindowManager: ObservableObject {
         let correctionView = CorrectionView(
             originalTranscription: originalTranscription,
             llmOutput: llmOutput,
-            onSubmit: { [weak self] correctedText, explanation in
+            onSubmit: { [weak self] dictionaryEntry in
                 self?.handleSubmit(
                     originalTranscription: originalTranscription,
                     llmOutput: llmOutput,
-                    correction: correctedText,
-                    explanation: explanation
+                    dictionaryEntry: dictionaryEntry
                 )
             },
             onCancel: { [weak self] in
@@ -81,14 +80,13 @@ class CorrectionWindowManager: ObservableObject {
         correctionPanel = nil
     }
 
-    private func handleSubmit(originalTranscription: String, llmOutput: String, correction: String, explanation: String?) {
-        logger.notice("Saving correction - transcription: \(originalTranscription.prefix(30))..., correction: \(correction.prefix(30))...")
+    private func handleSubmit(originalTranscription: String, llmOutput: String, dictionaryEntry: String) {
+        logger.notice("Saving dictionary entry - transcription: \(originalTranscription.prefix(30))..., entry: \(dictionaryEntry.prefix(50))...")
 
         CorrectionLogger.shared.logCorrection(
             originalTranscription: originalTranscription,
             llmOutput: llmOutput,
-            correction: correction,
-            explanation: explanation
+            dictionaryEntry: dictionaryEntry
         )
 
         hide()

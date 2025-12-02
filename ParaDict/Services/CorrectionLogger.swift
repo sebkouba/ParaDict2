@@ -4,7 +4,7 @@ import os
 private let logger = Logger(subsystem: "com.paradict", category: "CorrectionLogger")
 
 /// Logs user corrections to a TSV file and immediately appends them to the custom dictionary.
-/// Columns: timestamp, original_transcription (Parakeet), llm_output (what was pasted), correction, explanation
+/// Columns: timestamp, original_transcription (Parakeet), llm_output (what was pasted), dictionary_entry
 class CorrectionLogger {
     static let shared = CorrectionLogger()
 
@@ -32,7 +32,7 @@ class CorrectionLogger {
         }
 
         if !FileManager.default.fileExists(atPath: logFilePath.path) {
-            let header = "timestamp\toriginal_transcription\tllm_output\tcorrection\texplanation\n"
+            let header = "timestamp\toriginal_transcription\tllm_output\tdictionary_entry\n"
             do {
                 try header.write(to: logFilePath, atomically: true, encoding: .utf8)
                 logger.notice("Created corrections log file with header")
@@ -46,9 +46,8 @@ class CorrectionLogger {
     /// - Parameters:
     ///   - originalTranscription: Raw transcription from Parakeet/FluidAudio
     ///   - llmOutput: What was actually pasted (may be LLM-enhanced, or same as original if local mode)
-    ///   - correction: User's corrected text
-    ///   - explanation: Optional explanation of why correction was needed
-    func logCorrection(originalTranscription: String, llmOutput: String, correction: String, explanation: String?) {
+    ///   - dictionaryEntry: The full XML-formatted dictionary entry to append
+    func logCorrection(originalTranscription: String, llmOutput: String, dictionaryEntry: String) {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let timestamp = formatter.string(from: Date())
@@ -57,8 +56,7 @@ class CorrectionLogger {
             timestamp,
             escapeTSVField(originalTranscription),
             escapeTSVField(llmOutput),
-            escapeTSVField(correction),
-            escapeTSVField(explanation ?? "")
+            escapeTSVField(dictionaryEntry)
         ]
 
         let row = fields.joined(separator: "\t") + "\n"
@@ -70,45 +68,32 @@ class CorrectionLogger {
                 fileHandle.write(data)
             }
             fileHandle.closeFile()
-            logger.notice("Logged correction: transcription=\(originalTranscription.prefix(30))..., llm=\(llmOutput.prefix(30))..., correction=\(correction.prefix(30))...")
+            logger.notice("Logged correction: transcription=\(originalTranscription.prefix(30))..., entry=\(dictionaryEntry.prefix(50))...")
         } catch {
             logger.error("Failed to append to corrections log: \(error.localizedDescription)")
         }
 
-        // Immediately append the correction to the custom dictionary
-        appendToDictionary(llmOutput: llmOutput, correction: correction, explanation: explanation)
+        // Immediately append the dictionary entry
+        appendToDictionary(dictionaryEntry: dictionaryEntry)
     }
 
-    /// Append a correction entry to the dictionary.md file
-    private func appendToDictionary(llmOutput: String, correction: String, explanation: String?) {
-        // Only add if there's an actual difference
-        guard llmOutput != correction else {
-            logger.notice("Correction matches LLM output, skipping dictionary update")
-            return
-        }
-
-        // Build the correction entry, with optional explanation in brackets
-        var entry = "- \"\(llmOutput)\" → \"\(correction)\""
-        if let explanation = explanation, !explanation.isEmpty {
-            entry += " [\(explanation)]"
-        }
-        entry += "\n"
-
+    /// Append a dictionary entry to the dictionary.md file
+    private func appendToDictionary(dictionaryEntry: String) {
         // Load current dictionary
         guard var dictionary = DictionaryManager.shared.loadDictionary() else {
-            logger.error("Could not load dictionary to append correction")
+            logger.error("Could not load dictionary to append entry")
             return
         }
 
-        // Append to the end of the dictionary
+        // Append to the end of the dictionary with newline
         if !dictionary.hasSuffix("\n") {
             dictionary += "\n"
         }
-        dictionary += entry
+        dictionary += dictionaryEntry + "\n"
 
         // Save the updated dictionary
         DictionaryManager.shared.saveDictionary(dictionary)
-        logger.notice("Appended correction to dictionary: \(llmOutput.prefix(20))... → \(correction.prefix(20))...")
+        logger.notice("Appended entry to dictionary: \(dictionaryEntry.prefix(50))...")
     }
 
     /// Escape a field for TSV (replace tabs and newlines)
