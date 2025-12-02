@@ -12,7 +12,13 @@
 
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:ParaDict.xcodeproj",
+        "identifier" : "ParaDictTests",
+        "name" : "ParaDictTests"
+      }
+    }
   ],
   "version" : 1
 }

@@ -14,6 +14,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9E0696392EDF36F5006DE06F /* ParaDictTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ParaDictTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9E0696432EDF3773006DE06F /* ParaDict.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = ParaDict.xctestplan; sourceTree = "<group>"; };
+		9E0696442EDF37FB006DE06F /* ParaDict.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = ParaDict.xctestplan; path = ../ParaDict.xctestplan; sourceTree = "<group>"; };
+		9E0696452EDF39C9006DE06F /* ParaDict.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = ParaDict.xctestplan; path = ../ParaDict.xctestplan; sourceTree = "<group>"; };
 		9E32EC5C2ED71A7100ED3EB2 /* ParaDict.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ParaDict.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -28,6 +32,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		9E06963A2EDF36F5006DE06F /* ParaDictTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ParaDictTests;
+			sourceTree = "<group>";
+		};
 		9E32EC5E2ED71A7100ED3EB2 /* ParaDict */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -39,6 +48,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		9E0696362EDF36F5006DE06F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9E32EC592ED71A7100ED3EB2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -56,7 +72,11 @@
 		9E32EC532ED71A7100ED3EB2 = {
 			isa = PBXGroup;
 			children = (
+				9E0696452EDF39C9006DE06F /* ParaDict.xctestplan */,
+				9E0696432EDF3773006DE06F /* ParaDict.xctestplan */,
+				9E0696442EDF37FB006DE06F /* ParaDict.xctestplan */,
 				9E32EC5E2ED71A7100ED3EB2 /* ParaDict */,
+				9E06963A2EDF36F5006DE06F /* ParaDictTests */,
 				9E32EC5D2ED71A7100ED3EB2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				9E32EC5C2ED71A7100ED3EB2 /* ParaDict.app */,
+				9E0696392EDF36F5006DE06F /* ParaDictTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -72,6 +93,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		9E0696382EDF36F5006DE06F /* ParaDictTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9E06963D2EDF36F5006DE06F /* Build configuration list for PBXNativeTarget "ParaDictTests" */;
+			buildPhases = (
+				9E0696352EDF36F5006DE06F /* Sources */,
+				9E0696362EDF36F5006DE06F /* Frameworks */,
+				9E0696372EDF36F5006DE06F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9E06963A2EDF36F5006DE06F /* ParaDictTests */,
+			);
+			name = ParaDictTests;
+			packageProductDependencies = (
+			);
+			productName = ParaDictTests;
+			productReference = 9E0696392EDF36F5006DE06F /* ParaDictTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		9E32EC5B2ED71A7100ED3EB2 /* ParaDict */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9E32EC672ED71A7200ED3EB2 /* Build configuration list for PBXNativeTarget "ParaDict" */;
@@ -108,6 +151,9 @@
 				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					9E0696382EDF36F5006DE06F = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
 					9E32EC5B2ED71A7100ED3EB2 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
@@ -134,11 +180,19 @@
 			projectRoot = "";
 			targets = (
 				9E32EC5B2ED71A7100ED3EB2 /* ParaDict */,
+				9E0696382EDF36F5006DE06F /* ParaDictTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		9E0696372EDF36F5006DE06F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9E32EC5A2ED71A7100ED3EB2 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -149,6 +203,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		9E0696352EDF36F5006DE06F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9E32EC582ED71A7100ED3EB2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -159,6 +220,51 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		9E06963E2EDF36F5006DE06F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2VVZV5X37Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/ParaDict.app/Contents/MacOS/ParaDict";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skouba.ParaDictTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUNDLE_LOADER)";
+			};
+			name = Debug;
+		};
+		9E06963F2EDF36F5006DE06F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/ParaDict.app/Contents/MacOS/ParaDict";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2VVZV5X37Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skouba.ParaDictTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUNDLE_LOADER)";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		9E32EC652ED71A7200ED3EB2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -354,6 +460,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		9E06963D2EDF36F5006DE06F /* Build configuration list for PBXNativeTarget "ParaDictTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9E06963E2EDF36F5006DE06F /* Debug */,
+				9E06963F2EDF36F5006DE06F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		9E32EC572ED71A7100ED3EB2 /* Build configuration list for PBXProject "ParaDict" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
