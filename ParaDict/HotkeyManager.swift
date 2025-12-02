@@ -21,7 +21,8 @@ class HotkeyManager: ObservableObject {
     var onCancelRecording: (() -> Void)?
 
     private var configObserver: NSObjectProtocol?
-    private var escapeKeyMonitor: Any?
+    private var escapeEventTap: CFMachPort?
+    private var escapeEventTapSource: CFRunLoopSource?
     private var enterEventTap: CFMachPort?
     private var enterEventTapSource: CFRunLoopSource?
 
@@ -47,11 +48,13 @@ class HotkeyManager: ObservableObject {
         if let observer = configObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-        // Clean up key monitors directly (can't call MainActor methods from deinit)
-        if let monitor = escapeKeyMonitor {
-            NSEvent.removeMonitor(monitor)
+        // Clean up CGEvent taps (can't call MainActor methods from deinit)
+        if let source = escapeEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
-        // Clean up CGEvent tap
+        if let tap = escapeEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
         if let source = enterEventTapSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
@@ -62,27 +65,68 @@ class HotkeyManager: ObservableObject {
 
     // MARK: - Key Monitor Control (Public for DictationCoordinator)
 
-    /// Start monitoring for Escape key
+    /// Start monitoring for Escape key (uses CGEvent tap to consume the key)
     func startEscapeKeyMonitor() {
-        guard escapeKeyMonitor == nil else { return }
+        guard escapeEventTap == nil else { return }
 
-        escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 { // 53 is the Escape key code
-                Task { @MainActor in
-                    self?.handleEscapePressed()
+        // Store reference for the C callback
+        HotkeyManager.sharedInstance = self
+
+        // Create an event tap for key down events
+        let eventMask = (1 << CGEventType.keyDown.rawValue)
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                // Check if this is the Escape key (keyCode 53)
+                let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+                if keyCode == 53 {
+                    // This monitor is only active during dictation (controlled by state machine)
+                    // So if we're here, we should consume the Escape key
+                    if let manager = HotkeyManager.sharedInstance {
+                        Task { @MainActor in
+                            manager.handleEscapePressed()
+                        }
+                        // Return nil to consume the event (don't pass to other apps)
+                        return nil
+                    }
                 }
-            }
+                // Pass through all other events
+                return Unmanaged.passRetained(event)
+            },
+            userInfo: nil
+        ) else {
+            logger.error("Failed to create CGEvent tap for Escape key")
+            return
         }
-        logger.notice("Escape key monitor started")
+
+        escapeEventTap = tap
+
+        // Create a run loop source and add it to the main run loop
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        escapeEventTapSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+
+        // Enable the tap
+        CGEvent.tapEnable(tap: tap, enable: true)
+
+        logger.notice("Escape key event tap started (will consume Escape during dictation)")
     }
 
     /// Stop monitoring for Escape key
     func stopEscapeKeyMonitor() {
-        if let monitor = escapeKeyMonitor {
-            NSEvent.removeMonitor(monitor)
-            escapeKeyMonitor = nil
-            logger.notice("Escape key monitor stopped")
+        if let source = escapeEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            escapeEventTapSource = nil
         }
+        if let tap = escapeEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            escapeEventTap = nil
+        }
+        logger.notice("Escape key event tap stopped")
     }
 
     private func handleEscapePressed() {
