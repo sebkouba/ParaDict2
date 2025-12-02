@@ -197,7 +197,8 @@ class DictationManager: ObservableObject {
             try? FileManager.default.removeItem(at: url)
             recordingURL = nil
             hotkeyManager.isProcessing = false
-            hotkeyManager.cancelRecording()
+            // Note: Don't call cancelRecording() here - it corrupts state in submit-and-continue mode
+            // We call it explicitly only when NOT continuing
         }
 
         do {
@@ -212,6 +213,8 @@ class DictationManager: ObservableObject {
             if trimmedTranscription.isEmpty {
                 logger.warning("Transcription is empty - no speech detected")
                 indicatorManager.hide()
+                hotkeyManager.shouldContinueAfterSubmit = false
+                hotkeyManager.cancelRecording()
                 state = .error("No speech detected. Please check microphone permission and try speaking louder.")
                 Task {
                     try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -226,6 +229,8 @@ class DictationManager: ObservableObject {
             if isCorrectionKeyword(trimmedTranscription) {
                 logger.notice("Correction keyword detected")
                 indicatorManager.hide()
+                hotkeyManager.shouldContinueAfterSubmit = false
+                hotkeyManager.cancelRecording()
 
                 if let rawTranscription = lastRawTranscription, let pastedText = lastPastedText {
                     logger.notice("Opening correction window - raw: \(rawTranscription.prefix(30))..., pasted: \(pastedText.prefix(30))...")
@@ -256,6 +261,8 @@ class DictationManager: ObservableObject {
                 guard llmClient.isConfigured else {
                     logger.warning("LLM enhancement requested but no API key configured - falling back to raw transcription")
                     indicatorManager.hide()
+                    hotkeyManager.shouldContinueAfterSubmit = false
+                    hotkeyManager.cancelRecording()
                     state = .error("LLM not configured. Add your Groq API key in Settings > LLM")
                     // Still paste the raw transcription
                     if canPaste {
@@ -315,6 +322,8 @@ class DictationManager: ObservableObject {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(enhanced, forType: .string)
                     indicatorManager.hide()
+                    hotkeyManager.shouldContinueAfterSubmit = false
+                    hotkeyManager.cancelRecording()
                     state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
                     Task {
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -344,6 +353,8 @@ class DictationManager: ObservableObject {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(transcription, forType: .string)
                     indicatorManager.hide()
+                    hotkeyManager.shouldContinueAfterSubmit = false
+                    hotkeyManager.cancelRecording()
                     state = .error("Text copied to clipboard. Grant Accessibility permission to auto-paste.")
                     Task {
                         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -355,12 +366,37 @@ class DictationManager: ObservableObject {
                 }
             }
 
-            logger.notice("Processing complete - returning to idle state")
+            logger.notice("Processing complete")
             indicatorManager.hide()
-            state = .idle
+
+            // Check if we should submit (press Enter) and continue with a new recording
+            if hotkeyManager.shouldContinueAfterSubmit {
+                hotkeyManager.shouldContinueAfterSubmit = false
+                let savedMode = currentMode
+
+                logger.notice("Submit and continue mode - pressing Enter and restarting recording")
+
+                // Wait for paste to complete (paste has 50ms delay, plus some buffer)
+                try? await Task.sleep(nanoseconds: 150_000_000)
+
+                // Press Enter to submit the message
+                PastingService.pressEnter()
+
+                // Small delay before starting new recording
+                try? await Task.sleep(nanoseconds: 100_000_000)
+
+                // Use HotkeyManager to start a new recording through the existing mechanism
+                state = .idle
+                hotkeyManager.startContinuedRecording(mode: savedMode)
+            } else {
+                hotkeyManager.cancelRecording()
+                state = .idle
+            }
         } catch {
             logger.error("Processing failed: \(error.localizedDescription)")
             indicatorManager.hide()
+            hotkeyManager.shouldContinueAfterSubmit = false
+            hotkeyManager.cancelRecording()
             state = .error(error.localizedDescription)
 
             // Reset to idle after a delay
@@ -399,6 +435,7 @@ class DictationManager: ObservableObject {
             }
             recordingURL = nil
         }
+        hotkeyManager.shouldContinueAfterSubmit = false
         state = .idle
     }
 

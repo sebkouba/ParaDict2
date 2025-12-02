@@ -12,6 +12,9 @@ class HotkeyManager: ObservableObject {
     @Published var isProcessing = false
     @Published var activeMode: DictationMode?
 
+    /// Flag indicating we should press Enter and restart recording after the current dictation completes
+    var shouldContinueAfterSubmit = false
+
     /// Callback: (mode, prompt, selectionContext) -> Void
     var onStartRecording: ((DictationMode, String?, String?) -> Void)?
     var onStopRecording: (() -> Void)?
@@ -19,6 +22,8 @@ class HotkeyManager: ObservableObject {
 
     private var configObserver: NSObjectProtocol?
     private var escapeKeyMonitor: Any?
+    private var enterEventTap: CFMachPort?
+    private var enterEventTapSource: CFRunLoopSource?
 
     init() {
         logger.notice("HotkeyManager initializing...")
@@ -42,9 +47,16 @@ class HotkeyManager: ObservableObject {
         if let observer = configObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-        // Clean up escape monitor directly (can't call MainActor methods from deinit)
+        // Clean up key monitors directly (can't call MainActor methods from deinit)
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        // Clean up CGEvent tap
+        if let source = enterEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        if let tap = enterEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
         }
     }
 
@@ -83,7 +95,95 @@ class HotkeyManager: ObservableObject {
         currentShortcutConfig = nil
         capturedSelection = nil
         stopEscapeKeyMonitor()
+        stopEnterKeyMonitor()
         onCancelRecording?()
+    }
+
+    // MARK: - Enter Key Event Tap (Submit and Continue)
+    // Uses CGEvent tap instead of NSEvent monitor to intercept and consume the Enter key
+
+    /// Static reference for the CGEvent callback (needed because CGEvent callbacks are C-style)
+    private static weak var sharedInstance: HotkeyManager?
+
+    private func startEnterKeyMonitor() {
+        guard enterEventTap == nil else { return }
+
+        // Store reference for the C callback
+        HotkeyManager.sharedInstance = self
+
+        // Create an event tap for key down events
+        let eventMask = (1 << CGEventType.keyDown.rawValue)
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                // Check if this is the Enter key (0x24)
+                let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+                if keyCode == 0x24 {
+                    // Check if we should handle this (hands-free recording mode)
+                    if let manager = HotkeyManager.sharedInstance,
+                       manager.isRecording && manager.isHandsFreeMode && !manager.isProcessing {
+                        // Handle on main thread
+                        Task { @MainActor in
+                            manager.handleEnterPressed()
+                        }
+                        // Return nil to consume the event (don't pass to other apps)
+                        return nil
+                    }
+                }
+                // Pass through all other events
+                return Unmanaged.passRetained(event)
+            },
+            userInfo: nil
+        ) else {
+            logger.error("Failed to create CGEvent tap for Enter key")
+            return
+        }
+
+        enterEventTap = tap
+
+        // Create a run loop source and add it to the main run loop
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        enterEventTapSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+
+        // Enable the tap
+        CGEvent.tapEnable(tap: tap, enable: true)
+
+        logger.notice("Enter key event tap started (will consume Enter during hands-free recording)")
+    }
+
+    private func stopEnterKeyMonitor() {
+        if let source = enterEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            enterEventTapSource = nil
+        }
+        if let tap = enterEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            enterEventTap = nil
+        }
+        logger.notice("Enter key event tap stopped")
+    }
+
+    private func handleEnterPressed() {
+        // Only respond to Enter during hands-free recording mode
+        guard isRecording && isHandsFreeMode && !isProcessing else { return }
+
+        logger.notice("Enter pressed in hands-free mode - will submit and continue")
+
+        // Set flag so DictationManager knows to press Enter and restart after processing
+        shouldContinueAfterSubmit = true
+
+        // Use the EXACT same stop mechanism as pressing the hotkey again in hands-free mode
+        // This is identical to the code in handleShortcutDown when isHandsFreeMode is true
+        isHandsFreeMode = false
+        isRecording = false
+        stopEscapeKeyMonitor()
+        stopEnterKeyMonitor()
+        onStopRecording?()
     }
 
     private func applyShortcutsFromConfig() {
@@ -247,6 +347,7 @@ class HotkeyManager: ObservableObject {
             isHandsFreeMode = false
             isRecording = false  // Set immediately to prevent race condition
             stopEscapeKeyMonitor()
+            stopEnterKeyMonitor()
             onStopRecording?()
             return
         }
@@ -274,6 +375,7 @@ class HotkeyManager: ObservableObject {
                 }
             }
             startEscapeKeyMonitor()
+            startEnterKeyMonitor()
             onStartRecording?(mode, promptContent, selectionContext)
         } else {
             logger.notice("Already recording, ignoring key down")
@@ -303,6 +405,7 @@ class HotkeyManager: ObservableObject {
             } else {
                 logger.notice("Long press released - stopping recording")
                 stopEscapeKeyMonitor()
+                stopEnterKeyMonitor()
                 onStopRecording?()
             }
         } else {
@@ -319,7 +422,41 @@ class HotkeyManager: ObservableObject {
         activeMode = nil
         currentShortcutConfig = nil
         capturedSelection = nil
+        shouldContinueAfterSubmit = false
         stopEscapeKeyMonitor()
+        stopEnterKeyMonitor()
+    }
+
+    /// Start a new recording in continued hands-free mode after submit-and-continue
+    /// This uses the EXACT same mechanism as pressing the hotkey to start a new recording
+    func startContinuedRecording(mode: DictationMode) {
+        logger.notice("Starting continued recording in \(mode.rawValue) mode")
+
+        // Get the shortcut config for this mode (same as handleShortcutDown does)
+        let shortcutConfig = ConfigManager.shared.config.shortcuts.first(where: { $0.mode == mode })
+        currentShortcutConfig = shortcutConfig
+        activeMode = mode
+
+        // Load prompt content from file if specified (same as handleShortcutDown does)
+        var promptContent: String? = nil
+        if let file = shortcutConfig?.promptFile {
+            promptContent = PromptManager.shared.loadPrompt(named: file)
+            if promptContent == nil {
+                logger.warning("Could not load prompt file: \(file)")
+            }
+        }
+
+        // Start monitors
+        startEscapeKeyMonitor()
+        startEnterKeyMonitor()
+
+        // Trigger the recording through the existing callback (same as handleShortcutDown)
+        // No selection context for continued recordings
+        onStartRecording?(mode, promptContent, nil)
+
+        // After onStartRecording returns, set up hands-free state
+        // This is similar to what handleShortcutUp does for a brief press
+        isHandsFreeMode = true
     }
 
     /// Sync current KeyboardShortcuts state back to config
