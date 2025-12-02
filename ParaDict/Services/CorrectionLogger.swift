@@ -76,19 +76,23 @@ class CorrectionLogger {
         }
 
         // Immediately append the correction to the custom dictionary
-        appendToDictionary(llmOutput: llmOutput, correction: correction)
+        appendToDictionary(llmOutput: llmOutput, correction: correction, explanation: explanation)
     }
 
     /// Append a correction entry to the dictionary.md file
-    private func appendToDictionary(llmOutput: String, correction: String) {
+    private func appendToDictionary(llmOutput: String, correction: String, explanation: String?) {
         // Only add if there's an actual difference
         guard llmOutput != correction else {
             logger.notice("Correction matches LLM output, skipping dictionary update")
             return
         }
 
-        // Build the correction entry
-        let entry = "- \"\(llmOutput)\" → \"\(correction)\"\n"
+        // Build the correction entry, with optional explanation in brackets
+        var entry = "- \"\(llmOutput)\" → \"\(correction)\""
+        if let explanation = explanation, !explanation.isEmpty {
+            entry += " [\(explanation)]"
+        }
+        entry += "\n"
 
         // Load current dictionary
         guard var dictionary = DictionaryManager.shared.loadDictionary() else {
