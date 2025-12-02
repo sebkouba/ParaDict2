@@ -19,7 +19,7 @@ struct VisualEffectView: NSViewRepresentable {
 }
 
 struct RecordingIndicatorView: View {
-    @ObservedObject var dictationManager: DictationManager
+    @ObservedObject var coordinator: DictationCoordinator
     @EnvironmentObject var windowManager: RecordingIndicatorWindowManager
 
     private var backgroundView: some View {
@@ -41,8 +41,8 @@ struct RecordingIndicatorView: View {
 
     private var statusView: some View {
         RecordingStatusDisplay(
-            currentState: dictationManager.state,
-            recordingService: dictationManager.recordingService
+            currentState: coordinator.state,
+            recordingService: coordinator.recordingService
         )
     }
 
@@ -80,7 +80,7 @@ struct RecordingIndicatorView: View {
 }
 
 struct RecordingStatusDisplay: View {
-    let currentState: DictationState
+    let currentState: DictationStateSM
     @ObservedObject var recordingService: RecordingService
 
     private let matrixGreen = Color(red: 0, green: 1, blue: 0.2)
@@ -89,27 +89,40 @@ struct RecordingStatusDisplay: View {
 
     @State private var processingStartTime: Date = Date()
 
+    // Track the last "active" state to avoid showing idle/error states
+    @State private var lastActiveState: DictationStateSM = .idle
+
     var body: some View {
         Group {
-            if currentState == .enhancing {
+            // Use the display state - either current if active, or last active state
+            let displayState = currentState.isActiveForIndicator ? currentState : lastActiveState
+
+            if case .enhancing = displayState {
                 DotMatrixProgressIndicator(color: matrixYellow, startTime: processingStartTime)
-            } else if currentState == .transcribing {
+            } else if case .transcribing = displayState {
                 DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
-            } else if currentState == .recording {
+            } else if case .pasting = displayState {
+                DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
+            } else if displayState.isRecording {
                 DotMatrixVisualizer(
                     recordingService: recordingService,
                     color: Color(red: 0, green: 1, blue: 0.2),
                     isActive: true
                 )
             } else {
-                StaticWaveform(color: .white)
+                // Fallback - show blue progress (this shouldn't normally be visible)
+                DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
             }
         }
         .animation(nil, value: currentState)
         .onChange(of: currentState) { oldState, newState in
             // Reset timer when transitioning from recording to transcribing
-            if oldState == .recording && newState == .transcribing {
+            if oldState.isRecording && newState.isProcessing {
                 processingStartTime = Date()
+            }
+            // Track last active state
+            if newState.isActiveForIndicator {
+                lastActiveState = newState
             }
         }
     }

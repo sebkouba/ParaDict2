@@ -20,7 +20,7 @@ final class DictationCoordinator: ObservableObject {
 
     // MARK: - Services
 
-    private let recordingService = RecordingService()
+    let recordingService = RecordingService()
     private let transcriptionService = ParakeetTranscriptionService.shared
     private let llmClient = LLMClient.shared
     private let indicatorManager = RecordingIndicatorWindowManager.shared
@@ -102,14 +102,12 @@ final class DictationCoordinator: ObservableObject {
             logger.error("Error: \(message)")
 
         case .startKeyMonitors:
-            // Key monitors are managed by HotkeyManager based on its internal state
-            // This will be wired up in Phase 3
-            break
+            HotkeyManager.shared.startEscapeKeyMonitor()
+            HotkeyManager.shared.startEnterKeyMonitor()
 
         case .stopKeyMonitors:
-            // Key monitors are managed by HotkeyManager based on its internal state
-            // This will be wired up in Phase 3
-            break
+            HotkeyManager.shared.stopEscapeKeyMonitor()
+            HotkeyManager.shared.stopEnterKeyMonitor()
 
         case .scheduleErrorTimeout:
             scheduleErrorTimeout()
@@ -149,9 +147,11 @@ final class DictationCoordinator: ObservableObject {
         recordingService.stopRecording()
         logger.notice("Recording stopped")
 
-        // Send recording complete event with the URL
+        // Transcribe immediately - the state machine has already transitioned to transcribing
         if let url = currentRecordingURL {
-            send(.recordingComplete(url: url))
+            Task {
+                await transcribe(url: url)
+            }
         }
     }
 

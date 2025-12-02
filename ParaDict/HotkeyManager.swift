@@ -60,9 +60,10 @@ class HotkeyManager: ObservableObject {
         }
     }
 
-    // MARK: - Escape Key Monitor
+    // MARK: - Key Monitor Control (Public for DictationCoordinator)
 
-    private func startEscapeKeyMonitor() {
+    /// Start monitoring for Escape key
+    func startEscapeKeyMonitor() {
         guard escapeKeyMonitor == nil else { return }
 
         escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -75,7 +76,8 @@ class HotkeyManager: ObservableObject {
         logger.notice("Escape key monitor started")
     }
 
-    private func stopEscapeKeyMonitor() {
+    /// Stop monitoring for Escape key
+    func stopEscapeKeyMonitor() {
         if let monitor = escapeKeyMonitor {
             NSEvent.removeMonitor(monitor)
             escapeKeyMonitor = nil
@@ -84,19 +86,9 @@ class HotkeyManager: ObservableObject {
     }
 
     private func handleEscapePressed() {
-        guard isRecording || isProcessing else { return }
-
-        logger.notice("Escape pressed - cancelling dictation")
-        isHandsFreeMode = false
-        keyPressStartTime = nil
-        isRecording = false
-        isProcessing = false
-        activeMode = nil
-        currentShortcutConfig = nil
-        capturedSelection = nil
-        stopEscapeKeyMonitor()
-        stopEnterKeyMonitor()
-        onCancelRecording?()
+        logger.notice("Escape pressed - sending event to coordinator")
+        // Send event to DictationCoordinator - it handles all state transitions
+        DictationCoordinator.shared.send(.escapePressed)
     }
 
     // MARK: - Enter Key Event Tap (Submit and Continue)
@@ -105,7 +97,8 @@ class HotkeyManager: ObservableObject {
     /// Static reference for the CGEvent callback (needed because CGEvent callbacks are C-style)
     private static weak var sharedInstance: HotkeyManager?
 
-    private func startEnterKeyMonitor() {
+    /// Start monitoring for Enter key (uses CGEvent tap to consume the key)
+    func startEnterKeyMonitor() {
         guard enterEventTap == nil else { return }
 
         // Store reference for the C callback
@@ -123,10 +116,9 @@ class HotkeyManager: ObservableObject {
                 // Check if this is the Enter key (0x24)
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
                 if keyCode == 0x24 {
-                    // Check if we should handle this (hands-free recording mode)
-                    if let manager = HotkeyManager.sharedInstance,
-                       manager.isRecording && manager.isHandsFreeMode && !manager.isProcessing {
-                        // Handle on main thread
+                    // This monitor is only active during hands-free recording (controlled by state machine)
+                    // So if we're here, we should consume the Enter key
+                    if let manager = HotkeyManager.sharedInstance {
                         Task { @MainActor in
                             manager.handleEnterPressed()
                         }
@@ -156,7 +148,8 @@ class HotkeyManager: ObservableObject {
         logger.notice("Enter key event tap started (will consume Enter during hands-free recording)")
     }
 
-    private func stopEnterKeyMonitor() {
+    /// Stop monitoring for Enter key
+    func stopEnterKeyMonitor() {
         if let source = enterEventTapSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
             enterEventTapSource = nil
@@ -169,21 +162,9 @@ class HotkeyManager: ObservableObject {
     }
 
     private func handleEnterPressed() {
-        // Only respond to Enter during hands-free recording mode
-        guard isRecording && isHandsFreeMode && !isProcessing else { return }
-
-        logger.notice("Enter pressed in hands-free mode - will submit and continue")
-
-        // Set flag so DictationManager knows to press Enter and restart after processing
-        shouldContinueAfterSubmit = true
-
-        // Use the EXACT same stop mechanism as pressing the hotkey again in hands-free mode
-        // This is identical to the code in handleShortcutDown when isHandsFreeMode is true
-        isHandsFreeMode = false
-        isRecording = false
-        stopEscapeKeyMonitor()
-        stopEnterKeyMonitor()
-        onStopRecording?()
+        logger.notice("Enter pressed - sending event to coordinator")
+        // Send event to DictationCoordinator - it handles all state transitions
+        DictationCoordinator.shared.send(.enterPressed)
     }
 
     private func applyShortcutsFromConfig() {
@@ -331,88 +312,49 @@ class HotkeyManager: ObservableObject {
     private var capturedSelection: String?
 
     private func handleShortcutDown(mode: DictationMode, shortcutConfig: ShortcutConfig?) async {
-        logger.notice("handleShortcutDown called - mode: \(mode.rawValue), isProcessing: \(self.isProcessing), isRecording: \(self.isRecording), isHandsFreeMode: \(self.isHandsFreeMode)")
+        logger.notice("handleShortcutDown called - mode: \(mode.rawValue)")
 
-        guard !isProcessing else {
-            logger.warning("Ignoring shortcut - currently processing")
-            return
-        }
-
+        // Store for later use (prompt loading, etc.)
         keyPressStartTime = Date()
-        activeMode = mode
         currentShortcutConfig = shortcutConfig
 
-        if isHandsFreeMode {
-            logger.notice("Exiting hands-free mode, stopping recording")
-            isHandsFreeMode = false
-            isRecording = false  // Set immediately to prevent race condition
-            stopEscapeKeyMonitor()
-            stopEnterKeyMonitor()
-            onStopRecording?()
-            return
+        // Read clipboard context if this shortcut requires it
+        var selectionContext: String? = nil
+        if shortcutConfig?.shouldCaptureSelection == true {
+            logger.notice("Reading clipboard for context...")
+            selectionContext = SelectionService.shared.getClipboardContext()
+            if selectionContext == nil {
+                logger.notice("Clipboard empty - proceeding without context")
+            }
+        }
+        capturedSelection = selectionContext
+
+        // Load prompt content from file if specified
+        var promptContent: String? = nil
+        if let file = shortcutConfig?.promptFile {
+            promptContent = PromptManager.shared.loadPrompt(named: file)
+            if promptContent == nil {
+                logger.warning("Could not load prompt file: \(file)")
+            }
         }
 
-        if !isRecording {
-            logger.notice("Starting recording in \(mode.rawValue) mode")
-
-            // Read clipboard context if this shortcut requires it
-            var selectionContext: String? = nil
-            if shortcutConfig?.shouldCaptureSelection == true {
-                logger.notice("Reading clipboard for context...")
-                selectionContext = SelectionService.shared.getClipboardContext()
-                if selectionContext == nil {
-                    logger.notice("Clipboard empty - proceeding without context")
-                }
-            }
-            capturedSelection = selectionContext
-
-            // Load prompt content from file if specified
-            var promptContent: String? = nil
-            if let file = shortcutConfig?.promptFile {
-                promptContent = PromptManager.shared.loadPrompt(named: file)
-                if promptContent == nil {
-                    logger.warning("Could not load prompt file: \(file)")
-                }
-            }
-            startEscapeKeyMonitor()
-            startEnterKeyMonitor()
-            onStartRecording?(mode, promptContent, selectionContext)
-        } else {
-            logger.notice("Already recording, ignoring key down")
-        }
+        // Send event to DictationCoordinator - it handles all state transitions
+        DictationCoordinator.shared.send(.hotkeyDown(mode: mode, prompt: promptContent, context: selectionContext))
     }
 
     private func handleShortcutUp() {
-        logger.notice("handleShortcutUp called - isProcessing: \(self.isProcessing), keyPressStartTime: \(String(describing: self.keyPressStartTime))")
-
-        guard !isProcessing else {
-            logger.warning("Ignoring key up - currently processing")
+        guard let startTime = keyPressStartTime else {
+            logger.warning("Key up without key down time recorded")
             return
         }
 
-        if let startTime = keyPressStartTime {
-            let pressDuration = Date().timeIntervalSince(startTime)
-            logger.notice("Key held for \(String(format: "%.2f", pressDuration)) seconds (threshold: \(self.briefPressThreshold)s)")
-
-            if pressDuration < briefPressThreshold {
-                // Only activate hands-free mode if recording actually started
-                if isRecording {
-                    isHandsFreeMode = true
-                    logger.notice("Hands-free mode activated - press shortcut again to stop recording")
-                } else {
-                    logger.notice("Brief press but recording not active - ignoring")
-                }
-            } else {
-                logger.notice("Long press released - stopping recording")
-                stopEscapeKeyMonitor()
-                stopEnterKeyMonitor()
-                onStopRecording?()
-            }
-        } else {
-            logger.warning("Key up without key down time recorded")
-        }
+        let pressDuration = Date().timeIntervalSince(startTime)
+        logger.notice("handleShortcutUp - key held for \(String(format: "%.2f", pressDuration))s")
 
         keyPressStartTime = nil
+
+        // Send event to DictationCoordinator - it handles all state transitions
+        DictationCoordinator.shared.send(.hotkeyUp(duration: pressDuration))
     }
 
     func cancelRecording() {

@@ -39,8 +39,8 @@ class RecordingIndicatorWindowManager: ObservableObject {
         let metrics = RecordingIndicatorPanel.calculateWindowMetrics()
         let panel = RecordingIndicatorPanel(contentRect: metrics)
 
-        // Access DictationManager.shared lazily here, not during init
-        let indicatorView = RecordingIndicatorView(dictationManager: DictationManager.shared)
+        // Access DictationCoordinator.shared lazily here, not during init
+        let indicatorView = RecordingIndicatorView(coordinator: DictationCoordinator.shared)
             .environmentObject(self)
 
         let hostingController = NSHostingController(rootView: indicatorView)
