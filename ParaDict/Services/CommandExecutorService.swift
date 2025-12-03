@@ -181,7 +181,7 @@ class CommandExecutorService {
             guard let command = args["command"] as? String else {
                 throw CommandError.missingParameter("command")
             }
-            return try await runShell(command: command)
+            return try runShell(command: command)
 
         default:
             throw CommandError.unknownExecutor(tool.executor)
@@ -271,13 +271,21 @@ class CommandExecutorService {
         }
 
         // Run command in Terminal so user can see the output
-        // Escape single quotes in the command for AppleScript
-        let escapedCommand = command.replacingOccurrences(of: "'", with: "'\\''")
+        // Escape double quotes and backslashes for AppleScript string
+        let escapedCommand = command
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
 
         let script = """
         tell application "Terminal"
             activate
-            do script "\(escapedCommand)"
+            if (count of windows) > 0 then
+                -- Use the frontmost window
+                do script "\(escapedCommand)" in front window
+            else
+                -- No window open, create one
+                do script "\(escapedCommand)"
+            end if
         end tell
         """
 
