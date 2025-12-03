@@ -5,11 +5,23 @@ import os
 /// Activity log entry for UI display
 struct WatcherActivity: Identifiable {
     let id = UUID()
-    let timestamp: Date
+    let timestamp: Date        // When processing completed
+    let duration: TimeInterval // How long processing took
     let filename: String
     let outputFilename: String?
     let success: Bool
     let errorMessage: String?
+
+    /// Formatted duration string (e.g., "2.3s" or "1m 23s")
+    var formattedDuration: String {
+        if duration < 60 {
+            return String(format: "%.1fs", duration)
+        } else {
+            let minutes = Int(duration) / 60
+            let seconds = Int(duration) % 60
+            return "\(minutes)m \(seconds)s"
+        }
+    }
 }
 
 /// Watches a directory for new audio files and transcribes them
@@ -214,6 +226,7 @@ class DirectoryWatcherService: ObservableObject {
 
     private func processAudioFile(url: URL) async {
         let filename = url.lastPathComponent
+        let startTime = Date()
 
         do {
             // Wait for file to be stable (fully written)
@@ -255,12 +268,14 @@ class DirectoryWatcherService: ObservableObject {
             // Mark as processed
             markAsProcessed(url: url)
 
-            // Add to activity log
-            addActivity(filename: filename, outputFilename: outputFilename, success: true)
+            // Add to activity log with duration
+            let duration = Date().timeIntervalSince(startTime)
+            addActivity(filename: filename, outputFilename: outputFilename, success: true, duration: duration)
 
         } catch {
+            let duration = Date().timeIntervalSince(startTime)
             logger.error("Failed to process \(filename): \(error.localizedDescription)")
-            addActivity(filename: filename, outputFilename: nil, success: false, errorMessage: error.localizedDescription)
+            addActivity(filename: filename, outputFilename: nil, success: false, errorMessage: error.localizedDescription, duration: duration)
         }
     }
 
@@ -336,9 +351,10 @@ class DirectoryWatcherService: ObservableObject {
 
     // MARK: - Activity Log
 
-    private func addActivity(filename: String, outputFilename: String?, success: Bool, errorMessage: String? = nil) {
+    private func addActivity(filename: String, outputFilename: String?, success: Bool, errorMessage: String? = nil, duration: TimeInterval) {
         let activity = WatcherActivity(
             timestamp: Date(),
+            duration: duration,
             filename: filename,
             outputFilename: outputFilename,
             success: success,

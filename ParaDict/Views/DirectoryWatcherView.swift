@@ -310,7 +310,7 @@ struct ActivityRow: View {
                         .foregroundColor(.red)
                 }
 
-                Text(activity.timestamp, style: .relative)
+                Text(activity.formattedDuration)
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
