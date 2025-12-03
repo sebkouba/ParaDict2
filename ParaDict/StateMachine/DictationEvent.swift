@@ -44,6 +44,11 @@ enum DictationEvent: Equatable {
     /// Text has been pasted (after the paste delay)
     case pasteComplete
 
+    // MARK: - Timer Events
+
+    /// Enter key monitor delay completed - safe to start monitoring
+    case enterMonitorReady
+
     // MARK: - Error Events
 
     /// An error occurred
@@ -79,6 +84,8 @@ extension DictationEvent: CustomStringConvertible {
             return "enhancementSkipped(\(text.prefix(30))...)"
         case .pasteComplete:
             return "pasteComplete"
+        case .enterMonitorReady:
+            return "enterMonitorReady"
         case .error(let message):
             return "error(\(message.prefix(30))...)"
         case .errorTimeout:

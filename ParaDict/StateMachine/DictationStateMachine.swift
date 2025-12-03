@@ -38,11 +38,12 @@ final class DictationStateMachine {
         // MARK: - From Idle
 
         case (.idle, .hotkeyDown(let mode, let prompt, let context)):
-            state = .recording(mode: mode, prompt: prompt, isHandsFree: false)
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: false, enterMonitorPending: false)
             return [
                 .startRecording(mode: mode, prompt: prompt, context: context),
                 .showIndicator,
-                .startKeyMonitors
+                .startEscapeMonitor,
+                .startEnterMonitor
             ]
 
         // Ignore other events in idle state
@@ -51,36 +52,43 @@ final class DictationStateMachine {
 
         // MARK: - From Recording (not hands-free)
 
-        case (.recording(let mode, let prompt, false), .hotkeyUp(let duration)):
+        case (.recording(let mode, let prompt, false, _), .hotkeyUp(let duration)):
             if duration < briefPressThreshold {
                 // Brief press - activate hands-free mode
-                state = .recording(mode: mode, prompt: prompt, isHandsFree: true)
+                state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: false)
                 return []
             } else {
                 // Long press - stop recording
                 state = .transcribing(mode: mode, prompt: prompt, continueAfter: false)
-                return [.stopRecording, .stopKeyMonitors]
+                return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor]
             }
 
-        // MARK: - From Recording (hands-free)
+        // MARK: - From Recording (hands-free, Enter monitor pending)
 
-        case (.recording(let mode, let prompt, true), .hotkeyDown):
+        case (.recording(let mode, let prompt, true, true), .enterMonitorReady):
+            // Enter monitor delay completed - now safe to start monitoring
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: false)
+            return [.startEnterMonitor]
+
+        // MARK: - From Recording (hands-free, Enter monitor active)
+
+        case (.recording(let mode, let prompt, true, false), .hotkeyDown):
             // Second press in hands-free mode - stop recording
             state = .transcribing(mode: mode, prompt: prompt, continueAfter: false)
-            return [.stopRecording, .stopKeyMonitors]
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor]
 
-        case (.recording(let mode, let prompt, true), .enterPressed):
+        case (.recording(let mode, let prompt, true, false), .enterPressed):
             // Enter in hands-free mode - stop recording and continue after paste
             state = .transcribing(mode: mode, prompt: prompt, continueAfter: true)
-            return [.stopRecording, .stopKeyMonitors]
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor]
 
         // MARK: - From Recording (any)
 
         case (.recording, .escapePressed):
             state = .idle
-            return [.cancelRecording, .hideIndicator, .stopKeyMonitors]
+            return [.cancelRecording, .hideIndicator, .stopEscapeMonitor, .stopEnterMonitor]
 
-        case (.recording(let mode, let prompt, _), .recordingComplete(let url)):
+        case (.recording(let mode, let prompt, _, _), .recordingComplete(let url)):
             // Recording stopped - start transcription
             state = .transcribing(mode: mode, prompt: prompt, continueAfter: state.shouldContinueAfter)
             return [.transcribe(url: url)]
@@ -104,7 +112,7 @@ final class DictationStateMachine {
 
         case (.transcribing, .transcriptionEmpty):
             state = .error(message: "No speech detected")
-            return [.hideIndicator, .showError(message: "No speech detected"), .scheduleErrorTimeout]
+            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: "No speech detected"), .scheduleErrorTimeout]
 
         case (.transcribing, .escapePressed):
             // Allow canceling during transcription
@@ -139,11 +147,14 @@ final class DictationStateMachine {
         case (.pasting(let mode, let prompt, true), .pasteComplete):
             // Continue after paste - press Enter and restart recording
             // Don't hide/show indicator - keep it visible to avoid white flash
-            state = .recording(mode: mode, prompt: prompt, isHandsFree: true)
+            // IMPORTANT: Start Enter monitor LATER via scheduleEnterMonitorStart to avoid
+            // catching the programmatic Enter key (CGEvents are async)
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: true)
             return [
                 .pressEnterKey,
                 .startRecording(mode: mode, prompt: prompt, context: nil),
-                .startKeyMonitors
+                .startEscapeMonitor,
+                .scheduleEnterMonitorStart
             ]
 
         case (.pasting, .pasteComplete):
@@ -159,18 +170,19 @@ final class DictationStateMachine {
 
         case (.error, .hotkeyDown(let mode, let prompt, let context)):
             // Allow starting new recording from error state
-            state = .recording(mode: mode, prompt: prompt, isHandsFree: false)
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: false, enterMonitorPending: false)
             return [
                 .startRecording(mode: mode, prompt: prompt, context: context),
                 .showIndicator,
-                .startKeyMonitors
+                .startEscapeMonitor,
+                .startEnterMonitor
             ]
 
         // MARK: - Error from any state
 
         case (_, .error(let message)):
             state = .error(message: message)
-            return [.hideIndicator, .stopKeyMonitors, .showError(message: message), .scheduleErrorTimeout]
+            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: message), .scheduleErrorTimeout]
 
         // MARK: - Default (invalid transitions)
 

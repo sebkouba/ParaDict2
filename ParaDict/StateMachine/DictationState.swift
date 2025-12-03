@@ -11,7 +11,8 @@ enum DictationStateSM: Equatable {
     /// - mode: The dictation mode (local, enhanced, reply)
     /// - prompt: The prompt to use for enhancement (if applicable)
     /// - isHandsFree: True if user did a brief press (tap-to-record), false if holding
-    case recording(mode: DictationMode, prompt: String?, isHandsFree: Bool)
+    /// - enterMonitorPending: True if Enter key monitor hasn't started yet (after continueAfter)
+    case recording(mode: DictationMode, prompt: String?, isHandsFree: Bool, enterMonitorPending: Bool = false)
 
     /// Transcribing recorded audio with Parakeet
     /// - mode: The dictation mode
@@ -41,7 +42,7 @@ enum DictationStateSM: Equatable {
         switch self {
         case .idle, .error:
             return nil
-        case .recording(let mode, _, _),
+        case .recording(let mode, _, _, _),
              .transcribing(let mode, _, _),
              .enhancing(let mode, _, _),
              .pasting(let mode, _, _):
@@ -67,7 +68,7 @@ enum DictationStateSM: Equatable {
 
     /// Returns true if in hands-free recording mode
     var isHandsFree: Bool {
-        if case .recording(_, _, let handsFree) = self {
+        if case .recording(_, _, let handsFree, _) = self {
             return handsFree
         }
         return false
@@ -99,7 +100,7 @@ enum DictationStateSM: Equatable {
     /// Returns the prompt if in a state that has one
     var prompt: String? {
         switch self {
-        case .recording(_, let prompt, _),
+        case .recording(_, let prompt, _, _),
              .transcribing(_, let prompt, _),
              .enhancing(_, let prompt, _),
              .pasting(_, let prompt, _):
@@ -117,8 +118,12 @@ extension DictationStateSM: CustomStringConvertible {
         switch self {
         case .idle:
             return "idle"
-        case .recording(let mode, _, let isHandsFree):
-            return "recording(\(mode.rawValue), handsFree: \(isHandsFree))"
+        case .recording(let mode, _, let isHandsFree, let enterMonitorPending):
+            if enterMonitorPending {
+                return "recording(\(mode.rawValue), handsFree: \(isHandsFree), enterMonitorPending)"
+            } else {
+                return "recording(\(mode.rawValue), handsFree: \(isHandsFree))"
+            }
         case .transcribing(let mode, _, let continueAfter):
             return "transcribing(\(mode.rawValue), continueAfter: \(continueAfter))"
         case .enhancing(let mode, _, let continueAfter):

@@ -33,6 +33,7 @@ final class DictationCoordinator: ObservableObject {
     private var currentContext: String?  // For reply mode
     private var errorTimeoutTask: Task<Void, Never>?
     private var pasteCompleteTask: Task<Void, Never>?
+    private var enterMonitorStartTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -101,13 +102,20 @@ final class DictationCoordinator: ObservableObject {
             // Error is shown via state - UI observes state.error
             logger.error("Error: \(message)")
 
-        case .startKeyMonitors:
+        case .startEscapeMonitor:
             HotkeyManager.shared.startEscapeKeyMonitor()
+
+        case .stopEscapeMonitor:
+            HotkeyManager.shared.stopEscapeKeyMonitor()
+
+        case .startEnterMonitor:
             HotkeyManager.shared.startEnterKeyMonitor()
 
-        case .stopKeyMonitors:
-            HotkeyManager.shared.stopEscapeKeyMonitor()
+        case .stopEnterMonitor:
             HotkeyManager.shared.stopEnterKeyMonitor()
+
+        case .scheduleEnterMonitorStart:
+            scheduleEnterMonitorStart()
 
         case .scheduleErrorTimeout:
             scheduleErrorTimeout()
@@ -257,6 +265,18 @@ final class DictationCoordinator: ObservableObject {
             try? await Task.sleep(nanoseconds: 250_000_000)
             if !Task.isCancelled {
                 send(.pasteComplete)
+            }
+        }
+    }
+
+    private func scheduleEnterMonitorStart() {
+        enterMonitorStartTask?.cancel()
+        enterMonitorStartTask = Task {
+            // Wait for programmatic Enter CGEvent to be fully processed
+            // 300ms is enough for the async CGEvent to propagate through the system
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if !Task.isCancelled {
+                send(.enterMonitorReady)
             }
         }
     }

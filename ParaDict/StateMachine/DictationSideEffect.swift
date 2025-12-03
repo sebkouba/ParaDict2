@@ -53,11 +53,20 @@ enum DictationSideEffect: Equatable {
 
     // MARK: - Key Monitoring
 
-    /// Start monitoring for Enter and Escape keys
-    case startKeyMonitors
+    /// Start monitoring for Escape key only
+    case startEscapeMonitor
 
-    /// Stop monitoring for Enter and Escape keys
-    case stopKeyMonitors
+    /// Stop monitoring for Escape key
+    case stopEscapeMonitor
+
+    /// Start monitoring for Enter key only
+    case startEnterMonitor
+
+    /// Stop monitoring for Enter key
+    case stopEnterMonitor
+
+    /// Schedule a timer to start Enter monitor after delay (avoids catching programmatic Enter)
+    case scheduleEnterMonitorStart
 
     // MARK: - Timers
 
@@ -103,10 +112,16 @@ extension DictationSideEffect: CustomStringConvertible {
             return "hideIndicator"
         case .showError(let message):
             return "showError(\(message.prefix(30))...)"
-        case .startKeyMonitors:
-            return "startKeyMonitors"
-        case .stopKeyMonitors:
-            return "stopKeyMonitors"
+        case .startEscapeMonitor:
+            return "startEscapeMonitor"
+        case .stopEscapeMonitor:
+            return "stopEscapeMonitor"
+        case .startEnterMonitor:
+            return "startEnterMonitor"
+        case .stopEnterMonitor:
+            return "stopEnterMonitor"
+        case .scheduleEnterMonitorStart:
+            return "scheduleEnterMonitorStart"
         case .scheduleErrorTimeout:
             return "scheduleErrorTimeout"
         case .schedulePasteComplete:

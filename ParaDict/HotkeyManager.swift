@@ -26,6 +26,7 @@ class HotkeyManager: ObservableObject {
     private var enterEventTap: CFMachPort?
     private var enterEventTapSource: CFRunLoopSource?
 
+
     init() {
         logger.notice("HotkeyManager initializing...")
         setupKeyboardShortcuts()
