@@ -35,6 +35,11 @@ final class DictationCoordinator: ObservableObject {
     private var pasteCompleteTask: Task<Void, Never>?
     private var enterMonitorStartTask: Task<Void, Never>?
 
+    /// Tracks the last raw transcription from Parakeet (for correction feature)
+    private var lastRawTranscription: String?
+    /// Tracks the last text that was actually pasted - may be LLM-enhanced (for correction feature)
+    private var lastPastedText: String?
+
     // MARK: - Initialization
 
     private init() {
@@ -136,6 +141,10 @@ final class DictationCoordinator: ObservableObject {
 
         case .flashMenuBarError:
             flashMenuBar(success: false)
+
+        case .showCorrectionWindow(let originalTranscription, let llmOutput):
+            logger.notice("Showing correction window - raw: \(originalTranscription.prefix(30))..., pasted: \(llmOutput.prefix(30))...")
+            correctionWindowManager.show(originalTranscription: originalTranscription, llmOutput: llmOutput)
         }
     }
 
@@ -205,13 +214,32 @@ final class DictationCoordinator: ObservableObject {
 
             if trimmed.isEmpty {
                 send(.transcriptionEmpty)
+            } else if isCorrectionKeyword(trimmed) {
+                // Check for correction keyword
+                logger.notice("Correction keyword detected")
+                if let rawTranscription = lastRawTranscription, let pastedText = lastPastedText {
+                    send(.correctionKeywordDetected(originalTranscription: rawTranscription, llmOutput: pastedText))
+                } else {
+                    logger.warning("No previous dictation to correct")
+                    send(.error(message: "No previous dictation to correct"))
+                }
             } else {
+                // Store raw transcription for correction feature
+                lastRawTranscription = trimmed
                 send(.transcriptionComplete(text: trimmed))
             }
         } catch {
             cleanupFile(url)
             send(.error(message: "Transcription failed: \(error.localizedDescription)"))
         }
+    }
+
+    /// Check if the transcription is just the correction keyword
+    private func isCorrectionKeyword(_ text: String) -> Bool {
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        // Match "correction", "correct", or common variations with punctuation
+        let correctionPatterns = ["correction", "correction.", "correct", "correct."]
+        return correctionPatterns.contains(normalized)
     }
 
     // MARK: - Enhancement
@@ -254,6 +282,8 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Pasting
 
     private func paste(_ text: String) {
+        // Track pasted text for correction feature
+        lastPastedText = text
         PastingService.pasteAtCursor(text)
     }
 

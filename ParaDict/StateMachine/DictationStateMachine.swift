@@ -119,6 +119,10 @@ final class DictationStateMachine {
             state = .error(message: "No speech detected")
             return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: "No speech detected"), .scheduleErrorTimeout]
 
+        case (.transcribing, .correctionKeywordDetected(let originalTranscription, let llmOutput)):
+            state = .idle
+            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showCorrectionWindow(originalTranscription: originalTranscription, llmOutput: llmOutput)]
+
         case (.transcribing, .escapePressed):
             // Allow canceling during transcription
             state = .idle

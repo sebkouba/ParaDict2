@@ -33,6 +33,11 @@ enum DictationEvent: Equatable {
     /// Transcription returned empty (no speech detected)
     case transcriptionEmpty
 
+    /// Correction keyword detected - show correction window
+    /// - originalTranscription: The raw transcription from previous dictation
+    /// - llmOutput: What was actually pasted from previous dictation
+    case correctionKeywordDetected(originalTranscription: String, llmOutput: String)
+
     /// LLM enhancement finished
     /// - text: The enhanced text
     case enhancementComplete(text: String)
@@ -87,6 +92,8 @@ extension DictationEvent: CustomStringConvertible {
             return "transcriptionComplete(\(text.prefix(30))...)"
         case .transcriptionEmpty:
             return "transcriptionEmpty"
+        case .correctionKeywordDetected(let orig, let output):
+            return "correctionKeywordDetected(orig: \(orig.prefix(20))..., out: \(output.prefix(20))...)"
         case .enhancementComplete(let text):
             return "enhancementComplete(\(text.prefix(30))...)"
         case .enhancementSkipped(let text):

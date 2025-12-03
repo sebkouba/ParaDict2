@@ -96,6 +96,13 @@ enum DictationSideEffect: Equatable {
 
     /// Flash the menu bar to indicate error
     case flashMenuBarError
+
+    // MARK: - Correction
+
+    /// Show the correction window with previous dictation
+    /// - originalTranscription: Raw transcription from Parakeet
+    /// - llmOutput: What was actually pasted
+    case showCorrectionWindow(originalTranscription: String, llmOutput: String)
 }
 
 // MARK: - CustomStringConvertible
@@ -147,6 +154,8 @@ extension DictationSideEffect: CustomStringConvertible {
             return "flashMenuBarSuccess"
         case .flashMenuBarError:
             return "flashMenuBarError"
+        case .showCorrectionWindow(let original, let output):
+            return "showCorrectionWindow(orig: \(original.prefix(20))..., out: \(output.prefix(20))...)"
         }
     }
 }
