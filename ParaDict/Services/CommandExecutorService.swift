@@ -19,7 +19,6 @@ struct ParameterConfig: Codable {
 
 struct ToolsFile: Codable {
     let tools: [ToolConfig]
-    let projects: [String: String]
 }
 
 /// Defines available tools and executes tool calls from LLM
@@ -120,15 +119,10 @@ class CommandExecutorService {
         return config.tools.map { tool in
             var params: [String: ParameterDefinition] = [:]
             for (key, param) in tool.parameters {
-                // For open_project, inject project names as enum
-                var enumValues = param.enum
-                if tool.executor == "open_project" && key == "project_name" {
-                    enumValues = Array(config.projects.keys).sorted()
-                }
                 params[key] = ParameterDefinition(
                     type: param.type,
                     description: param.description,
-                    enumValues: enumValues
+                    enumValues: param.enum
                 )
             }
 
@@ -166,10 +160,10 @@ class CommandExecutorService {
         // Dispatch to executor
         switch tool.executor {
         case "open_project":
-            guard let projectName = args["project_name"] as? String else {
-                throw CommandError.missingParameter("project_name")
+            guard let path = args["path"] as? String else {
+                throw CommandError.missingParameter("path")
             }
-            return try await openProject(name: projectName, projects: config.projects)
+            return try openProject(path: path)
 
         case "open_app":
             guard let appName = args["app_name"] as? String else {
@@ -196,12 +190,8 @@ class CommandExecutorService {
 
     // MARK: - Executors
 
-    private func openProject(name: String, projects: [String: String]) async throws -> String {
-        guard let projectPath = projects[name.lowercased()] else {
-            throw CommandError.projectNotFound(name)
-        }
-
-        let expandedPath = (projectPath as NSString).expandingTildeInPath
+    private func openProject(path: String) throws -> String {
+        let expandedPath = (path as NSString).expandingTildeInPath
 
         // Use VS Code's URL scheme - works reliably from GUI apps
         // vscode://file/path/to/folder opens the folder in VS Code
@@ -210,8 +200,8 @@ class CommandExecutorService {
         let opened = NSWorkspace.shared.open(vscodeURL)
 
         if opened {
-            logger.notice("Opened project: \(name) at \(expandedPath)")
-            return "Opened \(name) in VS Code"
+            logger.notice("Opened project at \(expandedPath)")
+            return "Opened \(path) in VS Code"
         } else {
             // Fallback: try using 'open -a' command
             let process = Process()
@@ -222,8 +212,8 @@ class CommandExecutorService {
             process.waitUntilExit()
 
             if process.terminationStatus == 0 {
-                logger.notice("Opened project (fallback): \(name) at \(expandedPath)")
-                return "Opened \(name) in VS Code"
+                logger.notice("Opened project (fallback) at \(expandedPath)")
+                return "Opened \(path) in VS Code"
             } else {
                 throw CommandError.executionFailed("Failed to open VS Code")
             }
@@ -271,7 +261,7 @@ class CommandExecutorService {
         return "Opened \(finalURLString)"
     }
 
-    private func runShell(command: String) async throws -> String {
+    private func runShell(command: String) throws -> String {
         // Security check: reject dangerous commands
         let dangerousPatterns = ["rm -rf", "sudo", "mkfs", "dd if=", "> /dev/"]
         for pattern in dangerousPatterns {
@@ -280,25 +270,31 @@ class CommandExecutorService {
             }
         }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-c", command]
+        // Run command in Terminal so user can see the output
+        // Escape single quotes in the command for AppleScript
+        let escapedCommand = command.replacingOccurrences(of: "'", with: "'\\''")
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "\(escapedCommand)"
+        end tell
+        """
 
-        try process.run()
-        process.waitUntilExit()
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
-
-        if process.terminationStatus == 0 {
-            return output.isEmpty ? "Command executed successfully" : output
-        } else {
-            throw CommandError.executionFailed(output)
+        guard let appleScript = NSAppleScript(source: script) else {
+            throw CommandError.executionFailed("Failed to create AppleScript")
         }
+
+        var error: NSDictionary?
+        appleScript.executeAndReturnError(&error)
+
+        if let error = error {
+            let message = error[NSAppleScript.errorMessage] as? String ?? "Unknown error"
+            throw CommandError.executionFailed(message)
+        }
+
+        logger.notice("Ran command in Terminal: \(command)")
+        return "Running '\(command)' in Terminal"
     }
 
     // MARK: - Helpers
@@ -335,7 +331,6 @@ enum CommandError: LocalizedError {
     case missingParameter(String)
     case unknownTool(String)
     case unknownExecutor(String)
-    case projectNotFound(String)
     case appNotFound(String)
     case invalidURL(String)
     case dangerousCommand(String)
@@ -353,8 +348,6 @@ enum CommandError: LocalizedError {
             return "Unknown tool: \(name)"
         case .unknownExecutor(let name):
             return "Unknown executor: \(name)"
-        case .projectNotFound(let name):
-            return "Project not found: \(name)"
         case .appNotFound(let name):
             return "Application not found: \(name)"
         case .invalidURL(let url):

@@ -188,10 +188,9 @@ final class CommandExecutorTests: XCTestCase {
         let errors: [CommandError] = [
             .noToolsConfigured,
             .invalidArguments,
-            .missingParameter("project_name"),
+            .missingParameter("path"),
             .unknownTool("unknown_tool"),
             .unknownExecutor("unknown_executor"),
-            .projectNotFound("NonExistent"),
             .appNotFound("FakeApp"),
             .invalidURL("not a url"),
             .dangerousCommand("rm -rf /"),
@@ -294,20 +293,17 @@ final class CommandExecutorTests: XCTestCase {
           "tools": [
             {
               "name": "open_project",
-              "description": "Opens a project",
+              "description": "Opens a project in VS Code",
               "parameters": {
-                "project_name": {
+                "path": {
                   "type": "string",
-                  "description": "The project name"
+                  "description": "The path to the project folder"
                 }
               },
-              "required": ["project_name"],
+              "required": ["path"],
               "executor": "open_project"
             }
-          ],
-          "projects": {
-            "parakeet": "~/code/Parakeet"
-          }
+          ]
         }
         """.data(using: .utf8)!
 
@@ -317,6 +313,6 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(toolsFile.tools.count, 1)
         XCTAssertEqual(toolsFile.tools[0].name, "open_project")
         XCTAssertEqual(toolsFile.tools[0].executor, "open_project")
-        XCTAssertEqual(toolsFile.projects["parakeet"], "~/code/Parakeet")
+        XCTAssertEqual(toolsFile.tools[0].parameters["path"]?.type, "string")
     }
 }

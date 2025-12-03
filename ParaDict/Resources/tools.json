@@ -48,10 +48,5 @@
       "required": ["command"],
       "executor": "run_shell"
     }
-  ],
-  "projects": {
-    "parakeet": "~/code/Parakeet",
-    "paradict": "~/code/ParaDict",
-    "voiceink": "~/code/VoiceInk"
-  }
+  ]
 }
