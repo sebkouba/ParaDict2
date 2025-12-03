@@ -83,6 +83,19 @@ enum DictationSideEffect: Equatable {
     /// - enhanced: The enhanced text (if any)
     /// - mode: The dictation mode
     case logTranscription(transcription: String, enhanced: String?, mode: DictationMode)
+
+    // MARK: - Command Execution
+
+    /// Execute a voice command via LLM tool calling
+    /// - text: The transcribed command text
+    /// - prompt: The system prompt for command parsing
+    case executeCommand(text: String, prompt: String)
+
+    /// Flash the menu bar to indicate success
+    case flashMenuBarSuccess
+
+    /// Flash the menu bar to indicate error
+    case flashMenuBarError
 }
 
 // MARK: - CustomStringConvertible
@@ -128,6 +141,12 @@ extension DictationSideEffect: CustomStringConvertible {
             return "schedulePasteComplete"
         case .logTranscription(_, _, let mode):
             return "logTranscription(\(mode.rawValue))"
+        case .executeCommand(let text, _):
+            return "executeCommand(\(text.prefix(20))...)"
+        case .flashMenuBarSuccess:
+            return "flashMenuBarSuccess"
+        case .flashMenuBarError:
+            return "flashMenuBarError"
         }
     }
 }

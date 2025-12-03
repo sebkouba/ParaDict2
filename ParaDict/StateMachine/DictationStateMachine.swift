@@ -96,8 +96,13 @@ final class DictationStateMachine {
         // MARK: - From Transcribing
 
         case (.transcribing(let mode, let prompt, let continueAfter), .transcriptionComplete(let text)):
-            // Check if we need LLM enhancement
-            if (mode == .enhanced || mode == .reply), let prompt = prompt {
+            // Check mode for appropriate processing
+            if mode == .command, let prompt = prompt {
+                // Command mode - execute tool calls
+                state = .executingCommand(mode: mode, prompt: prompt)
+                return [.executeCommand(text: text, prompt: prompt)]
+            } else if (mode == .enhanced || mode == .reply), let prompt = prompt {
+                // Enhanced/reply mode - LLM enhancement
                 state = .enhancing(mode: mode, prompt: prompt, continueAfter: continueAfter)
                 return [.enhance(text: text, prompt: prompt, context: nil)]
             } else {
@@ -139,6 +144,21 @@ final class DictationStateMachine {
 
         case (.enhancing, .escapePressed):
             // Allow canceling during enhancement
+            state = .idle
+            return [.hideIndicator]
+
+        // MARK: - From Executing Command
+
+        case (.executingCommand, .commandComplete):
+            state = .idle
+            return [.hideIndicator, .flashMenuBarSuccess]
+
+        case (.executingCommand, .commandFailed(let message)):
+            state = .error(message: message)
+            return [.hideIndicator, .flashMenuBarError, .showError(message: message), .scheduleErrorTimeout]
+
+        case (.executingCommand, .escapePressed):
+            // Allow canceling during command execution
             state = .idle
             return [.hideIndicator]
 

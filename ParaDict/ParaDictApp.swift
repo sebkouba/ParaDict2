@@ -9,7 +9,14 @@ extension KeyboardShortcuts.Name {
     static let localDictation = Self("localDictation")
     static let enhancedDictation = Self("enhancedDictation")
     static let replyDictation = Self("replyDictation")
-    // Future shortcuts can be added here (e.g., customDictation1, customDictation2)
+    static let commandDictation = Self("commandDictation")
+}
+
+/// Menu bar flash state for visual feedback
+enum MenuBarFlashState {
+    case normal
+    case success
+    case error
 }
 
 @main
@@ -20,6 +27,7 @@ struct ParaDictApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
 
     @State private var showMenuBarIcon = true
+    @State private var menuBarFlashState: MenuBarFlashState = .normal
 
     init() {
         logger.notice("ParaDict initializing...")
@@ -50,6 +58,15 @@ struct ParaDictApp: App {
                 .environmentObject(dictationManager)
                 .environmentObject(menuBarManager)
                 .frame(minWidth: 600, minHeight: 500)
+                .onReceive(NotificationCenter.default.publisher(for: .menuBarFlash)) { notification in
+                    guard let success = notification.userInfo?["success"] as? Bool else { return }
+                    menuBarFlashState = success ? .success : .error
+
+                    // Reset after delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        menuBarFlashState = .normal
+                    }
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -69,6 +86,17 @@ struct ParaDictApp: App {
     }
 
     private var menuBarIconName: String {
+        // Flash state takes priority
+        switch menuBarFlashState {
+        case .success:
+            return "checkmark.circle.fill"
+        case .error:
+            return "xmark.circle.fill"
+        case .normal:
+            break
+        }
+
+        // Normal state based on dictation state
         switch dictationManager.state {
         case .idle:
             return "waveform"
@@ -182,6 +210,29 @@ struct ShortcutsSettingsView: View {
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                             Text(replyConfig.promptFile ?? "none")
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+
+            GroupBox("Command Dictation") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Execute voice commands like 'open Parakeet' to launch projects")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                    KeyboardShortcuts.Recorder("Shortcut:", name: .commandDictation)
+
+                    Divider()
+
+                    // Show current prompt file
+                    if let commandConfig = configManager.config.shortcuts.first(where: { $0.mode == .command }) {
+                        HStack {
+                            Text("Prompt file:")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text(commandConfig.promptFile ?? "none")
                                 .font(.system(.caption, design: .monospaced))
                         }
                     }

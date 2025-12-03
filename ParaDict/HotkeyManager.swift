@@ -220,18 +220,21 @@ class HotkeyManager: ObservableObject {
         let localConfig = shortcuts.first(where: { $0.mode == .local })
         let enhancedConfig = shortcuts.first(where: { $0.mode == .enhanced })
         let replyConfig = shortcuts.first(where: { $0.mode == .reply })
+        let commandConfig = shortcuts.first(where: { $0.mode == .command })
 
         let desiredLocal = localConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
         let desiredEnhanced = enhancedConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
         let desiredReply = replyConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
+        let desiredCommand = commandConfig?.shortcut.flatMap { ShortcutParser.parse($0) }
 
         let currentLocal = KeyboardShortcuts.getShortcut(for: .localDictation)
         let currentEnhanced = KeyboardShortcuts.getShortcut(for: .enhancedDictation)
         let currentReply = KeyboardShortcuts.getShortcut(for: .replyDictation)
+        let currentCommand = KeyboardShortcuts.getShortcut(for: .commandDictation)
 
         // Check if we need to clear all shortcuts first to avoid conflicts
-        let allDesired = [desiredLocal, desiredEnhanced, desiredReply].compactMap { $0 }
-        let allCurrent = [currentLocal, currentEnhanced, currentReply].compactMap { $0 }
+        let allDesired = [desiredLocal, desiredEnhanced, desiredReply, desiredCommand].compactMap { $0 }
+        let allCurrent = [currentLocal, currentEnhanced, currentReply, currentCommand].compactMap { $0 }
         let needsClear = allDesired.contains { desired in
             allCurrent.contains { current in desired == current }
         }
@@ -241,6 +244,7 @@ class HotkeyManager: ObservableObject {
             KeyboardShortcuts.setShortcut(nil, for: .localDictation)
             KeyboardShortcuts.setShortcut(nil, for: .enhancedDictation)
             KeyboardShortcuts.setShortcut(nil, for: .replyDictation)
+            KeyboardShortcuts.setShortcut(nil, for: .commandDictation)
         }
 
         // Apply local shortcut
@@ -270,6 +274,16 @@ class HotkeyManager: ObservableObject {
                 logger.notice("Set reply dictation shortcut: \(str)")
             } else {
                 logger.notice("Cleared reply dictation shortcut")
+            }
+        }
+
+        // Apply command shortcut
+        if currentCommand != desiredCommand || needsClear {
+            KeyboardShortcuts.setShortcut(desiredCommand, for: .commandDictation)
+            if let str = commandConfig?.shortcut {
+                logger.notice("Set command dictation shortcut: \(str)")
+            } else {
+                logger.notice("Cleared command dictation shortcut")
             }
         }
     }
@@ -343,6 +357,22 @@ class HotkeyManager: ObservableObject {
         KeyboardShortcuts.onKeyUp(for: .replyDictation) { [weak self] in
             Task { @MainActor in
                 self?.logger.notice("REPLY DICTATION: Key UP detected")
+                self?.handleShortcutUp()
+            }
+        }
+
+        // Command dictation shortcut
+        KeyboardShortcuts.onKeyDown(for: .commandDictation) { [weak self] in
+            Task { @MainActor in
+                self?.logger.notice("COMMAND DICTATION: Key DOWN detected")
+                let config = ConfigManager.shared.config.shortcuts.first(where: { $0.mode == .command })
+                await self?.handleShortcutDown(mode: .command, shortcutConfig: config)
+            }
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .commandDictation) { [weak self] in
+            Task { @MainActor in
+                self?.logger.notice("COMMAND DICTATION: Key UP detected")
                 self?.handleShortcutUp()
             }
         }
@@ -510,6 +540,30 @@ class HotkeyManager: ObservableObject {
                 shortcuts[idx].shortcut = nil
                 changed = true
                 logger.notice("Cleared reply dictation shortcut from UI")
+            }
+        }
+
+        // Sync command dictation
+        if let commandShortcut = KeyboardShortcuts.getShortcut(for: .commandDictation) {
+            let str = ShortcutParser.toString(commandShortcut)
+            if let idx = shortcuts.firstIndex(where: { $0.mode == .command }) {
+                if shortcuts[idx].shortcut != str {
+                    shortcuts[idx].shortcut = str
+                    changed = true
+                    logger.notice("Synced command dictation shortcut from UI: \(str)")
+                }
+            } else {
+                // Entry doesn't exist - add it (migration case)
+                shortcuts.append(ShortcutConfig(name: "command", shortcut: str, mode: .command, promptFile: "command", captureSelection: nil))
+                changed = true
+                logger.notice("Added command dictation shortcut entry: \(str)")
+            }
+        } else {
+            if let idx = shortcuts.firstIndex(where: { $0.mode == .command }),
+               shortcuts[idx].shortcut != nil {
+                shortcuts[idx].shortcut = nil
+                changed = true
+                logger.notice("Cleared command dictation shortcut from UI")
             }
         }
 

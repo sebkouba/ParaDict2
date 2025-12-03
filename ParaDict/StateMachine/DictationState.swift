@@ -32,6 +32,11 @@ enum DictationStateSM: Equatable {
     /// - continueAfter: True if we should press Enter and restart after pasting
     case pasting(mode: DictationMode, prompt: String?, continueAfter: Bool)
 
+    /// Executing a voice command via tool calls
+    /// - mode: The dictation mode
+    /// - prompt: The prompt used for command parsing
+    case executingCommand(mode: DictationMode, prompt: String?)
+
     /// Error state - displays error message then returns to idle
     case error(message: String)
 
@@ -45,7 +50,8 @@ enum DictationStateSM: Equatable {
         case .recording(let mode, _, _, _),
              .transcribing(let mode, _, _),
              .enhancing(let mode, _, _),
-             .pasting(let mode, _, _):
+             .pasting(let mode, _, _),
+             .executingCommand(let mode, _):
             return mode
         }
     }
@@ -56,10 +62,10 @@ enum DictationStateSM: Equatable {
         return false
     }
 
-    /// Returns true if processing (transcribing, enhancing, or pasting)
+    /// Returns true if processing (transcribing, enhancing, pasting, or executing command)
     var isProcessing: Bool {
         switch self {
-        case .transcribing, .enhancing, .pasting:
+        case .transcribing, .enhancing, .pasting, .executingCommand:
             return true
         default:
             return false
@@ -92,7 +98,7 @@ enum DictationStateSM: Equatable {
         switch self {
         case .idle, .error:
             return false
-        case .recording, .transcribing, .enhancing, .pasting:
+        case .recording, .transcribing, .enhancing, .pasting, .executingCommand:
             return true
         }
     }
@@ -103,7 +109,8 @@ enum DictationStateSM: Equatable {
         case .recording(_, let prompt, _, _),
              .transcribing(_, let prompt, _),
              .enhancing(_, let prompt, _),
-             .pasting(_, let prompt, _):
+             .pasting(_, let prompt, _),
+             .executingCommand(_, let prompt):
             return prompt
         default:
             return nil
@@ -130,6 +137,8 @@ extension DictationStateSM: CustomStringConvertible {
             return "enhancing(\(mode.rawValue), continueAfter: \(continueAfter))"
         case .pasting(let mode, _, let continueAfter):
             return "pasting(\(mode.rawValue), continueAfter: \(continueAfter))"
+        case .executingCommand(let mode, _):
+            return "executingCommand(\(mode.rawValue))"
         case .error(let message):
             return "error(\(message.prefix(30))...)"
         }

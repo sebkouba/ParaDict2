@@ -26,7 +26,8 @@ struct AppConfig: Codable {
             shortcuts: [
                 ShortcutConfig(name: "local", shortcut: "ctrl+cmd+t", mode: .local, promptFile: nil, captureSelection: nil),
                 ShortcutConfig(name: "enhanced", shortcut: nil, mode: .enhanced, promptFile: "default", captureSelection: nil),
-                ShortcutConfig(name: "reply", shortcut: nil, mode: .reply, promptFile: "reply", captureSelection: true)
+                ShortcutConfig(name: "reply", shortcut: nil, mode: .reply, promptFile: "reply", captureSelection: true),
+                ShortcutConfig(name: "command", shortcut: nil, mode: .command, promptFile: "command", captureSelection: nil)
             ],
             customVocabulary: ["Parakeet", "Groq"]
         )
@@ -82,6 +83,7 @@ enum DictationMode: String, Codable {
     case local      // Parakeet only
     case enhanced   // Parakeet + LLM
     case reply      // Parakeet + LLM with selection context
+    case command    // Parakeet + LLM with tool calling (voice commands)
 }
 
 // MARK: - Shortcut String Parsing

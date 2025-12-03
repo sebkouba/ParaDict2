@@ -1,0 +1,57 @@
+{
+  "tools": [
+    {
+      "name": "open_project",
+      "description": "Opens a coding project in VS Code. Use when the user says 'open [project name]'.",
+      "parameters": {
+        "project_name": {
+          "type": "string",
+          "description": "The name of the project to open"
+        }
+      },
+      "required": ["project_name"],
+      "executor": "open_project"
+    },
+    {
+      "name": "open_app",
+      "description": "Opens a macOS application by name",
+      "parameters": {
+        "app_name": {
+          "type": "string",
+          "description": "The name of the application (e.g., 'Safari', 'Finder', 'Terminal')"
+        }
+      },
+      "required": ["app_name"],
+      "executor": "open_app"
+    },
+    {
+      "name": "open_url",
+      "description": "Opens a URL in the default browser",
+      "parameters": {
+        "url": {
+          "type": "string",
+          "description": "The URL to open"
+        }
+      },
+      "required": ["url"],
+      "executor": "open_url"
+    },
+    {
+      "name": "run_shell",
+      "description": "Runs a shell command. Use sparingly and only for safe operations.",
+      "parameters": {
+        "command": {
+          "type": "string",
+          "description": "The shell command to execute"
+        }
+      },
+      "required": ["command"],
+      "executor": "run_shell"
+    }
+  ],
+  "projects": {
+    "parakeet": "~/code/Parakeet",
+    "paradict": "~/code/ParaDict",
+    "voiceink": "~/code/VoiceInk"
+  }
+}

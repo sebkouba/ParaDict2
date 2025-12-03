@@ -30,6 +30,106 @@ struct ChatCompletionResponse: Codable {
     let choices: [Choice]
 }
 
+// MARK: - Tool Calling Types
+
+struct ToolDefinition: Codable {
+    let type: String
+    let function: FunctionDefinition
+
+    init(name: String, description: String, parameters: [String: ParameterDefinition], required: [String] = []) {
+        self.type = "function"
+        self.function = FunctionDefinition(
+            name: name,
+            description: description,
+            parameters: ParametersSchema(
+                type: "object",
+                properties: parameters,
+                required: required
+            )
+        )
+    }
+}
+
+struct FunctionDefinition: Codable {
+    let name: String
+    let description: String
+    let parameters: ParametersSchema
+}
+
+struct ParametersSchema: Codable {
+    let type: String
+    let properties: [String: ParameterDefinition]
+    let required: [String]
+}
+
+struct ParameterDefinition: Codable {
+    let type: String
+    let description: String
+    let `enum`: [String]?
+
+    init(type: String, description: String, enumValues: [String]? = nil) {
+        self.type = type
+        self.description = description
+        self.enum = enumValues
+    }
+}
+
+struct ToolCall: Codable {
+    let id: String
+    let type: String
+    let function: FunctionCallInfo
+}
+
+struct FunctionCallInfo: Codable {
+    let name: String
+    let arguments: String  // JSON string to be parsed
+}
+
+/// Extended response that includes tool_calls
+struct ChatCompletionResponseWithTools: Codable {
+    struct Choice: Codable {
+        struct Message: Codable {
+            let role: String
+            let content: String?
+            let toolCalls: [ToolCall]?
+
+            enum CodingKeys: String, CodingKey {
+                case role, content
+                case toolCalls = "tool_calls"
+            }
+        }
+        let message: Message
+        let finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
+    }
+    let choices: [Choice]
+}
+
+struct ChatCompletionRequestWithTools: Codable {
+    let model: String
+    let messages: [ChatMessage]
+    let temperature: Double?
+    let maxTokens: Int?
+    let tools: [ToolDefinition]?
+    let toolChoice: String?
+
+    enum CodingKeys: String, CodingKey {
+        case model, messages, temperature, tools
+        case maxTokens = "max_tokens"
+        case toolChoice = "tool_choice"
+    }
+}
+
+/// Result type for tool-aware chat
+enum ChatWithToolsResult {
+    case content(String)
+    case toolCalls([ToolCall])
+}
+
 enum LLMError: LocalizedError {
     case noAPIKey
     case invalidAPIKey
@@ -303,6 +403,78 @@ class LLMClient: ObservableObject {
         logger.notice("LLM response (length=\(content.count)): \(responsePreview)...")
 
         return content
+    }
+
+    // MARK: - Tool Calling
+
+    func chatWithTools(
+        messages: [ChatMessage],
+        tools: [ToolDefinition]
+    ) async throws -> ChatWithToolsResult {
+        guard let apiKey = getStoredAPIKey() else {
+            throw LLMError.noAPIKey
+        }
+
+        let config = ConfigManager.shared.config.llm
+
+        let request = ChatCompletionRequestWithTools(
+            model: config.model,
+            messages: messages,
+            temperature: 0.6,  // Kimi K2 recommended
+            maxTokens: 1024,
+            tools: tools,
+            toolChoice: "auto"
+        )
+
+        var urlRequest = URLRequest(url: URL(string: baseURL)!)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        urlRequest.timeoutInterval = 30
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        logger.notice("Sending tool-aware request to Groq API")
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LLMError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            break
+        case 401:
+            isAPIKeyValid = false
+            throw LLMError.invalidAPIKey
+        case 429:
+            throw LLMError.rateLimitExceeded
+        case 500...599:
+            throw LLMError.serverError(httpResponse.statusCode)
+        default:
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            logger.error("API error: \(httpResponse.statusCode) - \(errorMessage)")
+            throw LLMError.requestFailed("HTTP \(httpResponse.statusCode): \(errorMessage)")
+        }
+
+        let completion = try JSONDecoder().decode(ChatCompletionResponseWithTools.self, from: data)
+
+        guard let choice = completion.choices.first else {
+            throw LLMError.emptyResponse
+        }
+
+        // Check for tool calls first
+        if let toolCalls = choice.message.toolCalls, !toolCalls.isEmpty {
+            logger.notice("Received \(toolCalls.count) tool call(s)")
+            return .toolCalls(toolCalls)
+        }
+
+        // Otherwise return content
+        if let content = choice.message.content {
+            return .content(content)
+        }
+
+        throw LLMError.emptyResponse
     }
 
     // MARK: - Connection Test

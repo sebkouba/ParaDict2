@@ -125,6 +125,17 @@ final class DictationCoordinator: ObservableObject {
 
         case .logTranscription(let transcription, let enhanced, let mode):
             logTranscription(transcription: transcription, enhanced: enhanced, mode: mode)
+
+        case .executeCommand(let text, let prompt):
+            Task {
+                await executeCommand(text: text, prompt: prompt)
+            }
+
+        case .flashMenuBarSuccess:
+            flashMenuBar(success: true)
+
+        case .flashMenuBarError:
+            flashMenuBar(success: false)
         }
     }
 
@@ -301,6 +312,56 @@ final class DictationCoordinator: ObservableObject {
         }
     }
 
+    // MARK: - Command Execution
+
+    private func executeCommand(text: String, prompt: String) async {
+        let executor = CommandExecutorService.shared
+        let tools = executor.getToolDefinitions()
+
+        guard !tools.isEmpty else {
+            send(.commandFailed(message: "No tools configured. Check tools.json"))
+            return
+        }
+
+        let messages = [
+            ChatMessage(role: "system", content: prompt),
+            ChatMessage(role: "user", content: text)
+        ]
+
+        do {
+            let result = try await llmClient.chatWithTools(messages: messages, tools: tools)
+
+            switch result {
+            case .content(let response):
+                // LLM responded with text instead of tool call
+                logger.notice("LLM returned text (no tool call): \(response.prefix(50))...")
+                send(.commandFailed(message: "Command not recognized: \(text)"))
+
+            case .toolCalls(let toolCalls):
+                // Execute each tool call
+                for toolCall in toolCalls {
+                    let output = try await executor.execute(toolCall: toolCall)
+                    logger.notice("Tool executed: \(toolCall.function.name) -> \(output)")
+                }
+                send(.commandComplete)
+            }
+        } catch {
+            logger.error("Command execution failed: \(error.localizedDescription)")
+            send(.commandFailed(message: error.localizedDescription))
+        }
+    }
+
+    // MARK: - Menu Bar Flash
+
+    private func flashMenuBar(success: Bool) {
+        // Post notification for menu bar to flash
+        NotificationCenter.default.post(
+            name: .menuBarFlash,
+            object: nil,
+            userInfo: ["success": success]
+        )
+    }
+
     // MARK: - Public Interface (for UI/debugging)
 
     /// Current state for UI observation
@@ -317,5 +378,11 @@ final class DictationCoordinator: ObservableObject {
     var isProcessing: Bool {
         stateMachine.state.isProcessing
     }
+}
+
+// MARK: - Notification for menu bar flash
+
+extension Notification.Name {
+    static let menuBarFlash = Notification.Name("menuBarFlash")
 }
 
