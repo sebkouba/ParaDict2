@@ -7,16 +7,32 @@ struct CorrectionView: View {
     let onSubmit: (String) -> Void
     let onCancel: () -> Void
 
-    @State private var dictionaryEntry: String
-    @FocusState private var isFocused: Bool
+    @State private var inputText: String
+    @State private var expectedOutput: String
+    @State private var explanation: String = ""
+    @FocusState private var focusedField: Field?
+
+    enum Field {
+        case input, expectedOutput, explanation
+    }
 
     init(originalTranscription: String, llmOutput: String, onSubmit: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.originalTranscription = originalTranscription
         self.llmOutput = llmOutput
         self.onSubmit = onSubmit
         self.onCancel = onCancel
-        // Pre-populate with XML template using llmOutput as the input
-        self._dictionaryEntry = State(initialValue: "<input>\(llmOutput)</input> <expected output>\(llmOutput)</expected output> <explanation></explanation>")
+        self._inputText = State(initialValue: originalTranscription)
+        self._expectedOutput = State(initialValue: llmOutput)
+    }
+
+    /// Combines the fields into XML format for saving
+    private var dictionaryEntry: String {
+        var entry = "<correction>\n<input>\(inputText)</input>\n<expected output>\(expectedOutput)</expected output>"
+        if !explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            entry += "\n<explanation>\(explanation)</explanation>"
+        }
+        entry += "\n</correction>"
+        return entry
     }
 
     var body: some View {
@@ -24,23 +40,30 @@ struct CorrectionView: View {
             Text("Add Dictionary Entry")
                 .font(.headline)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Edit the entry below (this will be appended to the dictionary):")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                AutoSizingTextEditor(
-                    text: $dictionaryEntry,
-                    isFocused: isFocused,
-                    onTab: {}
-                )
-                .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-                .focused($isFocused)
-            }
+            // Input field
+            LabeledTextField(
+                label: "<input>",
+                text: $inputText,
+                isFocused: focusedField == .input
+            )
+            .focused($focusedField, equals: .input)
+
+            // Expected output field
+            LabeledTextField(
+                label: "<expected output>",
+                text: $expectedOutput,
+                isFocused: focusedField == .expectedOutput
+            )
+            .focused($focusedField, equals: .expectedOutput)
+
+            // Explanation field
+            LabeledTextField(
+                label: "<explanation>",
+                text: $explanation,
+                placeholder: "Optional: explain the correction",
+                isFocused: focusedField == .explanation
+            )
+            .focused($focusedField, equals: .explanation)
 
             HStack {
                 Button("Cancel") {
@@ -55,14 +78,43 @@ struct CorrectionView: View {
                 }
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(.borderedProminent)
-                .disabled(dictionaryEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                         expectedOutput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(20)
         .frame(width: 600)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
-            isFocused = true
+            focusedField = .expectedOutput
+        }
+    }
+}
+
+// MARK: - Labeled Text Field
+
+struct LabeledTextField: View {
+    let label: String
+    @Binding var text: String
+    var placeholder: String = ""
+    var isFocused: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(.system(.body, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(width: 130, alignment: .trailing)
+
+            TextField(placeholder, text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
+                .padding(8)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                )
         }
     }
 }
