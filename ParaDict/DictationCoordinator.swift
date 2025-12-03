@@ -215,7 +215,10 @@ final class DictationCoordinator: ObservableObject {
 
     private func transcribe(url: URL) async {
         do {
-            let text = try await transcriptionService.transcribe(audioURL: url)
+            // Run transcription off main thread to prevent UI blocking
+            let text = try await Task.detached(priority: .userInitiated) { [transcriptionService] in
+                try await transcriptionService.transcribe(audioURL: url)
+            }.value
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Clean up the recording file

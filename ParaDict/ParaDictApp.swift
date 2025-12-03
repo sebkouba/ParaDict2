@@ -59,6 +59,12 @@ struct ParaDictApp: App {
             }
         }
 
+        // Preload ASR models in background to avoid UI blocking on first transcription
+        DispatchQueue.main.async {
+            logger.notice("Preloading ASR models...")
+            ParakeetTranscriptionService.shared.preloadModels()
+        }
+
         logger.notice("ParaDict initialization complete")
     }
 

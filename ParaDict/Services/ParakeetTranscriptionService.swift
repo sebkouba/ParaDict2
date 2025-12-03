@@ -39,6 +39,17 @@ class ParakeetTranscriptionService {
         logger.notice("ParakeetTranscriptionService initialized")
     }
 
+    /// Preload models in background at app startup to avoid UI blocking on first transcription
+    func preloadModels() {
+        Task.detached(priority: .utility) { [self] in
+            do {
+                try await ensureModelsLoaded()
+            } catch {
+                logger.error("Failed to preload models: \(error.localizedDescription)")
+            }
+        }
+    }
+
     private func ensureModelsLoaded() async throws {
         if asrManager != nil {
             logger.notice("ASR models already loaded")
@@ -78,7 +89,18 @@ class ParakeetTranscriptionService {
             throw ASRError.notInitialized
         }
 
-        let audioSamples = try readAudioSamples(from: audioURL)
+        // Run heavy audio processing on GCD background queue to avoid blocking UI
+        let audioSamples: [Float] = try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async { [self] in
+                do {
+                    let samples = try readAudioSamples(from: audioURL)
+                    continuation.resume(returning: samples)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+
         logger.notice("Read \(audioSamples.count) audio samples")
 
         if audioSamples.isEmpty {
@@ -86,10 +108,15 @@ class ParakeetTranscriptionService {
             throw ASRError.emptyAudio
         }
 
-        // Check audio levels
-        let maxSample = audioSamples.max() ?? 0
-        let minSample = audioSamples.min() ?? 0
-        let avgAbsSample = audioSamples.reduce(0) { $0 + abs($1) } / Float(audioSamples.count)
+        // Check audio levels on background queue
+        let (minSample, maxSample, avgAbsSample): (Float, Float, Float) = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let maxS = audioSamples.max() ?? 0
+                let minS = audioSamples.min() ?? 0
+                let avgS = audioSamples.reduce(0) { $0 + abs($1) } / Float(audioSamples.count)
+                continuation.resume(returning: (minS, maxS, avgS))
+            }
+        }
         logger.notice("Audio stats - min: \(minSample), max: \(maxSample), avgAbs: \(avgAbsSample)")
 
         if avgAbsSample < 0.001 {
@@ -158,10 +185,15 @@ class ParakeetTranscriptionService {
         logger.notice("WAV format - audioFormat: \(audioFormat), channels: \(numChannels), sampleRate: \(sampleRate), bitsPerSample: \(bitsPerSample)")
 
         // Skip WAV header (44 bytes) and convert 16-bit PCM to float
-        let floats = stride(from: 44, to: data.count, by: 2).map {
-            return data[$0..<$0 + 2].withUnsafeBytes {
-                let short = Int16(littleEndian: $0.load(as: Int16.self))
-                return max(-1.0, min(Float(short) / 32767.0, 1.0))
+        // Use efficient single-pass conversion to avoid creating millions of Data slices
+        let sampleCount = (data.count - 44) / 2
+        var floats = [Float](repeating: 0, count: sampleCount)
+
+        data.withUnsafeBytes { rawBuffer in
+            let int16Ptr = rawBuffer.baseAddress!.advanced(by: 44).assumingMemoryBound(to: Int16.self)
+            for i in 0..<sampleCount {
+                let sample = Int16(littleEndian: int16Ptr[i])
+                floats[i] = max(-1.0, min(Float(sample) / 32767.0, 1.0))
             }
         }
 

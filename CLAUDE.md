@@ -201,3 +201,23 @@ ParaDict/
 
 **Reference Codebase:** `/Users/sebastian/code/VoiceInk`
 If you are having problems with implementation, or I tell you to look at the reference implementation at this location, there's a Swift application that is more feature-rich than what we've built thus far. You can always go there to look for working code.
+
+## Debugging UI Blocking (Rainbow Wheel)
+
+**When the UI freezes, check the ENTRY POINT first, not the processing code.**
+
+Before wrapping code in `Task.detached`, `DispatchQueue.global()`, or optimizing algorithms, ask:
+
+1. **What triggers this code path?** (callback, notification, timer, etc.)
+2. **What thread/queue is the trigger running on?**
+
+Search for these patterns:
+```bash
+grep -rn "DispatchQueue.main" ParaDict/
+grep -rn "FSEventStreamSetDispatchQueue" ParaDict/
+grep -rn "@MainActor" ParaDict/
+```
+
+If ANY entry point runs on `DispatchQueue.main` or is `@MainActor`, everything downstream blocks the UI—no matter how much async/await wrapping you add inside.
+
+**Fix the entry point, not the symptoms.**

@@ -25,6 +25,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- WAV to float sample conversion optimized (eliminated 81M Data slice allocations)
+- Audio conversion no longer blocks UI (moved to GCD background queue)
+- Live dictation no longer blocks UI during transcription (moved to background thread)
 - Directory Watcher no longer blocks live dictation (uses separate transcription instance)
 - Directory Watcher activity log now shows processing duration instead of "time ago"
 - Continuous mode bug fix

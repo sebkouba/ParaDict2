@@ -36,6 +36,21 @@ class AudioConverterService {
 
         logger.notice("Converting \(inputURL.lastPathComponent) to WAV (native)...")
 
+        // Run heavy conversion work on background thread to avoid blocking UI
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async { [logger] in
+                do {
+                    let result = try self.performConversion(inputURL: inputURL, logger: logger)
+                    continuation.resume(returning: result)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// Synchronous conversion work - runs on background thread
+    private func performConversion(inputURL: URL, logger: Logger) throws -> URL {
         // 1. Read input with AVAudioFile (handles mp3, m4a, wav, aac, etc.)
         guard let audioFile = try? AVAudioFile(forReading: inputURL) else {
             throw AudioConverterError.invalidAudioFile

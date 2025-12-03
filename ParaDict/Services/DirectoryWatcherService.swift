@@ -39,6 +39,7 @@ class DirectoryWatcherService: ObservableObject {
     private var outputDirectory: URL?
     private var eventStream: FSEventStreamRef?
     private var processedFiles: [String: Date] = [:]  // path -> modification date
+    private let fileEventQueue = DispatchQueue(label: "com.paradict.filewatcher", qos: .utility)
 
     private let supportedExtensions = ["wav", "mp3", "m4a", "aac", "flac", "ogg", "wma"]
     private let maxActivityHistory = 20
@@ -163,7 +164,7 @@ class DirectoryWatcherService: ObservableObject {
         )
 
         if let stream = eventStream {
-            FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
+            FSEventStreamSetDispatchQueue(stream, fileEventQueue)
             FSEventStreamStart(stream)
         }
     }
