@@ -95,13 +95,36 @@ hotkeys:
     prompt: "default"
 ```
 
-### Custom Prompts
+### Prompts
 
-Create custom prompts in `~/Library/Application Support/ParaDict/prompts/`:
+Prompts are stored in `~/Library/Application Support/ParaDict/prompts/`. Reference them by name in your hotkey config (e.g., `prompt: "default"`).
 
-- `default.md` - Default enhancement prompt
-- `command.md` - For voice commands/tool execution
-- `dictionary.md` - Custom vocabulary and corrections
+Bundled prompts:
+- `default.md` - General dictation cleanup (grammar, punctuation, formatting)
+- `command.md` - Voice commands with tool execution
+- `reply.md` - Generate replies based on selected text context
+
+You can create custom prompts by adding `.md` files to the prompts folder or editing existing ones in the app's LLM settings.
+
+### Tools (Voice Commands)
+
+When using the `command` prompt, ParaDict can execute actions via LLM tool calling. Tools are defined in `~/Library/Application Support/ParaDict/tools.json`.
+
+Built-in tools:
+| Tool | Description | Example |
+|------|-------------|---------|
+| `open_project` | Open a project in VS Code | "open ParaDict" |
+| `open_app` | Launch macOS applications | "open Safari" |
+| `open_url` | Open URLs in browser | "open github.com" |
+| `run_shell` | Execute shell commands | "run ls" |
+| `set_audio_output` | Switch audio output device | "switch to speakers" |
+| `list_audio_outputs` | List available audio devices | "what audio devices do I have" |
+
+Edit `tools.json` to add custom tools or modify existing ones. Each tool needs a `name`, `description`, `parameters`, and `executor`.
+
+### Resource Bundling
+
+On first launch, ParaDict copies bundled prompts and tools to Application Support. Your customizations are preserved on subsequent launches—the app only copies files that don't already exist.
 
 ### Setting Up Groq API
 
