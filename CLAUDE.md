@@ -95,6 +95,25 @@ Config is YAML at `~/Library/Application Support/ParaDict/config.yaml`:
 - `hotkeys`: array of shortcut → mode → prompt mappings
 - `custom_vocabulary`: words for transcription hints
 
+### User Config Files (Important!)
+
+Bundled resources are only copied to Application Support if no file exists. When modifying these files, **you must also update the user's copy**:
+
+| Bundled File | User Copy (must also update) |
+|--------------|------------------------------|
+| `Resources/tools.json` | `~/Library/Application Support/ParaDict/tools.json` |
+| `Resources/prompts/*.md` | `~/Library/Application Support/ParaDict/prompts/*.md` |
+
+The app watches these files for changes, so updates take effect immediately without rebuilding.
+
+```bash
+# After editing tools.json, copy to Application Support:
+cp ParaDict/Resources/tools.json ~/Library/Application\ Support/ParaDict/tools.json
+
+# After editing prompts, copy them too:
+cp ParaDict/Resources/prompts/command.md ~/Library/Application\ Support/ParaDict/prompts/
+```
+
 ## Development Principles
 
 ### File Naming Convention (Strict)

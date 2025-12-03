@@ -183,6 +183,15 @@ class CommandExecutorService {
             }
             return try runShell(command: command)
 
+        case "set_audio_output":
+            guard let deviceName = args["device_name"] as? String else {
+                throw CommandError.missingParameter("device_name")
+            }
+            return try setAudioOutput(deviceName: deviceName)
+
+        case "list_audio_outputs":
+            return listAudioOutputs()
+
         default:
             throw CommandError.unknownExecutor(tool.executor)
         }
@@ -303,6 +312,29 @@ class CommandExecutorService {
 
         logger.notice("Ran command in Terminal: \(command)")
         return "Running '\(command)' in Terminal"
+    }
+
+    private func setAudioOutput(deviceName: String) throws -> String {
+        do {
+            let actualName = try AudioDeviceConfig.setOutputDeviceByName(deviceName)
+            logger.notice("Switched audio output to: \(actualName)")
+            return "Switched audio output to \(actualName)"
+        } catch let error as AudioConfigurationError {
+            throw CommandError.executionFailed(error.localizedDescription ?? "Unknown audio error")
+        }
+    }
+
+    private func listAudioOutputs() -> String {
+        let devices = AudioDeviceConfig.getOutputDevices()
+        let currentDefault = AudioDeviceConfig.getDefaultOutputDevice()
+
+        let deviceList = devices.map { device in
+            let isCurrent = device.id == currentDefault ? " (current)" : ""
+            return "- \(device.name)\(isCurrent)"
+        }.joined(separator: "\n")
+
+        logger.notice("Listed \(devices.count) output devices")
+        return "Available audio outputs:\n\(deviceList)"
     }
 
     // MARK: - Helpers

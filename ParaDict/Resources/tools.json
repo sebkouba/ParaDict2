@@ -47,6 +47,25 @@
       },
       "required": ["command"],
       "executor": "run_shell"
+    },
+    {
+      "name": "set_audio_output",
+      "description": "Switches the system audio output to a different device. Use when the user says things like 'switch to speakers', 'use the A125', 'change audio to headphones', 'output to [device name]'.",
+      "parameters": {
+        "device_name": {
+          "type": "string",
+          "description": "The name or partial name of the audio output device (e.g., 'speakers', 'MacBook Pro Speakers', 'A-125', 'headphones')"
+        }
+      },
+      "required": ["device_name"],
+      "executor": "set_audio_output"
+    },
+    {
+      "name": "list_audio_outputs",
+      "description": "Lists all available audio output devices. Use when the user asks 'what audio devices do I have', 'show me the speakers', 'list audio outputs'.",
+      "parameters": {},
+      "required": [],
+      "executor": "list_audio_outputs"
     }
   ]
 }
