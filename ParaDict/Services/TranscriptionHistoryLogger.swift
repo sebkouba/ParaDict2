@@ -12,7 +12,8 @@ class TranscriptionHistoryLogger {
     private let csvHeader = "timestamp,event_type,mode,target_app,transcription,llm_prompt,llm_response,final_output"
 
     private var logFilePath: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let appDir = appSupport.appendingPathComponent("ParaDict")
         return appDir.appendingPathComponent("transcription_history.csv")
     }
@@ -23,7 +24,8 @@ class TranscriptionHistoryLogger {
 
     /// Ensure the log file exists with header
     private func ensureLogFileExists() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let appDir = appSupport.appendingPathComponent("ParaDict")
 
         // Create directory if needed

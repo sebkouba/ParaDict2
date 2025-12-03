@@ -41,7 +41,8 @@ class TranscriptionEditTracker {
 
     /// Log file path
     private var logFilePath: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let appDir = appSupport.appendingPathComponent("ParaDict")
         return appDir.appendingPathComponent("transcription_edits.log")
     }
@@ -313,13 +314,19 @@ class TranscriptionEditTracker {
         }
 
         // Get the focused UI element within that app
+        // swiftlint:disable:next force_cast
+        // Safe: AXUIElementCopyAttributeValue guarantees AXUIElement type for app attributes
+        let appElement = app as! AXUIElement
+
         var focusedElement: CFTypeRef?
-        let elementResult = AXUIElementCopyAttributeValue(app as! AXUIElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
+        let elementResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard elementResult == .success, let element = focusedElement else {
             logger.warning("Could not get focused UI element: \(elementResult.rawValue)")
             return nil
         }
 
+        // swiftlint:disable:next force_cast
+        // Safe: When elementResult == .success, the returned value is guaranteed to be AXUIElement
         return (element as! AXUIElement)
     }
 
@@ -536,7 +543,8 @@ class TranscriptionEditTracker {
 
     /// Ensure the log directory exists
     private func ensureLogDirectoryExists() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let appDir = appSupport.appendingPathComponent("ParaDict")
 
         if !FileManager.default.fileExists(atPath: appDir.path) {

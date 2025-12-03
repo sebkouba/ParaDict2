@@ -9,7 +9,8 @@ class CorrectionLogger {
     static let shared = CorrectionLogger()
 
     private var logFilePath: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let appDir = appSupport.appendingPathComponent("ParaDict")
         return appDir.appendingPathComponent("corrections.tsv")
     }
@@ -19,7 +20,8 @@ class CorrectionLogger {
     }
 
     private func ensureLogFileExists() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let appDir = appSupport.appendingPathComponent("ParaDict")
 
         if !FileManager.default.fileExists(atPath: appDir.path) {

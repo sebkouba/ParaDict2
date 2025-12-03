@@ -8,7 +8,8 @@ class DictionaryManager {
     static let shared = DictionaryManager()
 
     private var dictionaryPath: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let promptsDir = appSupport.appendingPathComponent("ParaDict/prompts")
         return promptsDir.appendingPathComponent("dictionary.md")
     }
@@ -32,7 +33,8 @@ class DictionaryManager {
     }
 
     private func ensureDictionaryExists() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let promptsDir = appSupport.appendingPathComponent("ParaDict/prompts")
 
         if !FileManager.default.fileExists(atPath: promptsDir.path) {

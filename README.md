@@ -1,85 +1,183 @@
 # ParaDict
 
-A macOS menu bar voice dictation app using Parakeet V3 for local transcription with optional LLM enhancement.
+A macOS menu bar voice dictation app with local transcription using Parakeet V3 and optional LLM enhancement.
 
-## Transcription Edit Tracking (Delta Learning)
+## Features
 
-**Status:** Work in progress
+- **Local Transcription**: Fast, private speech-to-text using [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) running entirely on your Mac
+- **LLM Enhancement**: Optional text refinement via Groq API for formatting, punctuation, and context-aware corrections
+- **Multiple Dictation Modes**: Configure different hotkeys for different use cases (casual notes, formal writing, code comments)
+- **Hands-Free Mode**: Tap to start, tap to stop - no need to hold the key
+- **Continuous Mode**: Keep dictating across multiple recordings with automatic pasting
+- **Custom Prompts**: Create task-specific prompts for different writing styles
+- **Edit Tracking**: Logs user corrections for potential model fine-tuning (delta learning)
+- **Menu Bar App**: Runs quietly in your menu bar with minimal resource usage
 
-### What It Does
+## Requirements
 
-Tracks when users edit text that was pasted from speech-to-text transcriptions. Logs the original transcription and what it was edited to for later analysis (e.g., fine-tuning or improving transcription accuracy).
+- macOS 14.0 (Sonoma) or later
+- Apple Silicon Mac (M1/M2/M3) recommended for best transcription performance
+- ~600MB disk space for Parakeet V3 model (downloaded on first launch)
+- Groq API key (free tier available) for LLM enhancement mode
 
-### How It Works
+## Permissions
 
-1. **After each paste** (`CursorPaster.swift:55-57`), the `TranscriptionEditTracker` starts monitoring:
-   - Captures the focused AXUIElement and its current value
-   - Records where the transcription appears in the text (position + length)
-   - Stores the target app's bundle ID and PID
+ParaDict requires the following macOS permissions:
 
-2. **Monitoring triggers** (event-driven, not polling):
-   - `NSWorkspace.didActivateApplicationNotification` - fires when user switches to a different app
-   - `kAXFocusedUIElementChangedNotification` - fires when focus changes within the same app
-   - 60-second timeout as fallback
+| Permission | Why |
+|------------|-----|
+| **Microphone** | Record audio for transcription |
+| **Accessibility** | Paste text at cursor position, detect focused text fields |
+| **Screen Recording** | Read text from focused elements for edit tracking |
 
-3. **When session ends**:
-   - Gets the final value of the text element
-   - If transcription exists unchanged → no log
-   - If transcription was edited → extracts just the edited region using prefix/suffix anchoring
-   - Logs: `original transcription` → `edited version`
+Grant these in System Settings > Privacy & Security when prompted.
 
-### Log File Locations
+## Installation
 
-**1. Transcription History (complete log of all dictations):**
-```
-~/Library/Application Support/ParaDict/transcription_history.csv
-```
-
-CSV columns:
-- `timestamp` - ISO8601 timestamp
-- `event_type` - `local_transcription`, `enhanced_transcription`, or `failed_transcription`
-- `mode` - `local` or `enhanced`
-- `target_app` - Bundle ID of the app where text was pasted
-- `transcription` - Raw transcription from Parakeet
-- `llm_prompt` - System prompt sent to LLM (empty for local mode)
-- `llm_response` - LLM response (empty for local mode)
-- `final_output` - What was actually pasted
-
-**2. Transcription Edits (user corrections):**
-```
-~/Library/Application Support/ParaDict/transcription_edits.log
-```
-
-Tab-separated format:
-```
-[ISO8601 timestamp]\t[original transcription]\t[edited text]\t[app bundle id]
-```
-
-Newlines in text are escaped as `\n` literal.
-
-### Key Files
-
-- `ParaDict/Services/TranscriptionHistoryLogger.swift` - Complete transcription history logging
-- `ParaDict/Services/TranscriptionEditTracker.swift` - User edit tracking (delta learning)
-- `ParaDict/Services/CursorPaster.swift` - Integration point (calls tracker after paste)
-- `ParaDict/DictationCoordinator.swift` - Main orchestration (calls history logger)
-- `specs/delta-learn.md` - Original feature spec
-
-### Known Issues / TODO
-
-1. **Extraction bug when transcription is deleted**: If the user sends a message (clearing the input field) or deletes the transcription entirely, the extraction logic can grab the wrong region. Should detect "deleted" case and skip logging or log differently.
-
-2. **Full field content vs. just transcription**: The extraction uses prefix/suffix anchoring which works well when the user edits within the transcribed region, but can get confused if surrounding text changes significantly.
-
-### Viewing Logs
+### Building from Source
 
 ```bash
-# Watch live logs
-log stream --predicate 'subsystem == "com.paradict"' | sed -E 's/^.+ParaDict: \([^)]+\) //'
+# Clone, build, and install in one go
+git clone https://github.com/yourusername/ParaDict.git
+cd ParaDict
+xcodebuild -project ParaDict.xcodeproj -scheme ParaDict -configuration Release build
+cp -r ~/Library/Developer/Xcode/DerivedData/ParaDict-*/Build/Products/Release/ParaDict.app /Applications/
+open /Applications/ParaDict.app
+```
 
-# View recent logs
-log show --last 5m --predicate 'subsystem == "com.paradict"' | sed -E 's/^.+ParaDict: \([^)]+\) //'
+Or step by step:
 
-# View edit log file
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/ParaDict.git
+   cd ParaDict
+   ```
+
+2. Build:
+   ```bash
+   xcodebuild -project ParaDict.xcodeproj -scheme ParaDict -configuration Release build
+   ```
+
+3. Install and launch:
+   ```bash
+   cp -r ~/Library/Developer/Xcode/DerivedData/ParaDict-*/Build/Products/Release/ParaDict.app /Applications/
+   open /Applications/ParaDict.app
+   ```
+
+## Configuration
+
+Configuration files are stored in `~/Library/Application Support/ParaDict/`:
+
+### config.yaml
+
+Main configuration file with hotkeys, audio settings, and LLM configuration:
+
+```yaml
+app:
+  hide_dock_icon: true
+  launch_at_login: false
+  mute_during_recording: true
+
+audio:
+  device: "default"
+
+llm:
+  provider: "groq"
+  model: "moonshotai/kimi-k2-instruct-0905"
+
+hotkeys:
+  - shortcut: "option+d"
+    mode: "local"
+    prompt: null
+
+  - shortcut: "option+shift+d"
+    mode: "enhanced"
+    prompt: "default"
+```
+
+### Custom Prompts
+
+Create custom prompts in `~/Library/Application Support/ParaDict/prompts/`:
+
+- `default.md` - Default enhancement prompt
+- `command.md` - For voice commands/tool execution
+- `dictionary.md` - Custom vocabulary and corrections
+
+### Setting Up Groq API
+
+1. Get a free API key from [console.groq.com](https://console.groq.com)
+2. Open ParaDict settings and paste your API key in the LLM tab
+   - The app will verify your key works before saving
+
+## Usage
+
+### Basic Dictation
+
+1. **Hold-to-Record**: Hold your hotkey, speak, release to transcribe and paste
+2. **Hands-Free Mode**: Tap hotkey to start recording, tap again to stop
+
+### Dictation Modes
+
+- **Local Mode**: Direct transcription without LLM processing - fastest, most private
+- **Enhanced Mode**: Transcription + LLM refinement for better formatting and corrections
+- **Command Mode**: Execute voice commands via tool calling (experimental)
+
+### Continuous Mode
+
+Add `continueAfter: true` to a hotkey config to enable continuous mode:
+- After pasting, recording automatically restarts
+- Press Enter twice quickly to exit continuous mode
+
+## Data & Privacy
+
+- **Transcription**: All speech-to-text happens locally via Parakeet V3
+- **LLM Enhancement**: Only enabled if you configure it; sends text to Groq API
+- **Logging**: Transcription history stored locally for your review
+- **Edit Tracking**: User corrections logged locally for potential model improvement
+
+### Log Files
+
+```bash
+# View live logs
+log stream --predicate 'subsystem == "com.paradict"'
+
+# Transcription history
+cat ~/Library/Application\ Support/ParaDict/transcription_history.csv
+
+# User edits (for delta learning)
 cat ~/Library/Application\ Support/ParaDict/transcription_edits.log
 ```
+
+## Architecture
+
+ParaDict uses a state machine architecture for reliable dictation flow:
+
+```
+Hotkey Press -> Recording -> Transcription -> [Enhancement] -> Pasting
+```
+
+Key components:
+- `DictationCoordinator` - Orchestrates the recording/transcription/pasting pipeline
+- `DictationStateMachine` - Pure state machine for predictable transitions
+- `ParakeetTranscriptionService` - Local ASR via FluidAudio
+- `LLMClient` - Groq API integration for text enhancement
+
+See [CLAUDE.md](CLAUDE.md) for detailed architecture documentation.
+
+## Contributing
+
+Contributions are welcome! Please read [CLA.md](CLA.md) before submitting pull requests.
+
+This project uses a dual-licensing model:
+- **Open Source**: GNU General Public License v3 (GPLv3)
+- **Commercial**: Contact for commercial licensing options
+
+## License
+
+This project is licensed under the GNU General Public License v3 - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+- [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) by NVIDIA for the ASR model
+- [FluidAudio](https://github.com/argmaxinc/FluidAudio) for Swift Parakeet integration
+- [Groq](https://groq.com) for fast LLM inference API
