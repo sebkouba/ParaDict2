@@ -14,6 +14,12 @@ llm:
   model: kimi-k2
   api_key_env: GROQ_API_KEY  # Environment variable containing API key
 
+# Directory Watcher: Automatically transcribe audio files in a folder
+directory_watcher:
+  enabled: false
+  input_directory: ""   # Folder to watch for audio files
+  output_directory: ""  # Folder where transcription .txt files will be saved
+
 hotkeys:
   # Local mode: Parakeet transcription only, no LLM enhancement
   - shortcut: right_option

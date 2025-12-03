@@ -10,11 +10,13 @@ struct AppConfig: Codable {
     var app: AppSettings
     var audio: AudioSettings
     var llm: LLMSettings
+    var directoryWatcher: DirectoryWatcherSettings
     var shortcuts: [ShortcutConfig]
     var customVocabulary: [String]
 
     enum CodingKeys: String, CodingKey {
         case app, audio, llm, shortcuts
+        case directoryWatcher = "directory_watcher"
         case customVocabulary = "custom_vocabulary"
     }
 
@@ -23,6 +25,7 @@ struct AppConfig: Codable {
             app: AppSettings(),
             audio: AudioSettings(),
             llm: LLMSettings(),
+            directoryWatcher: DirectoryWatcherSettings(),
             shortcuts: [
                 ShortcutConfig(name: "local", shortcut: "ctrl+cmd+t", mode: .local, promptFile: nil, captureSelection: nil),
                 ShortcutConfig(name: "enhanced", shortcut: nil, mode: .enhanced, promptFile: "default", captureSelection: nil),
@@ -76,6 +79,18 @@ struct LLMSettings: Codable {
 
     enum CodingKeys: String, CodingKey {
         case provider, model
+    }
+}
+
+struct DirectoryWatcherSettings: Codable {
+    var enabled: Bool = false
+    var inputDirectory: String = ""
+    var outputDirectory: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case inputDirectory = "input_directory"
+        case outputDirectory = "output_directory"
     }
 }
 

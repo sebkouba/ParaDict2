@@ -47,6 +47,18 @@ struct ParaDictApp: App {
             }
         }
 
+        // Start directory watcher if enabled
+        DispatchQueue.main.async {
+            let config = ConfigManager.shared.config.directoryWatcher
+            if config.enabled && !config.inputDirectory.isEmpty && !config.outputDirectory.isEmpty {
+                logger.notice("Starting directory watcher on launch...")
+                DirectoryWatcherService.shared.start(
+                    inputDir: URL(fileURLWithPath: config.inputDirectory),
+                    outputDir: URL(fileURLWithPath: config.outputDirectory)
+                )
+            }
+        }
+
         logger.notice("ParaDict initialization complete")
     }
 
@@ -148,6 +160,12 @@ struct MainContentView: View {
                 .environmentObject(configManager)
                 .tabItem {
                     Label("Chat", systemImage: "bubble.left.and.bubble.right")
+                }
+
+            DirectoryWatcherView()
+                .environmentObject(configManager)
+                .tabItem {
+                    Label("Watcher", systemImage: "folder.badge.gearshape")
                 }
         }
         .padding()
