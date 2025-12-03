@@ -102,7 +102,7 @@ Prompts are stored in `~/Library/Application Support/ParaDict/prompts/`. Referen
 Bundled prompts:
 - `default.md` - General dictation cleanup (grammar, punctuation, formatting)
 - `command.md` - Voice commands with tool execution
-- `reply.md` - Generate replies based on selected text context
+- `reply.md` - Generate replies based on clipboard context (copy text first, then dictate your response instructions)
 
 You can create custom prompts by adding `.md` files to the prompts folder or editing existing ones in the app's LLM settings.
 
@@ -144,12 +144,16 @@ On first launch, ParaDict copies bundled prompts and tools to Application Suppor
 - **Local Mode**: Direct transcription without LLM processing - fastest, most private
 - **Enhanced Mode**: Transcription + LLM refinement for better formatting and corrections
 - **Command Mode**: Execute voice commands via tool calling (experimental)
+- **Reply Mode**: Copy the text that you want to respond to. Click in the field where you want the response to go, then dictate your instructions using the reply keyboard shortcut.
 
 ### Continuous Mode
 
 Add `continueAfter: true` to a hotkey config to enable continuous mode:
 - After pasting, recording automatically restarts
 - Press Enter twice quickly to exit continuous mode
+
+### Correction Feature
+After any dictation, you can say "correction" and only that into the app. This will open a pop-up that allows you to write instructions that are saved in a dictionary for how to fix the error that happened in the future. This helps build up a custom dictionary with very low friction.
 
 ## Data & Privacy
 
