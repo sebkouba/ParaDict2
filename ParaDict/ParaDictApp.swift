@@ -158,6 +158,8 @@ struct ShortcutsSettingsView: View {
     @EnvironmentObject var configManager: ConfigManager
     // Timer to periodically sync shortcuts (Recorder widget doesn't have a callback)
     @State private var syncTimer: Timer?
+    @State private var editingPrompt: String?
+    @State private var hoveredPrompt: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -185,14 +187,14 @@ struct ShortcutsSettingsView: View {
                     Divider()
 
                     // Show current prompt file
-                    if let enhancedConfig = configManager.config.shortcuts.first(where: { $0.mode == .enhanced }) {
-                        HStack {
-                            Text("Prompt file:")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                            Text(enhancedConfig.promptFile ?? "none")
-                                .font(.system(.caption, design: .monospaced))
-                        }
+                    if let enhancedConfig = configManager.config.shortcuts.first(where: { $0.mode == .enhanced }),
+                       let promptFile = enhancedConfig.promptFile {
+                        PromptFileLink(
+                            promptName: promptFile,
+                            isHovered: hoveredPrompt == promptFile,
+                            onHover: { hoveredPrompt = $0 ? promptFile : nil },
+                            onTap: { editingPrompt = promptFile }
+                        )
                     }
                 }
                 .padding(.vertical, 8)
@@ -208,14 +210,14 @@ struct ShortcutsSettingsView: View {
                     Divider()
 
                     // Show current prompt file
-                    if let replyConfig = configManager.config.shortcuts.first(where: { $0.mode == .reply }) {
-                        HStack {
-                            Text("Prompt file:")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                            Text(replyConfig.promptFile ?? "none")
-                                .font(.system(.caption, design: .monospaced))
-                        }
+                    if let replyConfig = configManager.config.shortcuts.first(where: { $0.mode == .reply }),
+                       let promptFile = replyConfig.promptFile {
+                        PromptFileLink(
+                            promptName: promptFile,
+                            isHovered: hoveredPrompt == promptFile,
+                            onHover: { hoveredPrompt = $0 ? promptFile : nil },
+                            onTap: { editingPrompt = promptFile }
+                        )
                     }
                 }
                 .padding(.vertical, 8)
@@ -231,14 +233,14 @@ struct ShortcutsSettingsView: View {
                     Divider()
 
                     // Show current prompt file
-                    if let commandConfig = configManager.config.shortcuts.first(where: { $0.mode == .command }) {
-                        HStack {
-                            Text("Prompt file:")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                            Text(commandConfig.promptFile ?? "none")
-                                .font(.system(.caption, design: .monospaced))
-                        }
+                    if let commandConfig = configManager.config.shortcuts.first(where: { $0.mode == .command }),
+                       let promptFile = commandConfig.promptFile {
+                        PromptFileLink(
+                            promptName: promptFile,
+                            isHovered: hoveredPrompt == promptFile,
+                            onHover: { hoveredPrompt = $0 ? promptFile : nil },
+                            onTap: { editingPrompt = promptFile }
+                        )
                     }
                 }
                 .padding(.vertical, 8)
@@ -266,6 +268,41 @@ struct ShortcutsSettingsView: View {
             // Final sync when leaving the view
             Task { @MainActor in
                 HotkeyManager.shared.syncShortcutsToConfig()
+            }
+        }
+        .sheet(item: $editingPrompt) { promptName in
+            PromptEditorSheet(promptName: promptName, onDismiss: { editingPrompt = nil })
+        }
+    }
+}
+
+// MARK: - Prompt File Link
+
+struct PromptFileLink: View {
+    let promptName: String
+    let isHovered: Bool
+    let onHover: (Bool) -> Void
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Text("Prompt file:")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                Text(promptName)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(isHovered ? .accentColor : .primary)
+                    .underline(isHovered)
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            onHover(hovering)
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
             }
         }
     }
