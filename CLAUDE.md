@@ -28,6 +28,35 @@ osascript -e 'tell application "Xcode" to activate' -e 'delay 0.3' -e 'tell appl
 
 **After successful builds:** Always stop and restart Xcode using the osascript command above. This lets the user see logs in the Xcode console.
 
+### Changelog Maintenance
+
+After every successful build that includes functional changes, update `CHANGELOG.md` in the project root. This tracks what has been implemented.
+
+**When to update:** After a successful `xcodebuild` that compiles new or changed functionality (not just build verification of existing code).
+
+**Format:** Use [Keep a Changelog](https://keepachangelog.com/) style:
+
+```markdown
+# Changelog
+
+## [Unreleased]
+
+### Added
+- New feature description
+
+### Changed
+- Changed behavior description
+
+### Fixed
+- Bug fix description
+```
+
+**Entry guidelines:**
+- Write entries from the user's perspective (what changed for them)
+- Be concise but specific (e.g., "Add hold-to-record mode for dictation" not "Add feature")
+- Group related changes into single entries
+- Move entries from `[Unreleased]` to a version section when releasing
+
 ### When to use xcode-build agent vs direct xcodebuild
 
 **Use direct xcodebuild** (via Bash tool) for:
