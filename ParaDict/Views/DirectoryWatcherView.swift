@@ -145,7 +145,7 @@ struct DirectoryWatcherView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    Text("Non-WAV files will be automatically converted using ffmpeg")
+                    Text("Non-WAV files will be automatically converted")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

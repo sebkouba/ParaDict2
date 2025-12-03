@@ -1,21 +1,21 @@
-import Foundation
+import AVFoundation
 import os
 
-/// Converts audio files to 16kHz mono WAV format required by Parakeet
+/// Converts audio files to 16kHz mono WAV format required by Parakeet using native AVFoundation
 class AudioConverterService {
     static let shared = AudioConverterService()
 
     private let logger = Logger(subsystem: "com.paradict", category: "AudioConverter")
 
     enum AudioConverterError: LocalizedError {
-        case ffmpegNotFound
+        case invalidAudioFile
         case conversionFailed(String)
         case inputFileNotFound
 
         var errorDescription: String? {
             switch self {
-            case .ffmpegNotFound:
-                return "ffmpeg not found. Please install ffmpeg via Homebrew: brew install ffmpeg"
+            case .invalidAudioFile:
+                return "Could not read audio file"
             case .conversionFailed(let message):
                 return "Audio conversion failed: \(message)"
             case .inputFileNotFound:
@@ -26,57 +26,87 @@ class AudioConverterService {
 
     private init() {}
 
-    /// Convert an audio file to 16kHz mono WAV format
-    /// - Parameter inputURL: URL of the input audio file
+    /// Convert any audio file to 16kHz mono WAV using native AVFoundation
+    /// - Parameter inputURL: URL of the input audio file (mp3, m4a, wav, etc.)
     /// - Returns: URL of the converted WAV file in temp directory
     func convertToWAV(inputURL: URL) async throws -> URL {
         guard FileManager.default.fileExists(atPath: inputURL.path) else {
             throw AudioConverterError.inputFileNotFound
         }
 
-        // Check if ffmpeg is available
-        let ffmpegPath = try await findFFmpeg()
+        logger.notice("Converting \(inputURL.lastPathComponent) to WAV (native)...")
 
-        // Create temp output file
+        // 1. Read input with AVAudioFile (handles mp3, m4a, wav, aac, etc.)
+        guard let audioFile = try? AVAudioFile(forReading: inputURL) else {
+            throw AudioConverterError.invalidAudioFile
+        }
+        let inputFormat = audioFile.processingFormat
+
+        logger.notice("Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch")
+
+        // 2. Define target format: 16kHz mono 16-bit PCM
+        guard let targetFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16000.0,
+            channels: 1,
+            interleaved: true
+        ) else {
+            throw AudioConverterError.conversionFailed("Could not create target format")
+        }
+
+        // 3. Create converter
+        guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+            throw AudioConverterError.conversionFailed("Could not create audio converter")
+        }
+
+        // 4. Read input buffer
+        guard let inputBuffer = AVAudioPCMBuffer(
+            pcmFormat: inputFormat,
+            frameCapacity: AVAudioFrameCount(audioFile.length)
+        ) else {
+            throw AudioConverterError.conversionFailed("Could not create input buffer")
+        }
+        try audioFile.read(into: inputBuffer)
+
+        // 5. Calculate output size and create buffer
+        let ratio = 16000.0 / inputFormat.sampleRate
+        let outputFrameCount = AVAudioFrameCount(Double(inputBuffer.frameLength) * ratio)
+        guard let outputBuffer = AVAudioPCMBuffer(
+            pcmFormat: targetFormat,
+            frameCapacity: outputFrameCount
+        ) else {
+            throw AudioConverterError.conversionFailed("Could not create output buffer")
+        }
+
+        // 6. Convert
+        var error: NSError?
+        let status = converter.convert(to: outputBuffer, error: &error) { _, outStatus in
+            outStatus.pointee = .haveData
+            return inputBuffer
+        }
+
+        if let error = error {
+            throw AudioConverterError.conversionFailed(error.localizedDescription)
+        }
+
+        if status == .error {
+            throw AudioConverterError.conversionFailed("Conversion returned error status")
+        }
+
+        // 7. Write to temp WAV file
         let tempDir = FileManager.default.temporaryDirectory
         let outputFilename = inputURL.deletingPathExtension().lastPathComponent + "_converted.wav"
         let outputURL = tempDir.appendingPathComponent(outputFilename)
 
-        // Remove existing temp file if any
         try? FileManager.default.removeItem(at: outputURL)
 
-        logger.notice("Converting \(inputURL.lastPathComponent) to WAV...")
-
-        // Run ffmpeg conversion: 16kHz, mono, 16-bit PCM WAV
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: ffmpegPath)
-        process.arguments = [
-            "-y",                    // Overwrite output
-            "-i", inputURL.path,     // Input file
-            "-ar", "16000",          // Sample rate: 16kHz
-            "-ac", "1",              // Channels: mono
-            "-acodec", "pcm_s16le",  // Codec: 16-bit PCM little-endian
-            "-f", "wav",             // Format: WAV
-            outputURL.path           // Output file
-        ]
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-        process.standardOutput = FileHandle.nullDevice
-
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorString = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            logger.error("ffmpeg conversion failed: \(errorString)")
-            throw AudioConverterError.conversionFailed(errorString)
-        }
-
-        guard FileManager.default.fileExists(atPath: outputURL.path) else {
-            throw AudioConverterError.conversionFailed("Output file was not created")
-        }
+        let outputFile = try AVAudioFile(
+            forWriting: outputURL,
+            settings: targetFormat.settings,
+            commonFormat: .pcmFormatInt16,
+            interleaved: true
+        )
+        try outputFile.write(from: outputBuffer)
 
         logger.notice("Conversion complete: \(outputURL.lastPathComponent)")
         return outputURL
@@ -112,44 +142,6 @@ class AudioConverterService {
         }
 
         return compatible
-    }
-
-    /// Find ffmpeg executable
-    private func findFFmpeg() async throws -> String {
-        // Common locations for ffmpeg
-        let possiblePaths = [
-            "/opt/homebrew/bin/ffmpeg",  // Apple Silicon Homebrew
-            "/usr/local/bin/ffmpeg",     // Intel Homebrew
-            "/usr/bin/ffmpeg",           // System
-            "/opt/local/bin/ffmpeg"      // MacPorts
-        ]
-
-        for path in possiblePaths {
-            if FileManager.default.fileExists(atPath: path) {
-                return path
-            }
-        }
-
-        // Try which command as fallback
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["ffmpeg"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus == 0 {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !path.isEmpty {
-                return path
-            }
-        }
-
-        throw AudioConverterError.ffmpegNotFound
     }
 
     /// Clean up a temporary converted file

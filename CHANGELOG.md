@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
+- Directory Watcher now uses native AVFoundation for audio conversion (no ffmpeg required)
 - Improved how corrections are written into the dictionary
 - Removed legacy state manager in favor of new DictationStateMachine
 
