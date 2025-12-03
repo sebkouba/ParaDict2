@@ -27,6 +27,10 @@ enum ASRError: LocalizedError {
 class ParakeetTranscriptionService {
     static let shared = ParakeetTranscriptionService()
 
+    /// Separate instance for background batch processing (e.g., directory watcher)
+    /// Using a separate instance prevents long transcriptions from blocking live dictation
+    static let background = ParakeetTranscriptionService()
+
     private var asrManager: AsrManager?
     private var vadManager: VadManager?
     private let logger = Logger(subsystem: "com.paradict", category: "ParakeetTranscriptionService")

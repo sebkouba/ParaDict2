@@ -25,15 +25,15 @@ struct WatcherActivity: Identifiable {
 }
 
 /// Watches a directory for new audio files and transcribes them
-@MainActor
 class DirectoryWatcherService: ObservableObject {
-    static let shared = DirectoryWatcherService()
+    @MainActor static let shared = DirectoryWatcherService()
 
     private let logger = Logger(subsystem: "com.paradict", category: "DirectoryWatcher")
 
     @Published private(set) var isRunning = false
     @Published private(set) var recentActivity: [WatcherActivity] = []
     @Published private(set) var lastError: String?
+    @Published private(set) var currentlyProcessing: String?  // filename being transcribed
 
     private var inputDirectory: URL?
     private var outputDirectory: URL?
@@ -72,6 +72,7 @@ class DirectoryWatcherService: ObservableObject {
 
     // MARK: - Public API
 
+    @MainActor
     func start(inputDir: URL, outputDir: URL) {
         guard !isRunning else {
             logger.notice("Directory watcher already running")
@@ -109,6 +110,7 @@ class DirectoryWatcherService: ObservableObject {
         }
     }
 
+    @MainActor
     func stop() {
         guard isRunning else { return }
 
@@ -117,6 +119,7 @@ class DirectoryWatcherService: ObservableObject {
         logger.notice("Directory watcher stopped")
     }
 
+    @MainActor
     func restart() {
         guard let inputDir = inputDirectory, let outputDir = outputDirectory else { return }
         stop()
@@ -142,7 +145,7 @@ class DirectoryWatcherService: ObservableObject {
 
             let paths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as! [String]
 
-            Task { @MainActor in
+            Task.detached(priority: .userInitiated) {
                 for path in paths {
                     await watcher.handleFileEvent(path: path)
                 }
@@ -228,6 +231,16 @@ class DirectoryWatcherService: ObservableObject {
         let filename = url.lastPathComponent
         let startTime = Date()
 
+        await MainActor.run {
+            currentlyProcessing = filename
+        }
+
+        defer {
+            Task { @MainActor in
+                self.currentlyProcessing = nil
+            }
+        }
+
         do {
             // Wait for file to be stable (fully written)
             try await waitForFileStability(url: url)
@@ -246,9 +259,9 @@ class DirectoryWatcherService: ObservableObject {
                 logger.notice("Converted to WAV: \(filename)")
             }
 
-            // Transcribe
+            // Transcribe using background instance to avoid blocking live dictation
             logger.notice("Transcribing: \(filename)")
-            let transcription = try await ParakeetTranscriptionService.shared.transcribe(audioURL: wavURL)
+            let transcription = try await ParakeetTranscriptionService.background.transcribe(audioURL: wavURL)
 
             // Clean up temp file if we converted
             if needsCleanup {
@@ -268,14 +281,18 @@ class DirectoryWatcherService: ObservableObject {
             // Mark as processed
             markAsProcessed(url: url)
 
-            // Add to activity log with duration
+            // Add to activity log with duration (on main thread)
             let duration = Date().timeIntervalSince(startTime)
-            addActivity(filename: filename, outputFilename: outputFilename, success: true, duration: duration)
+            await MainActor.run {
+                addActivity(filename: filename, outputFilename: outputFilename, success: true, duration: duration)
+            }
 
         } catch {
             let duration = Date().timeIntervalSince(startTime)
             logger.error("Failed to process \(filename): \(error.localizedDescription)")
-            addActivity(filename: filename, outputFilename: nil, success: false, errorMessage: error.localizedDescription, duration: duration)
+            await MainActor.run {
+                addActivity(filename: filename, outputFilename: nil, success: false, errorMessage: error.localizedDescription, duration: duration)
+            }
         }
     }
 
@@ -351,6 +368,7 @@ class DirectoryWatcherService: ObservableObject {
 
     // MARK: - Activity Log
 
+    @MainActor
     private func addActivity(filename: String, outputFilename: String?, success: Bool, errorMessage: String? = nil, duration: TimeInterval) {
         let activity = WatcherActivity(
             timestamp: Date(),
@@ -369,10 +387,12 @@ class DirectoryWatcherService: ObservableObject {
         }
     }
 
+    @MainActor
     func clearActivity() {
         recentActivity.removeAll()
     }
 
+    @MainActor
     func clearProcessedFiles() {
         processedFiles.removeAll()
         try? FileManager.default.removeItem(at: processedFilesURL)

@@ -52,6 +52,21 @@ struct DirectoryWatcherView: View {
                             .foregroundColor(.secondary)
                     }
 
+                    // Processing indicator
+                    if let filename = watcherService.currentlyProcessing {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .frame(width: 16, height: 16)
+                            Text("Transcribing: \(filename)")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                        }
+                        .padding(8)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+
                     if let error = watcherService.lastError {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")

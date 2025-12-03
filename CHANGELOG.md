@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Directory Watcher shows processing indicator when transcribing a file
 - Directory Watcher feature: automatically transcribe audio files dropped into a watched folder
 - Clickable prompts in shortcuts view for quick configuration
 - Correction mechanism for dictionary entries
@@ -24,5 +25,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Directory Watcher no longer blocks live dictation (uses separate transcription instance)
 - Directory Watcher activity log now shows processing duration instead of "time ago"
 - Continuous mode bug fix
