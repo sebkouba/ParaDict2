@@ -89,18 +89,7 @@ class ParakeetTranscriptionService {
             throw ASRError.notInitialized
         }
 
-        // Run heavy audio processing on GCD background queue to avoid blocking UI
-        let audioSamples: [Float] = try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async { [self] in
-                do {
-                    let samples = try readAudioSamples(from: audioURL)
-                    continuation.resume(returning: samples)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-
+        let audioSamples = try readAudioSamples(from: audioURL)
         logger.notice("Read \(audioSamples.count) audio samples")
 
         if audioSamples.isEmpty {
@@ -108,15 +97,10 @@ class ParakeetTranscriptionService {
             throw ASRError.emptyAudio
         }
 
-        // Check audio levels on background queue
-        let (minSample, maxSample, avgAbsSample): (Float, Float, Float) = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let maxS = audioSamples.max() ?? 0
-                let minS = audioSamples.min() ?? 0
-                let avgS = audioSamples.reduce(0) { $0 + abs($1) } / Float(audioSamples.count)
-                continuation.resume(returning: (minS, maxS, avgS))
-            }
-        }
+        // Check audio levels
+        let maxSample = audioSamples.max() ?? 0
+        let minSample = audioSamples.min() ?? 0
+        let avgAbsSample = audioSamples.reduce(0) { $0 + abs($1) } / Float(audioSamples.count)
         logger.notice("Audio stats - min: \(minSample), max: \(maxSample), avgAbs: \(avgAbsSample)")
 
         if avgAbsSample < 0.001 {
