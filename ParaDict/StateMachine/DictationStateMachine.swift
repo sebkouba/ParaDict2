@@ -8,7 +8,7 @@ final class DictationStateMachine {
     private let logger = Logger(subsystem: "com.paradict", category: "StateMachine")
 
     /// Current state of the dictation flow
-    private(set) var state: DictationStateSM = .idle
+    private(set) var state: DictationState = .idle
 
     /// Threshold for distinguishing brief press (tap) from long press (hold)
     private let briefPressThreshold: TimeInterval = 1.0
@@ -225,7 +225,7 @@ final class DictationStateMachine {
 
     #if DEBUG
     /// Set state directly (for testing only)
-    func setState(_ newState: DictationStateSM) {
+    func setState(_ newState: DictationState) {
         state = newState
     }
 

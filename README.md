@@ -62,7 +62,7 @@ Newlines in text are escaped as `\n` literal.
 - `ParaDict/Services/TranscriptionHistoryLogger.swift` - Complete transcription history logging
 - `ParaDict/Services/TranscriptionEditTracker.swift` - User edit tracking (delta learning)
 - `ParaDict/Services/CursorPaster.swift` - Integration point (calls tracker after paste)
-- `ParaDict/DictationManager.swift` - Main orchestration (calls history logger)
+- `ParaDict/DictationCoordinator.swift` - Main orchestration (calls history logger)
 - `specs/delta-learn.md` - Original feature spec
 
 ### Known Issues / TODO

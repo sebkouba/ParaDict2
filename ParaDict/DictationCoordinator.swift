@@ -16,7 +16,13 @@ final class DictationCoordinator: ObservableObject {
     private let stateMachine = DictationStateMachine()
 
     /// Published state for UI binding (derived from state machine)
-    @Published private(set) var state: DictationStateSM = .idle
+    @Published private(set) var state: DictationState = .idle
+
+    /// Last transcription for UI (Copy Last Transcription menu item)
+    @Published var lastTranscription: String?
+
+    /// Last LLM enhancement for UI (Copy Last Enhancement menu item)
+    @Published var lastEnhancement: String?
 
     // MARK: - Services
 
@@ -44,6 +50,9 @@ final class DictationCoordinator: ObservableObject {
 
     private init() {
         logger.notice("DictationCoordinator initializing...")
+        // Initialize HotkeyManager to set up keyboard shortcuts
+        _ = HotkeyManager.shared
+        logger.notice("DictationCoordinator initialized")
     }
 
     // MARK: - Event Handling
@@ -224,8 +233,9 @@ final class DictationCoordinator: ObservableObject {
                     send(.error(message: "No previous dictation to correct"))
                 }
             } else {
-                // Store raw transcription for correction feature
+                // Store raw transcription for correction feature and UI
                 lastRawTranscription = trimmed
+                lastTranscription = trimmed
                 send(.transcriptionComplete(text: trimmed))
             }
         } catch {
@@ -268,7 +278,8 @@ final class DictationCoordinator: ObservableObject {
 
             let enhanced = try await llmClient.enhance(text: userMessage, systemPrompt: prompt)
 
-            // Log enhanced transcription
+            // Store for UI and log
+            lastEnhancement = enhanced
             logTranscription(transcription: text, enhanced: enhanced, mode: stateMachine.state.mode ?? .enhanced)
 
             send(.enhancementComplete(text: enhanced))
@@ -395,7 +406,7 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Public Interface (for UI/debugging)
 
     /// Current state for UI observation
-    var currentState: DictationStateSM {
+    var currentState: DictationState {
         stateMachine.state
     }
 

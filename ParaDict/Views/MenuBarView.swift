@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "com.paradict", category: "MenuBarView")
 
 struct MenuBarView: View {
     @EnvironmentObject var configManager: ConfigManager
-    @EnvironmentObject var dictationManager: DictationManager
+    @EnvironmentObject var dictationCoordinator: DictationCoordinator
     @EnvironmentObject var menuBarManager: MenuBarManager
 
     var body: some View {
@@ -30,8 +30,8 @@ struct MenuBarView: View {
 
             Divider()
 
-            if dictationManager.lastTranscription != nil || dictationManager.lastEnhancement != nil {
-                if let transcription = dictationManager.lastTranscription {
+            if dictationCoordinator.lastTranscription != nil || dictationCoordinator.lastEnhancement != nil {
+                if let transcription = dictationCoordinator.lastTranscription {
                     Button("Copy Last Transcription") {
                         logger.notice("Copying last transcription to clipboard")
                         NSPasteboard.general.clearContents()
@@ -39,7 +39,7 @@ struct MenuBarView: View {
                     }
                 }
 
-                if let enhancement = dictationManager.lastEnhancement {
+                if let enhancement = dictationCoordinator.lastEnhancement {
                     Button("Copy Last Enhancement") {
                         logger.notice("Copying last enhancement to clipboard")
                         NSPasteboard.general.clearContents()
@@ -59,7 +59,7 @@ struct MenuBarView: View {
     }
 
     private var statusText: String {
-        switch dictationManager.state {
+        switch dictationCoordinator.state {
         case .idle:
             return "Status: Ready"
         case .recording:
@@ -68,6 +68,10 @@ struct MenuBarView: View {
             return "Status: Transcribing..."
         case .enhancing:
             return "Status: Enhancing..."
+        case .pasting:
+            return "Status: Pasting..."
+        case .executingCommand:
+            return "Status: Executing..."
         case .error(let message):
             return "Error: \(message)"
         }

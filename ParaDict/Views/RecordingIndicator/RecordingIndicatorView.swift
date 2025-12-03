@@ -80,7 +80,7 @@ struct RecordingIndicatorView: View {
 }
 
 struct RecordingStatusDisplay: View {
-    let currentState: DictationStateSM
+    let currentState: DictationState
     @ObservedObject var recordingService: RecordingService
 
     private let matrixGreen = Color(red: 0, green: 1, blue: 0.2)
@@ -90,7 +90,7 @@ struct RecordingStatusDisplay: View {
     @State private var processingStartTime: Date = Date()
 
     // Track the last "active" state to avoid showing idle/error states
-    @State private var lastActiveState: DictationStateSM = .idle
+    @State private var lastActiveState: DictationState = .idle
 
     var body: some View {
         Group {

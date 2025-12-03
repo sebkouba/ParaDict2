@@ -59,7 +59,8 @@ Hotkey Press → Recorder → ParakeetTranscriptionService → [Optional: LLMCli
 
 ### Key Components
 
-- **DictationManager** (`DictationManager.swift`): Orchestrates the recording/transcription/pasting pipeline. Manages state machine: `idle → recording → transcribing → [enhancing] → idle`
+- **DictationCoordinator** (`DictationCoordinator.swift`): Orchestrates the recording/transcription/pasting pipeline using a state machine pattern. States: `idle → recording → transcribing → [enhancing] → pasting → idle`. Handles correction keyword detection.
+- **DictationStateMachine** (`StateMachine/DictationStateMachine.swift`): Pure state machine for dictation flow. Returns side effects to be executed by the coordinator.
 - **HotkeyManager** (`HotkeyManager.swift`): Handles keyboard shortcuts via KeyboardShortcuts library. Supports hold-to-record and tap-for-hands-free modes
 - **ConfigManager** (`ConfigManager.swift`): YAML-based configuration at `~/Library/Application Support/ParaDict/config.yaml`. File watcher for live reloading
 - **ParakeetTranscriptionService** (`Services/ParakeetTranscriptionService.swift`): Parakeet V3 ASR via FluidAudio. Includes VAD for audio > 20 seconds
@@ -102,7 +103,8 @@ Every Swift file MUST use one of these suffixes. The suffix tells Claude Code ex
 
 | Suffix | Purpose | Contains | Example |
 |--------|---------|----------|---------|
-| `*Manager` | Orchestrates other components, holds state | Class with dependencies on services | `DictationManager`, `HotkeyManager` |
+| `*Manager` | Orchestrates other components, holds state | Class with dependencies on services | `HotkeyManager`, `ConfigManager` |
+| `*Coordinator` | Coordinates complex flows with state machines | Class that owns a state machine and executes side effects | `DictationCoordinator` |
 | `*Service` | Single-responsibility capability | Stateless or internal-state-only class | `ParakeetTranscriptionService`, `RecordingService` |
 | `*Client` | External API communication | HTTP/network calls, auth | `LLMClient`, `AnalyticsClient` |
 | `*View` | SwiftUI view | `struct X: View` | `SettingsView`, `AudioInputView` |
@@ -116,7 +118,13 @@ Every Swift file MUST use one of these suffixes. The suffix tells Claude Code ex
 ```
 ParaDict/
 ├── *Manager.swift          # Core orchestration (root level)
+├── *Coordinator.swift      # State machine coordinators (root level)
 ├── *App.swift              # App entry point
+├── StateMachine/           # State machine components
+│   ├── *StateMachine.swift # Pure state machines (no side effects)
+│   ├── *State.swift        # State enums
+│   ├── *Event.swift        # Event enums
+│   └── *SideEffect.swift   # Side effect enums
 ├── Services/
 │   ├── *Service.swift      # Capabilities (recording, transcription, pasting)
 │   ├── *Client.swift       # External APIs

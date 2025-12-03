@@ -274,14 +274,14 @@ final class CommandExecutorTests: XCTestCase {
     // MARK: - State Properties for Command Mode
 
     func testExecutingCommandState_IsProcessing() {
-        let state = DictationStateSM.executingCommand(mode: .command, prompt: "test")
+        let state = DictationState.executingCommand(mode: .command, prompt: "test")
         XCTAssertTrue(state.isProcessing)
         XCTAssertEqual(state.mode, .command)
         XCTAssertEqual(state.prompt, "test")
     }
 
     func testExecutingCommandState_IsActiveForIndicator() {
-        let state = DictationStateSM.executingCommand(mode: .command, prompt: "test")
+        let state = DictationState.executingCommand(mode: .command, prompt: "test")
         XCTAssertTrue(state.isActiveForIndicator)
     }
 

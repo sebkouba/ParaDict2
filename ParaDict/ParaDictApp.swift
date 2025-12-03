@@ -22,7 +22,7 @@ enum MenuBarFlashState {
 @main
 struct ParaDictApp: App {
     @StateObject private var configManager = ConfigManager.shared
-    @StateObject private var dictationManager = DictationManager.shared
+    @StateObject private var dictationCoordinator = DictationCoordinator.shared
     @StateObject private var menuBarManager = MenuBarManager()
     @StateObject private var permissionManager = PermissionManager.shared
 
@@ -55,7 +55,7 @@ struct ParaDictApp: App {
         WindowGroup {
             MainContentView()
                 .environmentObject(configManager)
-                .environmentObject(dictationManager)
+                .environmentObject(dictationCoordinator)
                 .environmentObject(menuBarManager)
                 .frame(minWidth: 600, minHeight: 500)
                 .onReceive(NotificationCenter.default.publisher(for: .menuBarFlash)) { notification in
@@ -77,7 +77,7 @@ struct ParaDictApp: App {
         MenuBarExtra(isInserted: $showMenuBarIcon) {
             MenuBarView()
                 .environmentObject(configManager)
-                .environmentObject(dictationManager)
+                .environmentObject(dictationCoordinator)
                 .environmentObject(menuBarManager)
         } label: {
             Image(systemName: menuBarIconName)
@@ -97,7 +97,7 @@ struct ParaDictApp: App {
         }
 
         // Normal state based on dictation state
-        switch dictationManager.state {
+        switch dictationCoordinator.state {
         case .idle:
             return "waveform"
         case .recording:
@@ -106,6 +106,10 @@ struct ParaDictApp: App {
             return "text.bubble"
         case .enhancing:
             return "sparkles"
+        case .pasting:
+            return "doc.on.clipboard"
+        case .executingCommand:
+            return "terminal"
         case .error:
             return "exclamationmark.triangle"
         }
@@ -114,7 +118,7 @@ struct ParaDictApp: App {
 
 struct MainContentView: View {
     @EnvironmentObject var configManager: ConfigManager
-    @EnvironmentObject var dictationManager: DictationManager
+    @EnvironmentObject var dictationCoordinator: DictationCoordinator
     @EnvironmentObject var menuBarManager: MenuBarManager
 
     var body: some View {

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var configManager: ConfigManager
-    @EnvironmentObject var dictationManager: DictationManager
+    @EnvironmentObject var dictationCoordinator: DictationCoordinator
     @EnvironmentObject var menuBarManager: MenuBarManager
 
     @State private var selectedTab = 0
@@ -35,6 +35,6 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environmentObject(ConfigManager.shared)
-        .environmentObject(DictationManager.shared)
+        .environmentObject(DictationCoordinator.shared)
         .environmentObject(MenuBarManager())
 }

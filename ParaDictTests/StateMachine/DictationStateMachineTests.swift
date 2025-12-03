@@ -304,7 +304,7 @@ final class DictationStateMachineTests: XCTestCase {
     // MARK: - Error Handling
 
     func testErrorFromAnyState() {
-        let states: [DictationStateSM] = [
+        let states: [DictationState] = [
             .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false),
             .recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false),
             .transcribing(mode: .local, prompt: nil, continueAfter: false),
@@ -350,34 +350,34 @@ final class DictationStateMachineTests: XCTestCase {
     // MARK: - State Properties
 
     func testStateIsRecordingProperty() {
-        XCTAssertFalse(DictationStateSM.idle.isRecording)
-        XCTAssertTrue(DictationStateSM.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isRecording)
-        XCTAssertTrue(DictationStateSM.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).isRecording)
-        XCTAssertFalse(DictationStateSM.transcribing(mode: .local, prompt: nil, continueAfter: false).isRecording)
+        XCTAssertFalse(DictationState.idle.isRecording)
+        XCTAssertTrue(DictationState.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isRecording)
+        XCTAssertTrue(DictationState.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).isRecording)
+        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).isRecording)
     }
 
     func testStateIsProcessingProperty() {
-        XCTAssertFalse(DictationStateSM.idle.isProcessing)
-        XCTAssertFalse(DictationStateSM.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isProcessing)
-        XCTAssertTrue(DictationStateSM.transcribing(mode: .local, prompt: nil, continueAfter: false).isProcessing)
-        XCTAssertTrue(DictationStateSM.enhancing(mode: .enhanced, prompt: "test", continueAfter: false).isProcessing)
-        XCTAssertTrue(DictationStateSM.pasting(mode: .local, prompt: nil, continueAfter: false).isProcessing)
-        XCTAssertFalse(DictationStateSM.error(message: "test").isProcessing)
+        XCTAssertFalse(DictationState.idle.isProcessing)
+        XCTAssertFalse(DictationState.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isProcessing)
+        XCTAssertTrue(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).isProcessing)
+        XCTAssertTrue(DictationState.enhancing(mode: .enhanced, prompt: "test", continueAfter: false).isProcessing)
+        XCTAssertTrue(DictationState.pasting(mode: .local, prompt: nil, continueAfter: false).isProcessing)
+        XCTAssertFalse(DictationState.error(message: "test").isProcessing)
     }
 
     func testStateIsHandsFreeProperty() {
-        XCTAssertFalse(DictationStateSM.idle.isHandsFree)
-        XCTAssertFalse(DictationStateSM.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isHandsFree)
-        XCTAssertTrue(DictationStateSM.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).isHandsFree)
-        XCTAssertFalse(DictationStateSM.transcribing(mode: .local, prompt: nil, continueAfter: false).isHandsFree)
+        XCTAssertFalse(DictationState.idle.isHandsFree)
+        XCTAssertFalse(DictationState.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isHandsFree)
+        XCTAssertTrue(DictationState.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).isHandsFree)
+        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).isHandsFree)
     }
 
     func testStateShouldContinueAfterProperty() {
-        XCTAssertFalse(DictationStateSM.idle.shouldContinueAfter)
-        XCTAssertFalse(DictationStateSM.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).shouldContinueAfter)
-        XCTAssertFalse(DictationStateSM.transcribing(mode: .local, prompt: nil, continueAfter: false).shouldContinueAfter)
-        XCTAssertTrue(DictationStateSM.transcribing(mode: .local, prompt: nil, continueAfter: true).shouldContinueAfter)
-        XCTAssertTrue(DictationStateSM.pasting(mode: .local, prompt: nil, continueAfter: true).shouldContinueAfter)
+        XCTAssertFalse(DictationState.idle.shouldContinueAfter)
+        XCTAssertFalse(DictationState.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).shouldContinueAfter)
+        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).shouldContinueAfter)
+        XCTAssertTrue(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: true).shouldContinueAfter)
+        XCTAssertTrue(DictationState.pasting(mode: .local, prompt: nil, continueAfter: true).shouldContinueAfter)
     }
 
     // MARK: - Multiple Enter Presses (Regression Test)

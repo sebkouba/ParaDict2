@@ -2,8 +2,7 @@ import Foundation
 
 /// Represents all possible states in the dictation flow.
 /// Associated data captures context that belongs WITH the state, not as separate flags.
-/// Named with "SM" suffix to avoid conflict with existing DictationState during transition.
-enum DictationStateSM: Equatable {
+enum DictationState: Equatable {
     /// Idle - waiting for user to start dictation
     case idle
 
@@ -120,7 +119,7 @@ enum DictationStateSM: Equatable {
 
 // MARK: - CustomStringConvertible
 
-extension DictationStateSM: CustomStringConvertible {
+extension DictationState: CustomStringConvertible {
     var description: String {
         switch self {
         case .idle:
