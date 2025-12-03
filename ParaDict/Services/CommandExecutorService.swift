@@ -200,6 +200,11 @@ class CommandExecutorService {
     // MARK: - Executors
 
     private func openProject(path: String) throws -> String {
+        // Check for remote project format: ssh://host/remote/path
+        if path.hasPrefix("ssh://") {
+            return try openRemoteProject(sshPath: path)
+        }
+
         let expandedPath = (path as NSString).expandingTildeInPath
 
         // Use VS Code's URL scheme - works reliably from GUI apps
@@ -226,6 +231,58 @@ class CommandExecutorService {
             } else {
                 throw CommandError.executionFailed("Failed to open VS Code")
             }
+        }
+    }
+
+    /// Opens a remote project via VS Code SSH Remote
+    /// Path format: ssh://ssh-config-host/remote/path
+    private func openRemoteProject(sshPath: String) throws -> String {
+        // Parse ssh://host/path format
+        let withoutScheme = String(sshPath.dropFirst("ssh://".count))
+        guard let firstSlash = withoutScheme.firstIndex(of: "/") else {
+            throw CommandError.executionFailed("Invalid SSH path format. Use: ssh://host/remote/path")
+        }
+
+        let sshHost = String(withoutScheme[..<firstSlash])
+        let remotePath = String(withoutScheme[firstSlash...])
+
+        logger.notice("Opening remote project: host=\(sshHost), path=\(remotePath)")
+
+        // Use 'code' CLI with --remote flag
+        // code --remote ssh-remote+host /remote/path
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/local/bin/code")
+        process.arguments = ["--remote", "ssh-remote+\(sshHost)", remotePath]
+
+        // Try common VS Code CLI locations
+        let codePaths = [
+            "/usr/local/bin/code",
+            "/opt/homebrew/bin/code",
+            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+        ]
+
+        var foundPath: String?
+        for codePath in codePaths {
+            if FileManager.default.fileExists(atPath: codePath) {
+                foundPath = codePath
+                break
+            }
+        }
+
+        guard let executablePath = foundPath else {
+            throw CommandError.executionFailed("VS Code CLI not found. Install 'code' command from VS Code.")
+        }
+
+        process.executableURL = URL(fileURLWithPath: executablePath)
+
+        try process.run()
+        process.waitUntilExit()
+
+        if process.terminationStatus == 0 {
+            logger.notice("Opened remote project \(sshHost):\(remotePath)")
+            return "Opened remote project on \(sshHost)"
+        } else {
+            throw CommandError.executionFailed("Failed to open remote project")
         }
     }
 
