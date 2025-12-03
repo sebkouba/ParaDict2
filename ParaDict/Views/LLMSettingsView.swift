@@ -9,31 +9,56 @@ struct LLMSettingsView: View {
     @State private var testResult: String?
     @State private var isTestingConnection: Bool = false
     @State private var editingPrompt: String?
+    @State private var hoveredPrompt: String?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(spacing: 32) {
                 // Header
-                Text("LLM Settings")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                VStack(spacing: 24) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.blue)
+                        .padding(20)
+                        .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.9)))
 
-                // Connection Status
-                connectionStatusSection
+                    VStack(spacing: 8) {
+                        Text("LLM Settings")
+                            .font(.system(size: 28, weight: .bold))
+                        Text("Configure AI enhancement for your dictation")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 40)
 
-                // API Key Section
-                apiKeySection
+                // All sections in a card
+                VStack(alignment: .leading, spacing: 24) {
+                    // Connection Status
+                    connectionStatusSection
 
-                // Model Configuration
-                modelSection
+                    Divider()
 
-                // Prompts Section
-                promptsSection
+                    // API Key Section
+                    apiKeySection
 
-                Spacer()
+                    Divider()
+
+                    // Model Configuration
+                    modelSection
+
+                    Divider()
+
+                    // Prompts Section
+                    promptsSection
+                }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(16)
             }
-            .padding()
+            .padding(24)
         }
+        .background(Color(NSColor.controlBackgroundColor))
         .sheet(item: $editingPrompt) { promptName in
             PromptEditorSheet(promptName: promptName, onDismiss: { editingPrompt = nil })
         }
@@ -42,7 +67,10 @@ struct LLMSettingsView: View {
     // MARK: - Connection Status
 
     private var connectionStatusSection: some View {
-        GroupBox {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Status", systemImage: "network")
+                .font(.headline)
+
             HStack {
                 Circle()
                     .fill(llmClient.isAPIKeyValid ? Color.green : Color.red)
@@ -68,199 +96,142 @@ struct LLMSettingsView: View {
                 Text(result)
                     .font(.caption)
                     .foregroundColor(result.contains("success") ? .green : .orange)
-                    .padding(.top, 4)
             }
-        } label: {
-            Label("Status", systemImage: "network")
         }
     }
 
     // MARK: - API Key Section
 
     private var apiKeySection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Enter your Groq API key to enable LLM enhancement.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                HStack {
-                    if showAPIKey {
-                        TextField("gsk_...", text: $apiKeyInput)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                    } else {
-                        SecureField("gsk_...", text: $apiKeyInput)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    Button {
-                        showAPIKey.toggle()
-                    } label: {
-                        Image(systemName: showAPIKey ? "eye.slash" : "eye")
-                    }
-                    .buttonStyle(.borderless)
-                }
-
-                HStack {
-                    Button("Save & Verify") {
-                        saveAPIKey()
-                    }
-                    .disabled(apiKeyInput.isEmpty || llmClient.isValidating)
-
-                    if llmClient.isConfigured {
-                        Button("Clear Key", role: .destructive) {
-                            clearAPIKey()
-                        }
-                    }
-
-                    Spacer()
-
-                    Link("Get API Key", destination: URL(string: "https://console.groq.com/keys")!)
-                        .font(.caption)
-                }
-
-                if let error = llmClient.lastValidationError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-            }
-            .padding(.vertical, 4)
-        } label: {
+        VStack(alignment: .leading, spacing: 12) {
             Label("API Key", systemImage: "key")
+                .font(.headline)
+
+            Text("Enter your Groq API key to enable LLM enhancement.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack {
+                if showAPIKey {
+                    TextField("gsk_...", text: $apiKeyInput)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                } else {
+                    SecureField("gsk_...", text: $apiKeyInput)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                Button {
+                    showAPIKey.toggle()
+                } label: {
+                    Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                }
+                .buttonStyle(.borderless)
+            }
+
+            HStack {
+                Button("Save & Verify") {
+                    saveAPIKey()
+                }
+                .disabled(apiKeyInput.isEmpty || llmClient.isValidating)
+
+                if llmClient.isConfigured {
+                    Button("Clear Key", role: .destructive) {
+                        clearAPIKey()
+                    }
+                }
+
+                Spacer()
+
+                Link("Get API Key", destination: URL(string: "https://console.groq.com/keys")!)
+                    .font(.caption)
+            }
+
+            if let error = llmClient.lastValidationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
         }
     }
 
     // MARK: - Model Section
 
     private var modelSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Model:")
-                    TextField("Model ID", text: Binding(
-                        get: { configManager.config.llm.model },
-                        set: { newValue in
-                            configManager.config.llm.model = newValue
-                            configManager.saveConfig()
-                        }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                }
-
-                Text("Current: \(configManager.config.llm.model)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Divider()
-
-                Text("Available Models")
-                    .font(.caption)
-                    .fontWeight(.medium)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    modelButton("moonshotai/kimi-k2-instruct-0905", description: "Kimi K2 - Fast & capable")
-                    modelButton("llama-3.3-70b-versatile", description: "Llama 3.3 70B - High quality")
-                    modelButton("llama-3.1-8b-instant", description: "Llama 3.1 8B - Very fast")
-                    modelButton("mixtral-8x7b-32768", description: "Mixtral 8x7B - Balanced")
-                }
-            }
-            .padding(.vertical, 4)
-        } label: {
+        VStack(alignment: .leading, spacing: 12) {
             Label("Model", systemImage: "cpu")
-        }
-    }
+                .font(.headline)
 
-    private func modelButton(_ model: String, description: String) -> some View {
-        Button {
-            configManager.config.llm.model = model
-            configManager.saveConfig()
-        } label: {
-            HStack {
-                Text(model)
-                    .font(.system(.caption, design: .monospaced))
-                Spacer()
-                Text(description)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                if configManager.config.llm.model == model {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+            Text("Enter the Groq model ID to use for enhancement.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            TextField("Model ID", text: Binding(
+                get: { configManager.config.llm.model },
+                set: { newValue in
+                    configManager.config.llm.model = newValue
+                    configManager.saveConfig()
                 }
-            }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .font(.system(.body, design: .monospaced))
         }
-        .buttonStyle(.plain)
-        .padding(.vertical, 2)
     }
 
     // MARK: - Prompts Section
 
     private var promptsSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Prompt files are stored in:")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Prompts", systemImage: "doc.plaintext")
+                .font(.headline)
+
+            HStack {
+                Text(PromptManager.shared.getPromptsDirectoryPath())
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
-                HStack {
-                    Text(PromptManager.shared.getPromptsDirectoryPath())
-                        .font(.system(.caption, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                Spacer()
 
-                    Spacer()
-
-                    Button("Open Folder") {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: PromptManager.shared.getPromptsDirectoryPath()))
-                    }
-                    .font(.caption)
-                }
-
-                Divider()
-
-                Text("Available Prompts")
-                    .font(.caption)
-                    .fontWeight(.medium)
-
-                if PromptManager.shared.availablePrompts.isEmpty {
-                    Text("No prompts found. Add .md files to the prompts folder.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .italic()
-                } else {
-                    ForEach(PromptManager.shared.availablePrompts, id: \.self) { prompt in
-                        Button {
-                            editingPrompt = prompt
-                        } label: {
-                            HStack {
-                                Image(systemName: "doc.text")
-                                    .foregroundColor(.accentColor)
-                                Text(prompt)
-                                    .font(.system(.caption, design: .monospaced))
-                                Text(".md")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Image(systemName: "pencil")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 2)
-                    }
-                }
-
-                Button("Refresh") {
-                    PromptManager.shared.refreshPromptList()
+                Button("Open Folder") {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: PromptManager.shared.getPromptsDirectoryPath()))
                 }
                 .font(.caption)
             }
-            .padding(.vertical, 4)
-        } label: {
-            Label("Prompts", systemImage: "doc.plaintext")
+
+            if PromptManager.shared.availablePrompts.isEmpty {
+                Text("No prompts found. Add .md files to the prompts folder.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .italic()
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(PromptManager.shared.availablePrompts, id: \.self) { prompt in
+                        PromptRow(
+                            promptName: prompt,
+                            isHovered: hoveredPrompt == prompt,
+                            onHover: { isHovered in
+                                hoveredPrompt = isHovered ? prompt : nil
+                            },
+                            onTap: {
+                                editingPrompt = prompt
+                            }
+                        )
+                    }
+                }
+            }
+
+            Button {
+                PromptManager.shared.refreshPromptList()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Refresh")
+                }
+            }
+            .font(.caption)
         }
     }
 
@@ -291,6 +262,54 @@ struct LLMSettingsView: View {
             isTestingConnection = false
             testResult = result.success ? "Connection successful!" : result.message
         }
+    }
+}
+
+// MARK: - Prompt Row
+
+struct PromptRow: View {
+    let promptName: String
+    let isHovered: Bool
+    let onHover: (Bool) -> Void
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: "doc.text")
+                    .foregroundColor(.accentColor)
+                    .font(.system(size: 16))
+
+                Text(promptName)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.primary)
+
+                Text(".md")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Image(systemName: "pencil")
+                    .font(.system(size: 14))
+                    .foregroundColor(isHovered ? .accentColor : .secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isHovered ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isHovered ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            onHover(hovering)
+        }
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 }
 
