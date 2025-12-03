@@ -115,9 +115,20 @@ final class DictationStateMachine {
                 ]
             }
 
-        case (.transcribing, .transcriptionEmpty):
-            state = .error(message: "No speech detected")
-            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: "No speech detected"), .scheduleErrorTimeout]
+        case (.transcribing(let mode, let prompt, let continueAfter), .transcriptionEmpty):
+            if continueAfter {
+                // Continuous mode - restart recording instead of showing error
+                state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: true)
+                return [
+                    .startRecording(mode: mode, prompt: prompt, context: nil),
+                    .startEscapeMonitor,
+                    .scheduleEnterMonitorStart
+                ]
+            } else {
+                // Normal mode - show error
+                state = .error(message: "No speech detected")
+                return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: "No speech detected"), .scheduleErrorTimeout]
+            }
 
         case (.transcribing, .correctionKeywordDetected(let originalTranscription, let llmOutput)):
             state = .idle
