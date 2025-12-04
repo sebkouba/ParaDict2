@@ -32,6 +32,7 @@ final class DictationCoordinator: ObservableObject {
     private let indicatorManager = RecordingIndicatorWindowManager.shared
     private let historyLogger = TranscriptionHistoryLogger.shared
     private let correctionWindowManager = CorrectionWindowManager.shared
+    private let mediaControlService = MediaControlService.shared
 
     // MARK: - State
 
@@ -45,6 +46,13 @@ final class DictationCoordinator: ObservableObject {
     private var lastRawTranscription: String?
     /// Tracks the last text that was actually pasted - may be LLM-enhanced (for correction feature)
     private var lastPastedText: String?
+
+    // MARK: - YouTube Mode
+
+    /// When enabled, media is paused during dictation and resumed after
+    @Published private(set) var isYoutubeModeEnabled = false
+    /// Tracks if we sent a pause command (to know whether to resume)
+    private var didPauseMedia = false
 
     // MARK: - Initialization
 
@@ -61,12 +69,20 @@ final class DictationCoordinator: ObservableObject {
     func send(_ event: DictationEvent) {
         logger.notice("Received event: \(event.description)")
 
+        let previousState = stateMachine.state
         let effects = stateMachine.handle(event)
         state = stateMachine.state
 
         // Execute side effects
         for effect in effects {
             execute(effect)
+        }
+
+        // Resume media when returning to idle (if we paused it)
+        if previousState != .idle && state == .idle && didPauseMedia {
+            logger.notice("Returning to idle - resuming media")
+            _ = mediaControlService.resumeMedia()
+            didPauseMedia = false
         }
     }
 
@@ -160,6 +176,11 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Recording
 
     private func startRecording(mode: DictationMode, prompt: String?, context: String?) async {
+        // Pause media if youtube mode is enabled
+        if isYoutubeModeEnabled {
+            didPauseMedia = mediaControlService.pauseMedia()
+        }
+
         // Store context for later use
         currentContext = context
 
@@ -235,6 +256,10 @@ final class DictationCoordinator: ObservableObject {
                     logger.warning("No previous dictation to correct")
                     send(.error(message: "No previous dictation to correct"))
                 }
+            } else if let youtubeCommand = parseYoutubeModeCommand(trimmed) {
+                // Check for youtube mode command
+                handleYoutubeModeCommand(youtubeCommand)
+                send(.transcriptionEmpty)  // Don't paste anything, just toggle mode
             } else {
                 // Store raw transcription for correction feature and UI
                 lastRawTranscription = trimmed
@@ -253,6 +278,65 @@ final class DictationCoordinator: ObservableObject {
         // Match "correction", "correct", or common variations with punctuation
         let correctionPatterns = ["correction", "correction.", "correct", "correct."]
         return correctionPatterns.contains(normalized)
+    }
+
+    // MARK: - YouTube Mode Keywords
+
+    private enum YoutubeModeCommand {
+        case turnOn
+        case turnOff
+        case toggle
+    }
+
+    /// Check if the transcription is a youtube mode command
+    private func parseYoutubeModeCommand(_ text: String) -> YoutubeModeCommand? {
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: "")
+
+        // Turn on patterns
+        let onPatterns = [
+            "youtube mode on", "youtube on", "turn on youtube mode", "turn on youtube",
+            "enable youtube mode", "enable youtube", "start youtube mode"
+        ]
+        if onPatterns.contains(normalized) {
+            return .turnOn
+        }
+
+        // Turn off patterns
+        let offPatterns = [
+            "youtube mode off", "youtube off", "turn off youtube mode", "turn off youtube",
+            "disable youtube mode", "disable youtube", "stop youtube mode"
+        ]
+        if offPatterns.contains(normalized) {
+            return .turnOff
+        }
+
+        // Toggle patterns (just "youtube mode" or "toggle youtube")
+        let togglePatterns = ["youtube mode", "toggle youtube mode", "toggle youtube"]
+        if togglePatterns.contains(normalized) {
+            return .toggle
+        }
+
+        return nil
+    }
+
+    /// Handle youtube mode command - returns true if handled
+    private func handleYoutubeModeCommand(_ command: YoutubeModeCommand) {
+        switch command {
+        case .turnOn:
+            isYoutubeModeEnabled = true
+            logger.notice("YouTube mode: ON")
+        case .turnOff:
+            isYoutubeModeEnabled = false
+            logger.notice("YouTube mode: OFF")
+        case .toggle:
+            isYoutubeModeEnabled.toggle()
+            logger.notice("YouTube mode: \(self.isYoutubeModeEnabled ? "ON" : "OFF")")
+        }
+
+        // Play feedback sound
+        NSSound.beep()
     }
 
     // MARK: - Enhancement
