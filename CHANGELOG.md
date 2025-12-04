@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Restore GCD background queue for audio sample reading (regression from cleanup commit)
 - WAV to float sample conversion optimized (eliminated 81M Data slice allocations)
 - Audio conversion no longer blocks UI (moved to GCD background queue)
 - Live dictation no longer blocks UI during transcription (moved to background thread)
