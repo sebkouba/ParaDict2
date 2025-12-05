@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Prompt file double extension bug (e.g., `dictation.md.md`) when saving prompts with `.md` in the name
 - Directory Watcher now properly restarts when input/output directories change in UI
 - Restore GCD background queue for audio sample reading (regression from cleanup commit)
 - Playback pausing mode resumes immediately when recording stops (not after paste)

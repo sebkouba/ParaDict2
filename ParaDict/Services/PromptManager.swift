@@ -93,21 +93,25 @@ class PromptManager: ObservableObject {
     }
 
     func promptExists(named name: String) -> Bool {
-        let fileURL = promptsDirectory.appendingPathComponent("\(name).md")
+        let baseName = name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+        let fileURL = promptsDirectory.appendingPathComponent("\(baseName).md")
         return FileManager.default.fileExists(atPath: fileURL.path)
     }
 
     // MARK: - Prompt Management
 
     func createPrompt(name: String, content: String) throws {
-        let fileURL = promptsDirectory.appendingPathComponent("\(name).md")
+        // Strip .md extension if provided to prevent double extension (.md.md)
+        let baseName = name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+        let fileURL = promptsDirectory.appendingPathComponent("\(baseName).md")
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
         logger.notice("Created prompt '\(name)'")
         refreshPromptList()
     }
 
     func deletePrompt(name: String) throws {
-        let fileURL = promptsDirectory.appendingPathComponent("\(name).md")
+        let baseName = name.hasSuffix(".md") ? String(name.dropLast(3)) : name
+        let fileURL = promptsDirectory.appendingPathComponent("\(baseName).md")
         try FileManager.default.removeItem(at: fileURL)
         logger.notice("Deleted prompt '\(name)'")
         refreshPromptList()
