@@ -18,9 +18,12 @@ struct LLMSettingsView: View {
                 VStack(spacing: 24) {
                     Image(systemName: "brain.head.profile")
                         .font(.system(size: 40))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                         .padding(20)
-                        .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.9)))
+                        .background(
+                            Circle()
+                                .fill(Color(NSColor.controlBackgroundColor))
+                        )
 
                     VStack(spacing: 8) {
                         Text("LLM Settings")
@@ -28,6 +31,7 @@ struct LLMSettingsView: View {
                         Text("Configure AI enhancement for your dictation")
                             .font(.system(size: 15))
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .padding(.vertical, 40)
@@ -52,13 +56,14 @@ struct LLMSettingsView: View {
                     // Prompts Section
                     promptsSection
                 }
-                .padding()
+                .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(16)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
             .padding(24)
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
         .sheet(item: $editingPrompt) { promptName in
             PromptEditorSheet(promptName: promptName, onDismiss: { editingPrompt = nil })
         }

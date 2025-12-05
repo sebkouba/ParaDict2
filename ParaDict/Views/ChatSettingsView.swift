@@ -15,36 +15,57 @@ struct ChatSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
+            // Page Header
+            VStack(spacing: 24) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(20)
+                    .background(
+                        Circle()
+                            .fill(Color(NSColor.controlBackgroundColor))
+                    )
+
+                VStack(spacing: 8) {
                     Text("Settings Chat")
-                        .font(.headline)
+                        .font(.system(size: 28, weight: .bold))
                     Text("Ask questions or modify settings using natural language")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
+            }
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            // Toolbar
+            HStack {
                 Spacer()
 
                 Button(action: clearChat) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "trash")
                         Text("Clear")
                     }
+                    .font(.caption)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
                 .disabled(messages.isEmpty)
 
                 Button(action: openConfigFile) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "doc.text")
                         Text("Open Config")
                     }
+                    .font(.caption)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
             }
-            .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
 
             Divider()
 
@@ -96,8 +117,9 @@ struct ChatSettingsView: View {
                 .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
             }
             .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(Color(NSColor.controlBackgroundColor))
         }
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
     private func openConfigFile() {

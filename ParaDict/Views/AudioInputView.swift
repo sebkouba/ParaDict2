@@ -10,9 +10,12 @@ struct AudioInputView: View {
                 VStack(spacing: 24) {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 40))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                         .padding(20)
-                        .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.9)))
+                        .background(
+                            Circle()
+                                .fill(Color(NSColor.controlBackgroundColor))
+                        )
 
                     VStack(spacing: 8) {
                         Text("Audio Input")
@@ -20,6 +23,7 @@ struct AudioInputView: View {
                         Text("Select which microphone to use for dictation")
                             .font(.system(size: 15))
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .padding(.vertical, 40)
@@ -70,13 +74,14 @@ struct AudioInputView: View {
                     .buttonStyle(.bordered)
                     .padding(.top, 8)
                 }
-                .padding()
+                .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(16)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
             .padding(24)
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 

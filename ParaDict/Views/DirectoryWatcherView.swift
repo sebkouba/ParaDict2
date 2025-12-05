@@ -11,9 +11,12 @@ struct DirectoryWatcherView: View {
                 VStack(spacing: 24) {
                     Image(systemName: "folder.badge.gearshape")
                         .font(.system(size: 40))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                         .padding(20)
-                        .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.9)))
+                        .background(
+                            Circle()
+                                .fill(Color(NSColor.controlBackgroundColor))
+                        )
 
                     VStack(spacing: 8) {
                         Text("Directory Watcher")
@@ -21,6 +24,7 @@ struct DirectoryWatcherView: View {
                         Text("Automatically transcribe audio files dropped into a folder")
                             .font(.system(size: 15))
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .padding(.vertical, 40)
@@ -80,9 +84,10 @@ struct DirectoryWatcherView: View {
                         .cornerRadius(8)
                     }
                 }
-                .padding()
+                .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(16)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
 
                 // Directories Section
                 VStack(alignment: .leading, spacing: 16) {
@@ -147,9 +152,10 @@ struct DirectoryWatcherView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                .padding()
+                .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(16)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
 
                 // Supported Formats
                 VStack(alignment: .leading, spacing: 12) {
@@ -164,9 +170,10 @@ struct DirectoryWatcherView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                .padding()
+                .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(16)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
 
                 // Recent Activity Section
                 if !watcherService.recentActivity.isEmpty {
@@ -186,9 +193,10 @@ struct DirectoryWatcherView: View {
                             ActivityRow(activity: activity)
                         }
                     }
-                    .padding()
+                    .padding(16)
                     .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(16)
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
                 }
 
                 // Advanced Section
@@ -205,13 +213,14 @@ struct DirectoryWatcherView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                .padding()
+                .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(16)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
             }
             .padding(24)
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             updateWatcherState()
         }

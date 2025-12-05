@@ -1,63 +1,124 @@
 # UI Style Consistency Implementation Plan
 
-See `STYLE_GUIDE.md` for the visual standards.
+See `STYLE_GUIDE.md` for the complete design system.
 
 ---
 
-## Current Issues
+## Key Style Changes (from current implementation)
 
-### ShortcutsSettingsView
-- No ScrollView wrapper
-- No header with icon
-- No view background color
-- Uses `GroupBox` instead of styled cards
-- Title is `.title2` instead of 28pt bold
-- Lives in `ParaDictApp.swift` instead of own file
+Based on the updated style guide, existing views also need updates:
 
-### ChatSettingsView
-- Small header without icon
-- No circular icon background
-- Missing view background color
-- Header uses `.headline` instead of 28pt bold
+| Element | Current | New (per style guide) |
+|---------|---------|----------------------|
+| View background | `controlBackgroundColor` | `windowBackgroundColor` (Canvas) |
+| Header icon color | `.blue` | `.accentColor` |
+| Header icon bg | `windowBackgroundColor.opacity(0.9)` | `controlBackgroundColor` (Surface) |
+| Card corner radius | `16` | `12` |
+| Card shadow | varies | `color: .black.opacity(0.06), radius: 8, y: 2` |
+| Title subtitle | - | Add `.multilineTextAlignment(.center)` |
+
+---
+
+## Views Requiring Updates
+
+### Priority 1: Non-compliant views (major rework)
+
+**ShortcutsSettingsView** (in ParaDictApp.swift)
+- Missing: ScrollView, header, canvas background
+- Wrong: Uses GroupBox instead of styled cards
+- Action: Extract to own file, full restyle
+
+**ChatSettingsView**
+- Missing: Page header with icon, canvas background
+- Action: Add header section, update background
+
+### Priority 2: Existing views needing alignment
+
+**PermissionsView**
+- Fix: View background → `windowBackgroundColor`
+- Fix: Header icon → `.accentColor`
+- Fix: Header icon bg → `controlBackgroundColor`
+- Fix: Card corner radius → `12`
+- Fix: Add card shadow
+
+**AudioInputView**
+- Same fixes as PermissionsView
+
+**LLMSettingsView**
+- Same fixes as PermissionsView
+
+**DirectoryWatcherView**
+- Same fixes as PermissionsView
 
 ---
 
 ## Implementation Steps
 
 ### Step 1: Create ShortcutsSettingsView.swift
-1. Create new file `Views/ShortcutsSettingsView.swift`
-2. Move `ShortcutsSettingsView` from `ParaDictApp.swift`
-3. Move `PromptFileLink` helper view as well
-4. Apply style guide:
-   - Add ScrollView wrapper
-   - Add header with `keyboard` icon
-   - Add view background color
-   - Replace `GroupBox` with styled cards
-   - Adjust spacing to 32pt between cards
+1. Create `Views/ShortcutsSettingsView.swift`
+2. Move `ShortcutsSettingsView` and `PromptFileLink` from ParaDictApp.swift
+3. Apply full style guide:
+   - Canvas background (`windowBackgroundColor`)
+   - Page header with `keyboard` icon, `.accentColor`
+   - Cards with 12pt radius and shadow
+   - 32pt spacing between cards
 
 ### Step 2: Update ChatSettingsView.swift
-1. Add header section with `bubble.left.and.bubble.right` icon
-2. Add view background color
-3. Keep chat interface layout (functionally different from other tabs)
-4. Style the header bar to be more minimal since there's also the header section
+1. Add page header with `bubble.left.and.bubble.right` icon
+2. Change view background to canvas color
+3. Keep chat interface functional layout
+4. Style header bar to complement (not compete with) page header
 
-### Step 3: Update ParaDictApp.swift
+### Step 3: Align existing views to style guide
+For each of: PermissionsView, AudioInputView, LLMSettingsView, DirectoryWatcherView
+
+1. Change view `.background()` to `windowBackgroundColor`
+2. Change header icon from `.foregroundStyle(.blue)` to `.foregroundStyle(.accentColor)`
+3. Change header icon circle fill to `controlBackgroundColor`
+4. Change card `.cornerRadius(16)` to `.cornerRadius(12)`
+5. Add card shadow: `.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)`
+6. Add `.multilineTextAlignment(.center)` to subtitle
+
+### Step 4: Update ParaDictApp.swift
 1. Remove `ShortcutsSettingsView` (moved to own file)
 2. Remove `PromptFileLink` (moved to own file)
-3. Add import if needed
 
-### Step 4: Verify
+### Step 5: Verify
 - Build and run
-- Check all 6 tabs visually
-- Ensure headers align
-- Verify spacing and colors match
+- Check all 6 tabs side by side
+- Verify in both light and dark mode
+- Check hover animations work
 
 ---
 
 ## Files to Modify
 
-| File | Action |
-|------|--------|
+| File | Changes |
+|------|---------|
 | `ParaDictApp.swift` | Remove ShortcutsSettingsView, PromptFileLink |
-| `Views/ShortcutsSettingsView.swift` | Create new, apply style guide |
-| `Views/ChatSettingsView.swift` | Add header section, background |
+| `Views/ShortcutsSettingsView.swift` | **Create new**, full style guide compliance |
+| `Views/ChatSettingsView.swift` | Add header, fix background |
+| `Views/PermissionsView.swift` | Align colors, radius, shadow |
+| `Views/AudioInputView.swift` | Align colors, radius, shadow |
+| `Views/LLMSettingsView.swift` | Align colors, radius, shadow |
+| `Views/DirectoryWatcherView.swift` | Align colors, radius, shadow |
+
+---
+
+## Checklist per View
+
+For each settings view, verify:
+
+- [ ] Background is `windowBackgroundColor` (Canvas)
+- [ ] Has page header with 40pt icon
+- [ ] Icon uses `.accentColor`
+- [ ] Icon circle uses `controlBackgroundColor` (Surface)
+- [ ] Title is 28pt bold
+- [ ] Subtitle is 15pt secondary, center-aligned
+- [ ] Header has 40pt vertical padding
+- [ ] Cards use `controlBackgroundColor` (Surface)
+- [ ] Cards have 12pt corner radius
+- [ ] Cards have shadow (0.06 opacity, 8 radius, y: 2)
+- [ ] Cards have 16pt internal padding
+- [ ] 32pt spacing between cards
+- [ ] 24pt view edge padding

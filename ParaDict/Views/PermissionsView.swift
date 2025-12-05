@@ -202,10 +202,10 @@ struct PermissionCard: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding()
+        .padding(16)
         .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
     }
 }
 
@@ -219,9 +219,12 @@ struct PermissionsView: View {
                 VStack(spacing: 24) {
                     Image(systemName: "shield.lefthalf.filled")
                         .font(.system(size: 40))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                         .padding(20)
-                        .background(Circle().fill(Color(NSColor.windowBackgroundColor).opacity(0.9)))
+                        .background(
+                            Circle()
+                                .fill(Color(NSColor.controlBackgroundColor))
+                        )
 
                     VStack(spacing: 8) {
                         Text("App Permissions")
@@ -229,6 +232,7 @@ struct PermissionsView: View {
                         Text("ParaDict requires the following permissions to function properly")
                             .font(.system(size: 15))
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .padding(.vertical, 40)
@@ -292,7 +296,7 @@ struct PermissionsView: View {
             }
             .padding(24)
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             logger.notice("PermissionsView appeared")
             permissionManager.checkAllPermissions()
