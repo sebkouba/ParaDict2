@@ -34,12 +34,15 @@ class DirectoryWatcherService: ObservableObject {
     @Published private(set) var recentActivity: [WatcherActivity] = []
     @Published private(set) var lastError: String?
     @Published private(set) var currentlyProcessing: String?  // filename being transcribed
+    @Published private(set) var pendingFilesCount: Int = 0    // files waiting to be processed
 
     private var inputDirectory: URL?
     private var outputDirectory: URL?
     private var eventStream: FSEventStreamRef?
     private var processedFiles: [String: Date] = [:]  // path -> modification date
     private let fileEventQueue = DispatchQueue(label: "com.paradict.filewatcher", qos: .utility)
+    private var processingTask: Task<Void, Never>?  // Track the current processing task for cancellation
+    private var isCancelled = false  // Flag to stop processing
 
     private let supportedExtensions = ["wav", "mp3", "m4a", "aac", "flac", "ogg", "wma"]
     private let maxActivityHistory = 20
@@ -50,6 +53,7 @@ class DirectoryWatcherService: ObservableObject {
         case inputDirectoryDoesNotExist
         case fileNotStable
         case transcriptionFailed(String)
+        case cancelled
 
         var errorDescription: String? {
             switch self {
@@ -63,6 +67,8 @@ class DirectoryWatcherService: ObservableObject {
                 return "File is still being written"
             case .transcriptionFailed(let message):
                 return "Transcription failed: \(message)"
+            case .cancelled:
+                return "Processing cancelled"
             }
         }
     }
@@ -103,10 +109,11 @@ class DirectoryWatcherService: ObservableObject {
 
         startFSEventStream(for: inputDir)
         isRunning = true
+        isCancelled = false
         logger.notice("Directory watcher started: \(inputDir.path) -> \(outputDir.path)")
 
         // Process any existing files in directory
-        Task {
+        processingTask = Task {
             await processExistingFiles()
         }
     }
@@ -115,9 +122,25 @@ class DirectoryWatcherService: ObservableObject {
     func stop() {
         guard isRunning else { return }
 
+        isCancelled = true
+        processingTask?.cancel()
+        processingTask = nil
         stopFSEventStream()
         isRunning = false
+        currentlyProcessing = nil
+        pendingFilesCount = 0
         logger.notice("Directory watcher stopped")
+    }
+
+    /// Cancel ongoing transcriptions without stopping the watcher
+    @MainActor
+    func cancelProcessing() {
+        isCancelled = true
+        processingTask?.cancel()
+        processingTask = nil
+        currentlyProcessing = nil
+        pendingFilesCount = 0
+        logger.notice("Processing cancelled by user")
     }
 
     @MainActor
@@ -225,13 +248,29 @@ class DirectoryWatcherService: ObservableObject {
                 options: [.skipsHiddenFiles]
             )
 
-            for fileURL in contents {
-                guard supportedExtensions.contains(fileURL.pathExtension.lowercased()) else {
-                    continue
+            // Filter to unprocessed audio files
+            let unprocessedFiles = contents.filter { fileURL in
+                supportedExtensions.contains(fileURL.pathExtension.lowercased()) &&
+                !isAlreadyProcessed(url: fileURL)
+            }
+
+            await MainActor.run {
+                pendingFilesCount = unprocessedFiles.count
+            }
+
+            for fileURL in unprocessedFiles {
+                // Check for cancellation before processing each file
+                if isCancelled || Task.isCancelled {
+                    logger.notice("Processing cancelled, \(self.pendingFilesCount) files remaining")
+                    return
                 }
 
-                if !isAlreadyProcessed(url: fileURL) {
-                    await processAudioFile(url: fileURL)
+                await processAudioFile(url: fileURL)
+
+                await MainActor.run {
+                    if pendingFilesCount > 0 {
+                        pendingFilesCount -= 1
+                    }
                 }
             }
         } catch {
@@ -240,6 +279,9 @@ class DirectoryWatcherService: ObservableObject {
     }
 
     private func processAudioFile(url: URL) async {
+        // Check for cancellation at start
+        if isCancelled || Task.isCancelled { return }
+
         let filename = url.lastPathComponent
         let startTime = Date()
 
@@ -257,6 +299,11 @@ class DirectoryWatcherService: ObservableObject {
             // Wait for file to be stable (fully written)
             try await waitForFileStability(url: url)
 
+            // Check for cancellation before conversion
+            if isCancelled || Task.isCancelled {
+                throw DirectoryWatcherError.cancelled
+            }
+
             // Convert to WAV if needed
             let wavURL: URL
             let needsCleanup: Bool
@@ -269,6 +316,14 @@ class DirectoryWatcherService: ObservableObject {
                 wavURL = try await AudioConverterService.shared.convertToWAV(inputURL: url)
                 needsCleanup = true
                 logger.notice("Converted to WAV: \(filename)")
+            }
+
+            // Check for cancellation before transcription (the slow part)
+            if isCancelled || Task.isCancelled {
+                if needsCleanup {
+                    AudioConverterService.shared.cleanupTempFile(wavURL)
+                }
+                throw DirectoryWatcherError.cancelled
             }
 
             // Transcribe using background instance to avoid blocking live dictation
@@ -409,5 +464,42 @@ class DirectoryWatcherService: ObservableObject {
         processedFiles.removeAll()
         try? FileManager.default.removeItem(at: processedFilesURL)
         logger.notice("Cleared processed files history")
+    }
+
+    /// Mark all current files in the input directory as processed (skip existing files)
+    @MainActor
+    func markAllAsProcessed(inputDir: URL? = nil) -> Int {
+        // Use provided directory, or fall back to stored one
+        guard let dir = inputDir ?? inputDirectory else {
+            logger.error("Cannot mark files as processed: no input directory configured")
+            return 0
+        }
+        let inputDir = dir
+
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: inputDir,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            )
+
+            var markedCount = 0
+            for fileURL in contents {
+                guard supportedExtensions.contains(fileURL.pathExtension.lowercased()) else {
+                    continue
+                }
+
+                if !isAlreadyProcessed(url: fileURL) {
+                    markAsProcessed(url: fileURL)
+                    markedCount += 1
+                }
+            }
+
+            logger.notice("Marked \(markedCount) files as processed")
+            return markedCount
+        } catch {
+            logger.error("Failed to mark files as processed: \(error.localizedDescription)")
+            return 0
+        }
     }
 }

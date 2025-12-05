@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Directory Watcher: Cancel button to stop ongoing transcription queue
+- Directory Watcher: "Skip Existing Files" button to mark all current files as processed
+- Directory Watcher: Shows pending files count during batch processing
 - Playback Pausing Mode: voice-controlled media pause/resume during dictation (say "playback pausing on/off")
 - Directory Watcher shows processing indicator when transcribing a file
 - Directory Watcher feature: automatically transcribe audio files dropped into a watched folder

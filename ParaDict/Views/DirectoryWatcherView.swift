@@ -3,6 +3,7 @@ import SwiftUI
 struct DirectoryWatcherView: View {
     @EnvironmentObject var configManager: ConfigManager
     @ObservedObject private var watcherService = DirectoryWatcherService.shared
+    @State private var markedFilesMessage: String?
 
     var body: some View {
         ScrollView {
@@ -56,15 +57,30 @@ struct DirectoryWatcherView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    // Processing indicator
+                    // Processing indicator with cancel button
                     if let filename = watcherService.currentlyProcessing {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .frame(width: 16, height: 16)
-                            Text("Transcribing: \(filename)")
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 16, height: 16)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Transcribing: \(filename)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.blue)
+                                    if watcherService.pendingFilesCount > 0 {
+                                        Text("\(watcherService.pendingFilesCount) more file\(watcherService.pendingFilesCount == 1 ? "" : "s") pending")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Button("Cancel") {
+                                    watcherService.cancelProcessing()
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
                         }
                         .padding(8)
                         .background(Color.blue.opacity(0.1))
@@ -213,18 +229,52 @@ struct DirectoryWatcherView: View {
                 }
 
                 // Advanced Section
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Advanced")
                         .font(.headline)
 
-                    Button("Clear Processed Files History") {
-                        watcherService.clearProcessedFiles()
-                    }
-                    .buttonStyle(.bordered)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button("Skip Existing Files") {
+                            // Pass directory from config since watcher may not be started
+                            let inputPath = configManager.config.directoryWatcher.inputDirectory
+                            let inputDir = inputPath.isEmpty ? nil : URL(fileURLWithPath: inputPath)
+                            let count = watcherService.markAllAsProcessed(inputDir: inputDir)
+                            if count > 0 {
+                                markedFilesMessage = "Marked \(count) file\(count == 1 ? "" : "s") as processed"
+                            } else {
+                                markedFilesMessage = "No new files to mark"
+                            }
+                            // Clear message after delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                markedFilesMessage = nil
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(configManager.config.directoryWatcher.inputDirectory.isEmpty)
 
-                    Text("This will allow all files to be reprocessed on next scan")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        Text("Mark all current files as already processed (only transcribe new files)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if let message = markedFilesMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button("Clear Processed Files History") {
+                            watcherService.clearProcessedFiles()
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text("This will allow all files to be reprocessed on next scan")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
