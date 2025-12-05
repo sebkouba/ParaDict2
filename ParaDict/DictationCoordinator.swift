@@ -78,15 +78,6 @@ final class DictationCoordinator: ObservableObject {
             execute(effect)
         }
 
-        // Resume media when returning to idle (if we paused it)
-        if previousState != .idle && state == .idle {
-            logger.notice("Returning to idle from \(previousState) - didPauseMedia=\(self.didPauseMedia)")
-            if didPauseMedia {
-                logger.notice("Resuming media playback")
-                _ = mediaControlService.resumeMedia()
-                didPauseMedia = false
-            }
-        }
     }
 
     // MARK: - Side Effect Execution
@@ -109,9 +100,13 @@ final class DictationCoordinator: ObservableObject {
 
         case .stopRecording:
             stopRecording()
+            // Resume media immediately when recording stops (don't wait for transcription/paste)
+            resumeMediaIfNeeded()
 
         case .cancelRecording:
             cancelRecording()
+            // Resume media immediately when recording is cancelled
+            resumeMediaIfNeeded()
 
         case .cleanupRecordingFile(let url):
             cleanupFile(url)
@@ -240,6 +235,15 @@ final class DictationCoordinator: ObservableObject {
         }
     }
 
+    /// Resume media playback if we paused it at recording start
+    private func resumeMediaIfNeeded() {
+        if didPauseMedia {
+            logger.notice("Recording ended - resuming media playback")
+            _ = mediaControlService.resumeMedia()
+            didPauseMedia = false
+        }
+    }
+
     // MARK: - Transcription
 
     private func transcribe(url: URL) async {
@@ -350,12 +354,7 @@ final class DictationCoordinator: ObservableObject {
         case .turnOff:
             isPlaybackPausingEnabled = false
             logger.notice("Playback pausing: OFF")
-            // IMPORTANT: When turning off via voice command, don't resume media
-            // The user explicitly turned it off, so they don't want auto-resume
-            if didPauseMedia {
-                logger.notice("Clearing didPauseMedia flag - user disabled via voice command")
-                didPauseMedia = false
-            }
+            // Note: Media was already resumed when recording stopped (before transcription)
         }
 
         // Play feedback sound
