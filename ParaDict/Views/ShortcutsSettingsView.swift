@@ -9,9 +9,9 @@ struct ShortcutsSettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 32) {
                 // Header
-                VStack(spacing: 16) {
+                VStack(spacing: 24) {
                     Image(systemName: "keyboard")
                         .font(.system(size: 40))
                         .foregroundStyle(Color.accentColor)
@@ -30,7 +30,7 @@ struct ShortcutsSettingsView: View {
                             .multilineTextAlignment(.center)
                     }
                 }
-                .padding(.vertical, 24)
+                .padding(.vertical, 40)
 
                 // Shortcut Cards
                 VStack(spacing: 16) {

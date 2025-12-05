@@ -15,109 +15,119 @@ struct ChatSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Page Header
-            VStack(spacing: 24) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(20)
-                    .background(
-                        Circle()
-                            .fill(Color(NSColor.controlBackgroundColor))
+            ScrollView {
+                VStack(spacing: 32) {
+                    // Header
+                    VStack(spacing: 24) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 40))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(20)
+                            .background(
+                                Circle()
+                                    .fill(Color(NSColor.controlBackgroundColor))
+                            )
+
+                        VStack(spacing: 8) {
+                            Text("Settings Chat")
+                                .font(.system(size: 28, weight: .bold))
+                            Text("Ask questions or modify settings using natural language")
+                                .font(.system(size: 15))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .padding(.vertical, 40)
+
+                    // Chat Card
+                    VStack(spacing: 0) {
+                        // Toolbar
+                        HStack {
+                            Spacer()
+
+                            Button(action: clearChat) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "trash")
+                                    Text("Clear")
+                                }
+                                .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundColor(.secondary)
+                            .disabled(messages.isEmpty)
+
+                            Button(action: openConfigFile) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "doc.text")
+                                    Text("Open Config")
+                                }
+                                .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        Divider()
+
+                        // Messages
+                        ScrollViewReader { proxy in
+                            LazyVStack(alignment: .leading, spacing: 12) {
+                                // Welcome message
+                                if messages.isEmpty {
+                                    WelcomeMessageView()
+                                }
+
+                                ForEach(messages) { message in
+                                    MessageBubble(message: message)
+                                        .id(message.id)
+                                }
+
+                                if isLoading {
+                                    LoadingBubble()
+                                }
+                            }
+                            .padding(16)
+                            .onChange(of: messages.count) { _, _ in
+                                if let lastMessage = messages.last {
+                                    withAnimation {
+                                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(minHeight: 200)
+
+                        Divider()
+
+                        // Input area
+                        HStack(spacing: 12) {
+                            TextField("Ask about settings or request changes...", text: $inputText, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .lineLimit(1...5)
+                                .onSubmit {
+                                    sendMessage()
+                                }
+
+                            Button(action: sendMessage) {
+                                Image(systemName: "paperplane.fill")
+                                    .font(.title3)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
+                        }
+                        .padding(16)
+                    }
+                    .background(Color(NSColor.controlBackgroundColor))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
                     )
-
-                VStack(spacing: 8) {
-                    Text("Settings Chat")
-                        .font(.system(size: 28, weight: .bold))
-                    Text("Ask questions or modify settings using natural language")
-                        .font(.system(size: 15))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
                 }
+                .padding(24)
             }
-            .padding(.vertical, 24)
-            .frame(maxWidth: .infinity)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            // Toolbar
-            HStack {
-                Spacer()
-
-                Button(action: clearChat) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                        Text("Clear")
-                    }
-                    .font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .foregroundColor(.secondary)
-                .disabled(messages.isEmpty)
-
-                Button(action: openConfigFile) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.text")
-                        Text("Open Config")
-                    }
-                    .font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-
-            Divider()
-
-            // Messages
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        // Welcome message
-                        if messages.isEmpty {
-                            WelcomeMessageView()
-                        }
-
-                        ForEach(messages) { message in
-                            MessageBubble(message: message)
-                                .id(message.id)
-                        }
-
-                        if isLoading {
-                            LoadingBubble()
-                        }
-                    }
-                    .padding()
-                }
-                .onChange(of: messages.count) { _, _ in
-                    if let lastMessage = messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
-            }
-
-            Divider()
-
-            // Input area
-            HStack(spacing: 12) {
-                TextField("Ask about settings or request changes...", text: $inputText, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...5)
-                    .onSubmit {
-                        sendMessage()
-                    }
-
-                Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.title3)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
-            }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
         }
         .background(Color(NSColor.windowBackgroundColor))
     }
