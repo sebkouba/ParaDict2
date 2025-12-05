@@ -127,6 +127,17 @@ class DirectoryWatcherService: ObservableObject {
         start(inputDir: inputDir, outputDir: outputDir)
     }
 
+    @MainActor
+    func restart(inputDir: URL, outputDir: URL) {
+        // Only restart if directories actually changed or not running
+        if isRunning && inputDirectory == inputDir && outputDirectory == outputDir {
+            logger.notice("Watcher already running with same directories, skipping restart")
+            return
+        }
+        stop()
+        start(inputDir: inputDir, outputDir: outputDir)
+    }
+
     // MARK: - FSEvents
 
     private func startFSEventStream(for directory: URL) {

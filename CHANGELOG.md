@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Directory Watcher now properly restarts when input/output directories change in UI
 - Restore GCD background queue for audio sample reading (regression from cleanup commit)
 - Playback pausing mode resumes immediately when recording stops (not after paste)
 - WAV to float sample conversion optimized (eliminated 81M Data slice allocations)

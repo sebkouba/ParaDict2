@@ -312,12 +312,11 @@ struct DirectoryWatcherView: View {
         let config = configManager.config.directoryWatcher
 
         if config.enabled && !config.inputDirectory.isEmpty && !config.outputDirectory.isEmpty {
-            if !watcherService.isRunning {
-                watcherService.start(
-                    inputDir: URL(fileURLWithPath: config.inputDirectory),
-                    outputDir: URL(fileURLWithPath: config.outputDirectory)
-                )
-            }
+            // Always restart to pick up any directory changes
+            watcherService.restart(
+                inputDir: URL(fileURLWithPath: config.inputDirectory),
+                outputDir: URL(fileURLWithPath: config.outputDirectory)
+            )
         } else {
             if watcherService.isRunning {
                 watcherService.stop()
