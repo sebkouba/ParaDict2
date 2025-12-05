@@ -47,10 +47,10 @@ final class DictationCoordinator: ObservableObject {
     /// Tracks the last text that was actually pasted - may be LLM-enhanced (for correction feature)
     private var lastPastedText: String?
 
-    // MARK: - YouTube Mode
+    // MARK: - Playback Pausing Mode
 
     /// When enabled, media is paused during dictation and resumed after
-    @Published private(set) var isYoutubeModeEnabled = false
+    @Published private(set) var isPlaybackPausingEnabled = false
     /// Tracks if we sent a pause command (to know whether to resume)
     private var didPauseMedia = false
 
@@ -79,10 +79,13 @@ final class DictationCoordinator: ObservableObject {
         }
 
         // Resume media when returning to idle (if we paused it)
-        if previousState != .idle && state == .idle && didPauseMedia {
-            logger.notice("Returning to idle - resuming media")
-            _ = mediaControlService.resumeMedia()
-            didPauseMedia = false
+        if previousState != .idle && state == .idle {
+            logger.notice("Returning to idle from \(previousState) - didPauseMedia=\(self.didPauseMedia)")
+            if didPauseMedia {
+                logger.notice("Resuming media playback")
+                _ = mediaControlService.resumeMedia()
+                didPauseMedia = false
+            }
         }
     }
 
@@ -93,6 +96,13 @@ final class DictationCoordinator: ObservableObject {
 
         switch effect {
         case .startRecording(let mode, let prompt, let context):
+            // Pause media SYNCHRONOUSLY before the async recording starts
+            // This ensures didPauseMedia is set before any subsequent events
+            if isPlaybackPausingEnabled {
+                logger.notice("Playback pausing enabled - pausing media (sync)")
+                didPauseMedia = mediaControlService.pauseMedia()
+                logger.notice("didPauseMedia set to: \(self.didPauseMedia)")
+            }
             Task {
                 await startRecording(mode: mode, prompt: prompt, context: context)
             }
@@ -176,10 +186,8 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Recording
 
     private func startRecording(mode: DictationMode, prompt: String?, context: String?) async {
-        // Pause media if youtube mode is enabled
-        if isYoutubeModeEnabled {
-            didPauseMedia = mediaControlService.pauseMedia()
-        }
+        // Note: Media pausing is handled synchronously in execute() before this async function runs
+        // This ensures didPauseMedia is set before any subsequent events can check it
 
         // Store context for later use
         currentContext = context
@@ -256,9 +264,9 @@ final class DictationCoordinator: ObservableObject {
                     logger.warning("No previous dictation to correct")
                     send(.error(message: "No previous dictation to correct"))
                 }
-            } else if let youtubeCommand = parseYoutubeModeCommand(trimmed) {
-                // Check for youtube mode command
-                handleYoutubeModeCommand(youtubeCommand)
+            } else if let playbackCommand = parsePlaybackPausingCommand(trimmed) {
+                // Check for playback pausing command
+                handlePlaybackPausingCommand(playbackCommand)
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle mode
             } else {
                 // Store raw transcription for correction feature and UI
@@ -280,63 +288,80 @@ final class DictationCoordinator: ObservableObject {
         return correctionPatterns.contains(normalized)
     }
 
-    // MARK: - YouTube Mode Keywords
+    // MARK: - Playback Pausing Keywords
 
-    private enum YoutubeModeCommand {
+    private enum PlaybackPausingCommand {
         case turnOn
         case turnOff
-        case toggle
     }
 
-    /// Check if the transcription is a youtube mode command
-    private func parseYoutubeModeCommand(_ text: String) -> YoutubeModeCommand? {
+    /// Check if the transcription is a playback pausing command
+    private func parsePlaybackPausingCommand(_ text: String) -> PlaybackPausingCommand? {
         let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: ".", with: "")
             .replacingOccurrences(of: ",", with: "")
 
-        // Turn on patterns
+        logger.notice("Checking for playback pausing command - normalized: '\(normalized)'")
+
+        // Turn on patterns (include variants without "ing" since ASR often drops it)
         let onPatterns = [
-            "youtube mode on", "youtube on", "turn on youtube mode", "turn on youtube",
-            "enable youtube mode", "enable youtube", "start youtube mode"
+            "playback pausing on",
+            "playback pause on",
+            "playback posing on",  // Common misheard variant
+            "playback pose on",
+            "enable playback pausing",
+            "enable playback pause",
+            "start playback pausing",
+            "start playback pause"
         ]
         if onPatterns.contains(normalized) {
+            logger.notice("Playback pausing command matched: turnOn")
             return .turnOn
         }
 
-        // Turn off patterns
+        // Turn off patterns (include variants without "ing" since ASR often drops it)
         let offPatterns = [
-            "youtube mode off", "youtube off", "turn off youtube mode", "turn off youtube",
-            "disable youtube mode", "disable youtube", "stop youtube mode"
+            "playback pausing off",
+            "playback pause off",
+            "playback posing off",  // Common misheard variant
+            "playback pose off",
+            "disable playback pausing",
+            "disable playback pause",
+            "stop playback pausing",
+            "stop playback pause"
         ]
         if offPatterns.contains(normalized) {
+            logger.notice("Playback pausing command matched: turnOff")
             return .turnOff
         }
 
-        // Toggle patterns (just "youtube mode" or "toggle youtube")
-        let togglePatterns = ["youtube mode", "toggle youtube mode", "toggle youtube"]
-        if togglePatterns.contains(normalized) {
-            return .toggle
-        }
-
+        logger.notice("No playback pausing command matched")
         return nil
     }
 
-    /// Handle youtube mode command - returns true if handled
-    private func handleYoutubeModeCommand(_ command: YoutubeModeCommand) {
+    /// Handle playback pausing command
+    private func handlePlaybackPausingCommand(_ command: PlaybackPausingCommand) {
+        let wasEnabled = isPlaybackPausingEnabled
+
         switch command {
         case .turnOn:
-            isYoutubeModeEnabled = true
-            logger.notice("YouTube mode: ON")
+            isPlaybackPausingEnabled = true
+            logger.notice("Playback pausing: ON")
         case .turnOff:
-            isYoutubeModeEnabled = false
-            logger.notice("YouTube mode: OFF")
-        case .toggle:
-            isYoutubeModeEnabled.toggle()
-            logger.notice("YouTube mode: \(self.isYoutubeModeEnabled ? "ON" : "OFF")")
+            isPlaybackPausingEnabled = false
+            logger.notice("Playback pausing: OFF")
+            // IMPORTANT: When turning off via voice command, don't resume media
+            // The user explicitly turned it off, so they don't want auto-resume
+            if didPauseMedia {
+                logger.notice("Clearing didPauseMedia flag - user disabled via voice command")
+                didPauseMedia = false
+            }
         }
 
         // Play feedback sound
         NSSound.beep()
+
+        logger.notice("Playback pausing state changed: \(wasEnabled) -> \(self.isPlaybackPausingEnabled)")
     }
 
     // MARK: - Enhancement
