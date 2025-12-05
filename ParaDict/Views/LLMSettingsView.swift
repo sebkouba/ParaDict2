@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LLMSettingsView: View {
     @StateObject private var llmClient = LLMClient.shared
+    @ObservedObject private var promptManager = PromptManager.shared
     @EnvironmentObject var configManager: ConfigManager
 
     @State private var apiKeyInput: String = ""
@@ -194,7 +195,7 @@ struct LLMSettingsView: View {
                 .font(.headline)
 
             HStack {
-                Text(PromptManager.shared.getPromptsDirectoryPath())
+                Text(promptManager.getPromptsDirectoryPath())
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -203,12 +204,12 @@ struct LLMSettingsView: View {
                 Spacer()
 
                 Button("Open Folder") {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: PromptManager.shared.getPromptsDirectoryPath()))
+                    NSWorkspace.shared.open(URL(fileURLWithPath: promptManager.getPromptsDirectoryPath()))
                 }
                 .font(.caption)
             }
 
-            if PromptManager.shared.availablePrompts.isEmpty {
+            if promptManager.availablePrompts.isEmpty {
                 Text("No prompts found. Add .md files to the prompts folder.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -216,7 +217,7 @@ struct LLMSettingsView: View {
                     .padding(.vertical, 8)
             } else {
                 VStack(spacing: 4) {
-                    ForEach(PromptManager.shared.availablePrompts, id: \.self) { prompt in
+                    ForEach(promptManager.availablePrompts, id: \.self) { prompt in
                         PromptRow(
                             promptName: prompt,
                             isHovered: hoveredPrompt == prompt,
@@ -232,7 +233,7 @@ struct LLMSettingsView: View {
             }
 
             Button {
-                PromptManager.shared.refreshPromptList()
+                promptManager.refreshPromptList()
             } label: {
                 HStack {
                     Image(systemName: "arrow.clockwise")

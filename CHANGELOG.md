@@ -31,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Bundled prompts now correctly copy to Application Support on first launch (were looking in wrong directory)
+- Prompts list in LLM Settings now updates automatically when files change (added directory watcher)
+- Prompts list now properly refreshes when Refresh button is clicked (view now observes PromptManager)
 - Prompt file double extension bug (e.g., `dictation.md.md`) when saving prompts with `.md` in the name
 - Directory Watcher now properly restarts when input/output directories change in UI
 - Restore GCD background queue for audio sample reading (regression from cleanup commit)

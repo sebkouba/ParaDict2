@@ -15,10 +15,18 @@ class PromptManager: ObservableObject {
         return appSupport.appendingPathComponent("ParaDict/prompts", isDirectory: true)
     }
 
+    private var eventStream: FSEventStreamRef?
+    private let watcherQueue = DispatchQueue(label: "com.paradict.promptwatcher", qos: .utility)
+
     private init() {
         ensurePromptsDirectory()
         copyBundledPromptsIfNeeded()
         refreshPromptList()
+        startDirectoryWatcher()
+    }
+
+    deinit {
+        stopDirectoryWatcher()
     }
 
     // MARK: - Directory Setup
@@ -36,20 +44,24 @@ class PromptManager: ObservableObject {
     }
 
     private func copyBundledPromptsIfNeeded() {
-        guard let bundledPromptsURL = Bundle.main.resourceURL?.appendingPathComponent("prompts") else {
-            logger.notice("No bundled prompts directory found in app bundle")
+        // Xcode flattens the Resources/prompts folder, so .md files end up directly in Resources/
+        guard let resourcesURL = Bundle.main.resourceURL else {
+            logger.notice("No resources URL found in app bundle")
             return
         }
 
         let fm = FileManager.default
-        guard fm.fileExists(atPath: bundledPromptsURL.path) else {
-            logger.notice("Bundled prompts directory does not exist")
-            return
-        }
 
         do {
-            let bundledFiles = try fm.contentsOfDirectory(at: bundledPromptsURL, includingPropertiesForKeys: nil)
-            for file in bundledFiles where file.pathExtension == "md" {
+            let resourceFiles = try fm.contentsOfDirectory(at: resourcesURL, includingPropertiesForKeys: nil)
+            let promptFiles = resourceFiles.filter { $0.pathExtension == "md" }
+
+            if promptFiles.isEmpty {
+                logger.notice("No bundled .md prompt files found in Resources")
+                return
+            }
+
+            for file in promptFiles {
                 let destURL = promptsDirectory.appendingPathComponent(file.lastPathComponent)
                 if !fm.fileExists(atPath: destURL.path) {
                     try fm.copyItem(at: file, to: destURL)
@@ -119,5 +131,65 @@ class PromptManager: ObservableObject {
 
     func getPromptsDirectoryPath() -> String {
         promptsDirectory.path
+    }
+
+    // MARK: - Directory Watcher
+
+    private nonisolated func startDirectoryWatcher() {
+        // Capture the path before going off MainActor
+        let directoryPath = MainActor.assumeIsolated { promptsDirectory.path }
+
+        let pathsToWatch = [directoryPath] as CFArray
+
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+
+        let callback: FSEventStreamCallback = { (_, clientCallBackInfo, _, _, _, _) in
+            guard let clientCallBackInfo = clientCallBackInfo else { return }
+            let manager = Unmanaged<PromptManager>.fromOpaque(clientCallBackInfo).takeUnretainedValue()
+
+            Task { @MainActor in
+                manager.refreshPromptList()
+            }
+        }
+
+        let stream = FSEventStreamCreate(
+            nil,
+            callback,
+            &context,
+            pathsToWatch,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.5,  // Latency in seconds
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes)
+        )
+
+        if let stream = stream {
+            FSEventStreamSetDispatchQueue(stream, watcherQueue)
+            FSEventStreamStart(stream)
+
+            Task { @MainActor in
+                self.eventStream = stream
+                self.logger.notice("Started prompts directory watcher")
+            }
+        }
+    }
+
+    private nonisolated func stopDirectoryWatcher() {
+        let stream = MainActor.assumeIsolated { eventStream }
+        if let stream = stream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+
+            Task { @MainActor in
+                self.eventStream = nil
+                self.logger.notice("Stopped prompts directory watcher")
+            }
+        }
     }
 }
