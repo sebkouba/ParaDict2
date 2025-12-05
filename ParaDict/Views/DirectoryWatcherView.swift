@@ -87,7 +87,10 @@ struct DirectoryWatcherView: View {
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
 
                 // Directories Section
                 VStack(alignment: .leading, spacing: 16) {
@@ -155,7 +158,10 @@ struct DirectoryWatcherView: View {
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
 
                 // Supported Formats
                 VStack(alignment: .leading, spacing: 12) {
@@ -170,10 +176,14 @@ struct DirectoryWatcherView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
 
                 // Recent Activity Section
                 if !watcherService.recentActivity.isEmpty {
@@ -196,7 +206,10 @@ struct DirectoryWatcherView: View {
                     .padding(16)
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                    .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
                 }
 
                 // Advanced Section
@@ -213,10 +226,14 @@ struct DirectoryWatcherView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
             }
             .padding(24)
         }

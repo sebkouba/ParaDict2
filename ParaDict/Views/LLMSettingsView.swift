@@ -59,7 +59,10 @@ struct LLMSettingsView: View {
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
             }
             .padding(24)
         }

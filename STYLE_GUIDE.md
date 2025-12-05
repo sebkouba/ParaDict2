@@ -157,7 +157,7 @@ VStack(spacing: 24) {
 
 ## Cards
 
-Cards group related controls. They sit on the canvas with subtle elevation.
+Cards group related controls. They sit on the canvas with a subtle border for visibility in dark mode.
 
 ```swift
 VStack(alignment: .leading, spacing: 16) {
@@ -166,7 +166,10 @@ VStack(alignment: .leading, spacing: 16) {
 .padding(16)
 .background(Color(NSColor.controlBackgroundColor))
 .cornerRadius(12)
-.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+.overlay(
+    RoundedRectangle(cornerRadius: 12)
+        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+)
 ```
 
 ### Card Variants
@@ -174,7 +177,10 @@ VStack(alignment: .leading, spacing: 16) {
 **Standard card** (most common):
 ```swift
 .cornerRadius(12)
-.shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+.overlay(
+    RoundedRectangle(cornerRadius: 12)
+        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+)
 ```
 
 **Flat card** (for dense lists, no shadow):
@@ -641,7 +647,7 @@ Card Background:      Color(NSColor.controlBackgroundColor)
 Input Background:     Color(NSColor.textBackgroundColor)
 
 Card Corner Radius:   12
-Card Shadow:          color: .black.opacity(0.06), radius: 8, y: 2
+Card Border:          Color.white.opacity(0.08), lineWidth: 1
 Card Padding:         16
 
 View Padding:         24
