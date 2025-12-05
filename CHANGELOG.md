@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Playback Pausing Mode: voice-controlled media pause/resume during dictation (say "playback pausing on/off")
 - Directory Watcher shows processing indicator when transcribing a file
 - Directory Watcher feature: automatically transcribe audio files dropped into a watched folder
 - Clickable prompts in shortcuts view for quick configuration
@@ -26,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Restore GCD background queue for audio sample reading (regression from cleanup commit)
+- Playback pausing mode resumes immediately when recording stops (not after paste)
 - WAV to float sample conversion optimized (eliminated 81M Data slice allocations)
 - Audio conversion no longer blocks UI (moved to GCD background queue)
 - Live dictation no longer blocks UI during transcription (moved to background thread)

@@ -11,7 +11,23 @@
 		9E32ED8D2ED71E9B00ED3EB2 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 9E32EC6E2ED71B0400ED3EB2 /* Yams */; };
 		9E32ED8E2ED71E9B00ED3EB2 /* LaunchAtLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 9E32EC6F2ED71B0500ED3EB2 /* LaunchAtLogin */; };
 		9E32ED8F2ED71E9B00ED3EB2 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 9E32EC702ED71B0600ED3EB2 /* KeyboardShortcuts */; };
+		9E32ED902ED71E9B00ED3EB2 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = 9E32EC712ED71B0700ED3EB2 /* MediaRemoteAdapter */; };
+		9E32ED912ED71E9B00ED3EB2 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 9E32EC712ED71B0700ED3EB2 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9E32ED922ED71F0000ED3EB2 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				9E32ED912ED71E9B00ED3EB2 /* MediaRemoteAdapter in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		9E0696392EDF36F5006DE06F /* ParaDictTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ParaDictTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -63,6 +79,7 @@
 				9E32ED8D2ED71E9B00ED3EB2 /* Yams in Frameworks */,
 				9E32ED8C2ED71E9B00ED3EB2 /* FluidAudio in Frameworks */,
 				9E32ED8F2ED71E9B00ED3EB2 /* KeyboardShortcuts in Frameworks */,
+				9E32ED902ED71E9B00ED3EB2 /* MediaRemoteAdapter in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -122,6 +139,7 @@
 				9E32EC582ED71A7100ED3EB2 /* Sources */,
 				9E32EC592ED71A7100ED3EB2 /* Frameworks */,
 				9E32EC5A2ED71A7100ED3EB2 /* Resources */,
+				9E32ED922ED71F0000ED3EB2 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -136,6 +154,7 @@
 				9E32EC6E2ED71B0400ED3EB2 /* Yams */,
 				9E32EC6F2ED71B0500ED3EB2 /* LaunchAtLogin */,
 				9E32EC702ED71B0600ED3EB2 /* KeyboardShortcuts */,
+				9E32EC712ED71B0700ED3EB2 /* MediaRemoteAdapter */,
 			);
 			productName = ParaDict;
 			productReference = 9E32EC5C2ED71A7100ED3EB2 /* ParaDict.app */;
@@ -173,6 +192,7 @@
 				9E32EC6B2ED71B0100ED3EB2 /* XCRemoteSwiftPackageReference "Yams" */,
 				9E32EC6C2ED71B0200ED3EB2 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				9E32EC6D2ED71B0700ED3EB2 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				9E32EC6E2ED71B0800ED3EB2 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9E32EC5D2ED71A7100ED3EB2 /* Products */;
@@ -522,6 +542,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		9E32EC6E2ED71B0800ED3EB2 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ejbills/mediaremote-adapter";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -544,6 +572,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9E32EC6D2ED71B0700ED3EB2 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
 			productName = KeyboardShortcuts;
+		};
+		9E32EC712ED71B0700ED3EB2 /* MediaRemoteAdapter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9E32EC6E2ED71B0800ED3EB2 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */;
+			productName = MediaRemoteAdapter;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

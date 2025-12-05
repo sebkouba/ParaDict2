@@ -32,6 +32,7 @@ final class DictationCoordinator: ObservableObject {
     private let indicatorManager = RecordingIndicatorWindowManager.shared
     private let historyLogger = TranscriptionHistoryLogger.shared
     private let correctionWindowManager = CorrectionWindowManager.shared
+    private let mediaControlService = MediaControlService.shared
 
     // MARK: - State
 
@@ -45,6 +46,13 @@ final class DictationCoordinator: ObservableObject {
     private var lastRawTranscription: String?
     /// Tracks the last text that was actually pasted - may be LLM-enhanced (for correction feature)
     private var lastPastedText: String?
+
+    // MARK: - Playback Pausing Mode
+
+    /// When enabled, media is paused during dictation and resumed after
+    @Published private(set) var isPlaybackPausingEnabled = false
+    /// Tracks if we sent a pause command (to know whether to resume)
+    private var didPauseMedia = false
 
     // MARK: - Initialization
 
@@ -61,6 +69,7 @@ final class DictationCoordinator: ObservableObject {
     func send(_ event: DictationEvent) {
         logger.notice("Received event: \(event.description)")
 
+        let previousState = stateMachine.state
         let effects = stateMachine.handle(event)
         state = stateMachine.state
 
@@ -68,6 +77,7 @@ final class DictationCoordinator: ObservableObject {
         for effect in effects {
             execute(effect)
         }
+
     }
 
     // MARK: - Side Effect Execution
@@ -77,15 +87,26 @@ final class DictationCoordinator: ObservableObject {
 
         switch effect {
         case .startRecording(let mode, let prompt, let context):
+            // Pause media SYNCHRONOUSLY before the async recording starts
+            // This ensures didPauseMedia is set before any subsequent events
+            if isPlaybackPausingEnabled {
+                logger.notice("Playback pausing enabled - pausing media (sync)")
+                didPauseMedia = mediaControlService.pauseMedia()
+                logger.notice("didPauseMedia set to: \(self.didPauseMedia)")
+            }
             Task {
                 await startRecording(mode: mode, prompt: prompt, context: context)
             }
 
         case .stopRecording:
             stopRecording()
+            // Resume media immediately when recording stops (don't wait for transcription/paste)
+            resumeMediaIfNeeded()
 
         case .cancelRecording:
             cancelRecording()
+            // Resume media immediately when recording is cancelled
+            resumeMediaIfNeeded()
 
         case .cleanupRecordingFile(let url):
             cleanupFile(url)
@@ -160,6 +181,9 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Recording
 
     private func startRecording(mode: DictationMode, prompt: String?, context: String?) async {
+        // Note: Media pausing is handled synchronously in execute() before this async function runs
+        // This ensures didPauseMedia is set before any subsequent events can check it
+
         // Store context for later use
         currentContext = context
 
@@ -211,6 +235,15 @@ final class DictationCoordinator: ObservableObject {
         }
     }
 
+    /// Resume media playback if we paused it at recording start
+    private func resumeMediaIfNeeded() {
+        if didPauseMedia {
+            logger.notice("Recording ended - resuming media playback")
+            _ = mediaControlService.resumeMedia()
+            didPauseMedia = false
+        }
+    }
+
     // MARK: - Transcription
 
     private func transcribe(url: URL) async {
@@ -235,6 +268,10 @@ final class DictationCoordinator: ObservableObject {
                     logger.warning("No previous dictation to correct")
                     send(.error(message: "No previous dictation to correct"))
                 }
+            } else if let playbackCommand = parsePlaybackPausingCommand(trimmed) {
+                // Check for playback pausing command
+                handlePlaybackPausingCommand(playbackCommand)
+                send(.transcriptionEmpty)  // Don't paste anything, just toggle mode
             } else {
                 // Store raw transcription for correction feature and UI
                 lastRawTranscription = trimmed
@@ -253,6 +290,77 @@ final class DictationCoordinator: ObservableObject {
         // Match "correction", "correct", or common variations with punctuation
         let correctionPatterns = ["correction", "correction.", "correct", "correct."]
         return correctionPatterns.contains(normalized)
+    }
+
+    // MARK: - Playback Pausing Keywords
+
+    private enum PlaybackPausingCommand {
+        case turnOn
+        case turnOff
+    }
+
+    /// Check if the transcription is a playback pausing command
+    private func parsePlaybackPausingCommand(_ text: String) -> PlaybackPausingCommand? {
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: "")
+
+        logger.notice("Checking for playback pausing command - normalized: '\(normalized)'")
+
+        // Turn on patterns (include variants without "ing" since ASR often drops it)
+        let onPatterns = [
+            "playback pausing on",
+            "playback pause on",
+            "playback posing on",  // Common misheard variant
+            "playback pose on",
+            "enable playback pausing",
+            "enable playback pause",
+            "start playback pausing",
+            "start playback pause"
+        ]
+        if onPatterns.contains(normalized) {
+            logger.notice("Playback pausing command matched: turnOn")
+            return .turnOn
+        }
+
+        // Turn off patterns (include variants without "ing" since ASR often drops it)
+        let offPatterns = [
+            "playback pausing off",
+            "playback pause off",
+            "playback posing off",  // Common misheard variant
+            "playback pose off",
+            "disable playback pausing",
+            "disable playback pause",
+            "stop playback pausing",
+            "stop playback pause"
+        ]
+        if offPatterns.contains(normalized) {
+            logger.notice("Playback pausing command matched: turnOff")
+            return .turnOff
+        }
+
+        logger.notice("No playback pausing command matched")
+        return nil
+    }
+
+    /// Handle playback pausing command
+    private func handlePlaybackPausingCommand(_ command: PlaybackPausingCommand) {
+        let wasEnabled = isPlaybackPausingEnabled
+
+        switch command {
+        case .turnOn:
+            isPlaybackPausingEnabled = true
+            logger.notice("Playback pausing: ON")
+        case .turnOff:
+            isPlaybackPausingEnabled = false
+            logger.notice("Playback pausing: OFF")
+            // Note: Media was already resumed when recording stopped (before transcription)
+        }
+
+        // Play feedback sound
+        NSSound.beep()
+
+        logger.notice("Playback pausing state changed: \(wasEnabled) -> \(self.isPlaybackPausingEnabled)")
     }
 
     // MARK: - Enhancement

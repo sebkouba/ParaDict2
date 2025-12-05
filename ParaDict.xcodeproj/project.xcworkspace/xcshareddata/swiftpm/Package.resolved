@@ -1,5 +1,5 @@
 {
-  "originHash" : "ade791e4f6cb7e232474aa0550fc0b85f903ec3dbe674eed93c7a16a5f3071d5",
+  "originHash" : "1c32d609297c75e795c797a64e4a180f34cf583efc1d40178a7e600de9cbdcbb",
   "pins" : [
     {
       "identity" : "fluidaudio",
@@ -25,6 +25,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "a04ec1c363be3627734f6dad757d82f5d4fa8fcc"
+      }
+    },
+    {
+      "identity" : "mediaremote-adapter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ejbills/mediaremote-adapter",
+      "state" : {
+        "branch" : "master",
+        "revision" : "3529aa25023082a2ceadebcd2c9c4a9430ee96b9"
       }
     },
     {
