@@ -92,12 +92,12 @@ enum DictationState: Equatable {
     }
 
     /// Returns true if this is an "active" state that should be shown in the indicator
-    /// (not idle or error)
+    /// (not idle, error, or pasting - pasting inherits the previous state's color)
     var isActiveForIndicator: Bool {
         switch self {
-        case .idle, .error:
+        case .idle, .error, .pasting:
             return false
-        case .recording, .transcribing, .enhancing, .pasting, .executingCommand:
+        case .recording, .transcribing, .enhancing, .executingCommand:
             return true
         }
     }
