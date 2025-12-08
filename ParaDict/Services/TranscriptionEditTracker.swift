@@ -397,9 +397,15 @@ class TranscriptionEditTracker {
         // Strategy: Look for the suffix, or find a line boundary, or use approximate length
         var editedEnd = endValue.count
 
+        // Early bounds check - if editedStart is beyond endValue, we can't extract anything
+        guard editedStart < endValue.count else {
+            logger.notice("  editedStart (\(editedStart)) >= endValue.count (\(endValue.count)) - cannot extract")
+            return nil
+        }
+
         if !suffix.isEmpty {
             // Look for the suffix in the end value starting from editedStart
-            let searchStart = endValue.index(endValue.startIndex, offsetBy: min(editedStart, endValue.count))
+            let searchStart = endValue.index(endValue.startIndex, offsetBy: editedStart)
             if let suffixRange = endValue.range(of: suffix, range: searchStart..<endValue.endIndex) {
                 editedEnd = endValue.distance(from: endValue.startIndex, to: suffixRange.lowerBound)
                 logger.notice("  Found suffix in final text, edited region ends at \(editedEnd)")

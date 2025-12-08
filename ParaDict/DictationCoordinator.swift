@@ -521,6 +521,13 @@ final class DictationCoordinator: ObservableObject {
         stateMachine.state
     }
 
+    /// Toggle playback pausing mode
+    func togglePlaybackPausing() {
+        isPlaybackPausingEnabled.toggle()
+        NSSound.beep()
+        logger.notice("Playback pausing toggled via UI: \(self.isPlaybackPausingEnabled)")
+    }
+
     /// Whether currently recording
     var isRecording: Bool {
         stateMachine.state.isRecording

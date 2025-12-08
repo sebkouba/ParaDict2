@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Directory Watcher: Cancel button to stop ongoing transcription queue
 - Directory Watcher: "Skip Existing Files" button to mark all current files as processed
 - Directory Watcher: Shows pending files count during batch processing
-- Playback Pausing Mode: voice-controlled media pause/resume during dictation (say "playback pausing on/off")
+- Playback Pausing Mode: voice-controlled media pause/resume during dictation (say "playback pausing on/off") with menu bar toggle
 - Directory Watcher shows processing indicator when transcribing a file
 - Directory Watcher feature: automatically transcribe audio files dropped into a watched folder
 - Clickable prompts in shortcuts view for quick configuration
@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Crash in TranscriptionEditTracker when extracting edited text from a region shorter than original position
 - Menu bar "Open ParaDict" now reliably shows window on current Space (added WindowManager pattern from VoiceInk)
 - Replace SwiftUI MenuBarExtra with traditional NSStatusItem to fix intermittent ghost window blocking mouse clicks
 - Recording indicator no longer briefly flashes blue after yellow (enhancing) before hiding

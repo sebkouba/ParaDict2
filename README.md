@@ -139,6 +139,12 @@ On first launch, ParaDict copies bundled prompts and tools to Application Suppor
 1. **Hold-to-Record**: Hold your hotkey, speak, release to transcribe and paste
 2. **Hands-Free Mode**: Tap hotkey to start recording, tap again to stop
 
+### Audio Settings
+
+**Input Device**: Choose your microphone in Settings > Audio Input. By default, ParaDict uses your system's default input device. Select any connected microphone from the dropdown.
+
+**Mute During Recording**: When enabled (`mute_during_recording: true` in config), ParaDict automatically pauses system audio playback when you start recording and resumes it when done. This prevents music, podcasts, or video audio from being picked up by your microphone during dictation.
+
 ### Dictation Modes
 
 - **Local Mode**: Direct transcription without LLM processing - fastest, most private
@@ -173,6 +179,9 @@ cat ~/Library/Application\ Support/ParaDict/transcription_history.csv
 
 # User edits (for delta learning)
 cat ~/Library/Application\ Support/ParaDict/transcription_edits.log
+
+# Corrections (dictionary entries from correction feature)
+cat ~/Library/Application\ Support/ParaDict/corrections.tsv
 ```
 
 ## Architecture

@@ -18,6 +18,7 @@ class StatusBarController: NSObject, NSMenuDelegate {
 
     // Menu items that need dynamic updates
     private var statusMenuItem: NSMenuItem?
+    private var playbackPausingItem: NSMenuItem?
     private var copyTranscriptionItem: NSMenuItem?
     private var copyEnhancementItem: NSMenuItem?
     private var copySeparator: NSMenuItem?
@@ -78,6 +79,14 @@ class StatusBarController: NSObject, NSMenuDelegate {
         let configItem = NSMenuItem(title: "Open Config File", action: #selector(openConfigFile), keyEquivalent: "")
         configItem.target = self
         menu?.addItem(configItem)
+
+        menu?.addItem(NSMenuItem.separator())
+
+        // Playback Pausing toggle
+        playbackPausingItem = NSMenuItem(title: "Playback Pausing", action: #selector(togglePlaybackPausing), keyEquivalent: "")
+        playbackPausingItem?.target = self
+        playbackPausingItem?.state = .off
+        menu?.addItem(playbackPausingItem!)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -147,6 +156,14 @@ class StatusBarController: NSObject, NSMenuDelegate {
             .sink { [weak self] notification in
                 guard let success = notification.userInfo?["success"] as? Bool else { return }
                 self?.flashIcon(success: success)
+            }
+            .store(in: &cancellables)
+
+        // Observe playback pausing state
+        dictationCoordinator?.$isPlaybackPausingEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.playbackPausingItem?.state = isEnabled ? .on : .off
             }
             .store(in: &cancellables)
     }
@@ -245,6 +262,11 @@ class StatusBarController: NSObject, NSMenuDelegate {
                 NSWorkspace.shared.open(URL(fileURLWithPath: path))
             }
         }
+    }
+
+    @objc private func togglePlaybackPausing() {
+        logger.notice("Toggling playback pausing")
+        dictationCoordinator?.togglePlaybackPausing()
     }
 
     @objc private func copyLastTranscription() {
