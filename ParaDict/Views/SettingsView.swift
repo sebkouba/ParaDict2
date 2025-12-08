@@ -36,5 +36,5 @@ struct SettingsView: View {
     SettingsView()
         .environmentObject(ConfigManager.shared)
         .environmentObject(DictationCoordinator.shared)
-        .environmentObject(MenuBarManager())
+        .environmentObject(MenuBarManager.shared)
 }

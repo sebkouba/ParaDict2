@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Replace SwiftUI MenuBarExtra with traditional NSStatusItem to fix intermittent ghost window blocking mouse clicks
 - Recording indicator no longer briefly flashes blue after yellow (enhancing) before hiding
 - Bundled prompts now correctly copy to Application Support on first launch (were looking in wrong directory)
 - Prompts list in LLM Settings now updates automatically when files change (added directory watcher)

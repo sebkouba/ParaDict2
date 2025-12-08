@@ -6,6 +6,8 @@ import os
 private let logger = Logger(subsystem: "com.paradict", category: "MenuBarManager")
 
 class MenuBarManager: ObservableObject {
+    static let shared = MenuBarManager()
+
     @Published var isMenuBarOnly: Bool {
         didSet {
             UserDefaults.standard.set(isMenuBarOnly, forKey: "IsMenuBarOnly")
@@ -14,7 +16,7 @@ class MenuBarManager: ObservableObject {
         }
     }
 
-    init() {
+    private init() {
         // Default to NOT menu bar only - show main window on first launch
         self.isMenuBarOnly = UserDefaults.standard.object(forKey: "IsMenuBarOnly") != nil
             ? UserDefaults.standard.bool(forKey: "IsMenuBarOnly")
