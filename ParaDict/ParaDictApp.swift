@@ -52,7 +52,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menuBarManager: MenuBarManager.shared
         )
 
+        // Apply initial activation policy
+        MenuBarManager.shared.applyActivationPolicy()
+
         logger.notice("AppDelegate: initialization complete")
+    }
+
+    /// Called when user clicks the dock icon or activates the app when no windows are visible.
+    /// Return true to let macOS/SwiftUI create a new window automatically.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        logger.notice("applicationShouldHandleReopen: hasVisibleWindows=\(flag)")
+
+        if !flag && !MenuBarManager.shared.isMenuBarOnly {
+            // No visible windows and not in menu-bar-only mode
+            // Try to show existing window first
+            if WindowManager.shared.showMainWindow() != nil {
+                return false // We handled it
+            }
+        }
+        // Return true to let macOS create a new window via SwiftUI WindowGroup
+        return true
+    }
+
+    /// Don't quit when the last window is closed - we're a menu bar app
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
     }
 }
 
@@ -122,5 +146,8 @@ struct MainContentView: View {
                 }
         }
         .padding()
+        .background(WindowAccessor { window in
+            WindowManager.shared.configureWindow(window)
+        })
     }
 }
