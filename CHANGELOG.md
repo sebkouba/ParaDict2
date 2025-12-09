@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Voice commands for text formatting toggles: say "remove trailing punctuation", "add trailing space", or "add trailing line break" to toggle (matches menu item names)
 - Text formatting toggles in menu bar: remove trailing punctuation, add trailing space, add trailing line break (persisted)
 - Directory Watcher: Cancel button to stop ongoing transcription queue
 - Directory Watcher: "Skip Existing Files" button to mark all current files as processed

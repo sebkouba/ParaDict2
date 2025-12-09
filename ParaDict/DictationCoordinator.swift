@@ -292,6 +292,10 @@ final class DictationCoordinator: ObservableObject {
                 // Check for playback pausing command
                 handlePlaybackPausingCommand(playbackCommand)
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle mode
+            } else if let formattingCommand = parseTextFormattingCommand(trimmed) {
+                // Check for text formatting command
+                handleTextFormattingCommand(formattingCommand)
+                send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
             } else {
                 // Store raw transcription for correction feature and UI
                 lastRawTranscription = trimmed
@@ -312,11 +316,17 @@ final class DictationCoordinator: ObservableObject {
         return correctionPatterns.contains(normalized)
     }
 
-    // MARK: - Playback Pausing Keywords
+    // MARK: - Voice Command Keywords
 
     private enum PlaybackPausingCommand {
         case turnOn
         case turnOff
+    }
+
+    private enum TextFormattingCommand {
+        case removeTrailingPunctuation(Bool?)  // nil = toggle
+        case addTrailingSpace(Bool?)           // nil = toggle
+        case addTrailingLineBreak(Bool?)       // nil = toggle
     }
 
     /// Check if the transcription is a playback pausing command
@@ -381,6 +391,82 @@ final class DictationCoordinator: ObservableObject {
         NSSound.beep()
 
         logger.notice("Playback pausing state changed: \(wasEnabled) -> \(self.isPlaybackPausingEnabled)")
+    }
+
+    /// Check if the transcription is a text formatting command
+    private func parseTextFormattingCommand(_ text: String) -> TextFormattingCommand? {
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: "")
+
+        logger.notice("Checking for text formatting command - normalized: '\(normalized)'")
+
+        // Remove Trailing Punctuation
+        if normalized == "remove trailing punctuation" {
+            return .removeTrailingPunctuation(nil)  // toggle
+        }
+        if ["remove trailing punctuation on", "enable remove trailing punctuation"].contains(normalized) {
+            return .removeTrailingPunctuation(true)
+        }
+        if ["remove trailing punctuation off", "disable remove trailing punctuation"].contains(normalized) {
+            return .removeTrailingPunctuation(false)
+        }
+
+        // Add Trailing Space
+        if normalized == "add trailing space" {
+            return .addTrailingSpace(nil)  // toggle
+        }
+        if ["add trailing space on", "enable add trailing space", "enable trailing space"].contains(normalized) {
+            return .addTrailingSpace(true)
+        }
+        if ["add trailing space off", "disable add trailing space", "disable trailing space"].contains(normalized) {
+            return .addTrailingSpace(false)
+        }
+
+        // Add Trailing Line Break
+        if normalized == "add trailing line break" {
+            return .addTrailingLineBreak(nil)  // toggle
+        }
+        if ["add trailing line break on", "enable add trailing line break", "enable trailing line break"].contains(normalized) {
+            return .addTrailingLineBreak(true)
+        }
+        if ["add trailing line break off", "disable add trailing line break", "disable trailing line break"].contains(normalized) {
+            return .addTrailingLineBreak(false)
+        }
+
+        return nil
+    }
+
+    /// Handle text formatting command
+    private func handleTextFormattingCommand(_ command: TextFormattingCommand) {
+        switch command {
+        case .removeTrailingPunctuation(let enabled):
+            if let enabled = enabled {
+                isTrailingPunctuationRemovalEnabled = enabled
+            } else {
+                isTrailingPunctuationRemovalEnabled.toggle()
+            }
+            logger.notice("Remove trailing punctuation: \(self.isTrailingPunctuationRemovalEnabled ? "ON" : "OFF")")
+
+        case .addTrailingSpace(let enabled):
+            if let enabled = enabled {
+                isTrailingSpaceEnabled = enabled
+            } else {
+                isTrailingSpaceEnabled.toggle()
+            }
+            logger.notice("Add trailing space: \(self.isTrailingSpaceEnabled ? "ON" : "OFF")")
+
+        case .addTrailingLineBreak(let enabled):
+            if let enabled = enabled {
+                isTrailingLineBreakEnabled = enabled
+            } else {
+                isTrailingLineBreakEnabled.toggle()
+            }
+            logger.notice("Add trailing line break: \(self.isTrailingLineBreakEnabled ? "ON" : "OFF")")
+        }
+
+        // Play feedback sound
+        NSSound.beep()
     }
 
     // MARK: - Enhancement
