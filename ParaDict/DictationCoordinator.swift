@@ -54,9 +54,29 @@ final class DictationCoordinator: ObservableObject {
     /// Tracks if we sent a pause command (to know whether to resume)
     private var didPauseMedia = false
 
+    // MARK: - Text Formatting Options (persisted)
+
+    /// When enabled, trailing punctuation (. ? !) is removed before pasting
+    @Published private(set) var isTrailingPunctuationRemovalEnabled: Bool {
+        didSet { UserDefaults.standard.set(isTrailingPunctuationRemovalEnabled, forKey: "TrailingPunctuationRemoval") }
+    }
+    /// When enabled, a trailing space is added before pasting (ignored if line break is enabled)
+    @Published private(set) var isTrailingSpaceEnabled: Bool {
+        didSet { UserDefaults.standard.set(isTrailingSpaceEnabled, forKey: "TrailingSpace") }
+    }
+    /// When enabled, a trailing line break is added before pasting
+    @Published private(set) var isTrailingLineBreakEnabled: Bool {
+        didSet { UserDefaults.standard.set(isTrailingLineBreakEnabled, forKey: "TrailingLineBreak") }
+    }
+
     // MARK: - Initialization
 
     private init() {
+        // Load persisted text formatting options
+        isTrailingPunctuationRemovalEnabled = UserDefaults.standard.bool(forKey: "TrailingPunctuationRemoval")
+        isTrailingSpaceEnabled = UserDefaults.standard.bool(forKey: "TrailingSpace")
+        isTrailingLineBreakEnabled = UserDefaults.standard.bool(forKey: "TrailingLineBreak")
+
         logger.notice("DictationCoordinator initializing...")
         // Initialize HotkeyManager to set up keyboard shortcuts
         _ = HotkeyManager.shared
@@ -404,9 +424,32 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Pasting
 
     private func paste(_ text: String) {
+        let processed = applyTextFormatting(text)
         // Track pasted text for correction feature
-        lastPastedText = text
-        PastingService.pasteAtCursor(text)
+        lastPastedText = processed
+        PastingService.pasteAtCursor(processed)
+    }
+
+    /// Apply text formatting options (trailing punctuation removal, space/line break)
+    private func applyTextFormatting(_ text: String) -> String {
+        var result = text
+
+        // 1. Remove trailing punctuation if enabled
+        if isTrailingPunctuationRemovalEnabled {
+            // Remove trailing . ? ! (handles multiple, e.g., "..." becomes "")
+            while let last = result.last, ".?!".contains(last) {
+                result.removeLast()
+            }
+        }
+
+        // 2. Add trailing space or line break (line break wins)
+        if isTrailingLineBreakEnabled {
+            result.append("\n")
+        } else if isTrailingSpaceEnabled {
+            result.append(" ")
+        }
+
+        return result
     }
 
     // MARK: - Timers
@@ -526,6 +569,21 @@ final class DictationCoordinator: ObservableObject {
         isPlaybackPausingEnabled.toggle()
         NSSound.beep()
         logger.notice("Playback pausing toggled via UI: \(self.isPlaybackPausingEnabled)")
+    }
+
+    func toggleTrailingPunctuationRemoval() {
+        isTrailingPunctuationRemovalEnabled.toggle()
+        logger.notice("Trailing punctuation removal toggled: \(self.isTrailingPunctuationRemovalEnabled)")
+    }
+
+    func toggleTrailingSpace() {
+        isTrailingSpaceEnabled.toggle()
+        logger.notice("Trailing space toggled: \(self.isTrailingSpaceEnabled)")
+    }
+
+    func toggleTrailingLineBreak() {
+        isTrailingLineBreakEnabled.toggle()
+        logger.notice("Trailing line break toggled: \(self.isTrailingLineBreakEnabled)")
     }
 
     /// Whether currently recording

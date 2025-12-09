@@ -19,6 +19,9 @@ class StatusBarController: NSObject, NSMenuDelegate {
     // Menu items that need dynamic updates
     private var statusMenuItem: NSMenuItem?
     private var playbackPausingItem: NSMenuItem?
+    private var trailingPunctuationItem: NSMenuItem?
+    private var trailingSpaceItem: NSMenuItem?
+    private var trailingLineBreakItem: NSMenuItem?
     private var copyTranscriptionItem: NSMenuItem?
     private var copyEnhancementItem: NSMenuItem?
     private var copySeparator: NSMenuItem?
@@ -87,6 +90,24 @@ class StatusBarController: NSObject, NSMenuDelegate {
         playbackPausingItem?.target = self
         playbackPausingItem?.state = .off
         menu?.addItem(playbackPausingItem!)
+
+        menu?.addItem(NSMenuItem.separator())
+
+        // Text formatting toggles
+        trailingPunctuationItem = NSMenuItem(title: "Remove Trailing Punctuation", action: #selector(toggleTrailingPunctuation), keyEquivalent: "")
+        trailingPunctuationItem?.target = self
+        trailingPunctuationItem?.state = dictationCoordinator?.isTrailingPunctuationRemovalEnabled == true ? .on : .off
+        menu?.addItem(trailingPunctuationItem!)
+
+        trailingSpaceItem = NSMenuItem(title: "Add Trailing Space", action: #selector(toggleTrailingSpace), keyEquivalent: "")
+        trailingSpaceItem?.target = self
+        trailingSpaceItem?.state = dictationCoordinator?.isTrailingSpaceEnabled == true ? .on : .off
+        menu?.addItem(trailingSpaceItem!)
+
+        trailingLineBreakItem = NSMenuItem(title: "Add Trailing Line Break", action: #selector(toggleTrailingLineBreak), keyEquivalent: "")
+        trailingLineBreakItem?.target = self
+        trailingLineBreakItem?.state = dictationCoordinator?.isTrailingLineBreakEnabled == true ? .on : .off
+        menu?.addItem(trailingLineBreakItem!)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -164,6 +185,28 @@ class StatusBarController: NSObject, NSMenuDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isEnabled in
                 self?.playbackPausingItem?.state = isEnabled ? .on : .off
+            }
+            .store(in: &cancellables)
+
+        // Observe text formatting states
+        dictationCoordinator?.$isTrailingPunctuationRemovalEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.trailingPunctuationItem?.state = isEnabled ? .on : .off
+            }
+            .store(in: &cancellables)
+
+        dictationCoordinator?.$isTrailingSpaceEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.trailingSpaceItem?.state = isEnabled ? .on : .off
+            }
+            .store(in: &cancellables)
+
+        dictationCoordinator?.$isTrailingLineBreakEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.trailingLineBreakItem?.state = isEnabled ? .on : .off
             }
             .store(in: &cancellables)
     }
@@ -267,6 +310,21 @@ class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func togglePlaybackPausing() {
         logger.notice("Toggling playback pausing")
         dictationCoordinator?.togglePlaybackPausing()
+    }
+
+    @objc private func toggleTrailingPunctuation() {
+        logger.notice("Toggling trailing punctuation removal")
+        dictationCoordinator?.toggleTrailingPunctuationRemoval()
+    }
+
+    @objc private func toggleTrailingSpace() {
+        logger.notice("Toggling trailing space")
+        dictationCoordinator?.toggleTrailingSpace()
+    }
+
+    @objc private func toggleTrailingLineBreak() {
+        logger.notice("Toggling trailing line break")
+        dictationCoordinator?.toggleTrailingLineBreak()
     }
 
     @objc private func copyLastTranscription() {
