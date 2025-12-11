@@ -11,11 +11,12 @@ struct AppConfig: Codable {
     var audio: AudioSettings
     var llm: LLMSettings
     var directoryWatcher: DirectoryWatcherSettings
+    var obsidian: ObsidianSettings
     var shortcuts: [ShortcutConfig]
     var customVocabulary: [String]
 
     enum CodingKeys: String, CodingKey {
-        case app, audio, llm, shortcuts
+        case app, audio, llm, shortcuts, obsidian
         case directoryWatcher = "directory_watcher"
         case customVocabulary = "custom_vocabulary"
     }
@@ -26,6 +27,7 @@ struct AppConfig: Codable {
             audio: AudioSettings(),
             llm: LLMSettings(),
             directoryWatcher: DirectoryWatcherSettings(),
+            obsidian: ObsidianSettings(),
             shortcuts: [
                 ShortcutConfig(name: "local", shortcut: "ctrl+cmd+t", mode: .local, promptFile: nil, captureSelection: nil),
                 ShortcutConfig(name: "enhanced", shortcut: nil, mode: .enhanced, promptFile: "default", captureSelection: nil),
@@ -92,6 +94,11 @@ struct DirectoryWatcherSettings: Codable {
         case inputDirectory = "input_directory"
         case outputDirectory = "output_directory"
     }
+}
+
+struct ObsidianSettings: Codable {
+    var vault: String?  // Optional vault name; if nil, Obsidian uses current/default vault
+    var dailyNoteKeywordEnabled: Bool = true  // Whether "daily" keyword is active
 }
 
 enum DictationMode: String, Codable {

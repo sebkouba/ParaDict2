@@ -296,6 +296,10 @@ final class DictationCoordinator: ObservableObject {
                 // Check for text formatting command
                 handleTextFormattingCommand(formattingCommand)
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
+            } else if isDailyNoteCommand(trimmed) {
+                // Check for "daily" keyword to open Obsidian daily note
+                handleDailyNoteCommand()
+                send(.transcriptionEmpty)  // Don't paste anything
             } else {
                 // Store raw transcription for correction feature and UI
                 lastRawTranscription = trimmed
@@ -463,6 +467,47 @@ final class DictationCoordinator: ObservableObject {
                 isTrailingLineBreakEnabled.toggle()
             }
             logger.notice("Add trailing line break: \(self.isTrailingLineBreakEnabled ? "ON" : "OFF")")
+        }
+
+        // Play feedback sound
+        NSSound.beep()
+    }
+
+    // MARK: - Obsidian Daily Note
+
+    /// Check if the transcription is the "daily" keyword
+    private func isDailyNoteCommand(_ text: String) -> Bool {
+        // Only check if the feature is enabled
+        guard ConfigManager.shared.config.obsidian.dailyNoteKeywordEnabled else { return false }
+
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: "")
+
+        // Match "daily", "daily note", "open daily note"
+        let patterns = ["daily", "daily note", "open daily note", "open daily"]
+        return patterns.contains(normalized)
+    }
+
+    /// Open Obsidian daily note
+    private func handleDailyNoteCommand() {
+        let obsidianSettings = ConfigManager.shared.config.obsidian
+
+        // Build the URI
+        var urlString = "obsidian://daily"
+        if let vault = obsidianSettings.vault, !vault.isEmpty {
+            // URL-encode the vault name
+            if let encodedVault = vault.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                urlString += "?vault=\(encodedVault)"
+            }
+        }
+
+        logger.notice("Opening Obsidian daily note: \(urlString)")
+
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        } else {
+            logger.error("Failed to create Obsidian URL: \(urlString)")
         }
 
         // Play feedback sound

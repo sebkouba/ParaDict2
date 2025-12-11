@@ -19,6 +19,7 @@ class StatusBarController: NSObject, NSMenuDelegate {
     // Menu items that need dynamic updates
     private var statusMenuItem: NSMenuItem?
     private var playbackPausingItem: NSMenuItem?
+    private var dailyNoteItem: NSMenuItem?
     private var trailingPunctuationItem: NSMenuItem?
     private var trailingSpaceItem: NSMenuItem?
     private var trailingLineBreakItem: NSMenuItem?
@@ -90,6 +91,12 @@ class StatusBarController: NSObject, NSMenuDelegate {
         playbackPausingItem?.target = self
         playbackPausingItem?.state = .off
         menu?.addItem(playbackPausingItem!)
+
+        // Daily Note toggle (shows keyword "daily")
+        dailyNoteItem = NSMenuItem(title: "\"Daily\" Opens Obsidian Note", action: #selector(toggleDailyNote), keyEquivalent: "")
+        dailyNoteItem?.target = self
+        dailyNoteItem?.state = configManager?.config.obsidian.dailyNoteKeywordEnabled == true ? .on : .off
+        menu?.addItem(dailyNoteItem!)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -310,6 +317,14 @@ class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func togglePlaybackPausing() {
         logger.notice("Toggling playback pausing")
         dictationCoordinator?.togglePlaybackPausing()
+    }
+
+    @objc private func toggleDailyNote() {
+        logger.notice("Toggling daily note keyword")
+        configManager?.config.obsidian.dailyNoteKeywordEnabled.toggle()
+        configManager?.saveConfig()
+        dailyNoteItem?.state = configManager?.config.obsidian.dailyNoteKeywordEnabled == true ? .on : .off
+        NSSound.beep()
     }
 
     @objc private func toggleTrailingPunctuation() {
