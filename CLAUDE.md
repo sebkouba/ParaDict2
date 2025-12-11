@@ -221,3 +221,6 @@ grep -rn "@MainActor" ParaDict/
 If ANY entry point runs on `DispatchQueue.main` or is `@MainActor`, everything downstream blocks the UI—no matter how much async/await wrapping you add inside.
 
 **Fix the entry point, not the symptoms.**
+
+## Custom principles
+- for any voice action that changes settings, what to say should be a toggle and the words should be visible in the task bar menu so they are easy to check and learn and get feedback on. maybe the toggle could be confirmed with a flash of words in the speaking indicator window. This doesn't work for real tool calls, but we should always check whether it makes sense for a particular feature
