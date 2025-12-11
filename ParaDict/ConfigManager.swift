@@ -37,6 +37,40 @@ struct AppConfig: Codable {
             customVocabulary: ["Parakeet", "Groq"]
         )
     }
+
+    /// Custom decoder that handles missing keys gracefully by using defaults
+    /// This prevents existing config files from being wiped when new fields are added
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Decode with fallbacks to defaults for missing keys
+        app = try container.decodeIfPresent(AppSettings.self, forKey: .app) ?? AppSettings()
+        audio = try container.decodeIfPresent(AudioSettings.self, forKey: .audio) ?? AudioSettings()
+        llm = try container.decodeIfPresent(LLMSettings.self, forKey: .llm) ?? LLMSettings()
+        directoryWatcher = try container.decodeIfPresent(DirectoryWatcherSettings.self, forKey: .directoryWatcher) ?? DirectoryWatcherSettings()
+        obsidian = try container.decodeIfPresent(ObsidianSettings.self, forKey: .obsidian) ?? ObsidianSettings()
+        shortcuts = try container.decodeIfPresent([ShortcutConfig].self, forKey: .shortcuts) ?? AppConfig.default.shortcuts
+        customVocabulary = try container.decodeIfPresent([String].self, forKey: .customVocabulary) ?? []
+    }
+
+    /// Standard memberwise initializer
+    init(
+        app: AppSettings = AppSettings(),
+        audio: AudioSettings = AudioSettings(),
+        llm: LLMSettings = LLMSettings(),
+        directoryWatcher: DirectoryWatcherSettings = DirectoryWatcherSettings(),
+        obsidian: ObsidianSettings = ObsidianSettings(),
+        shortcuts: [ShortcutConfig] = [],
+        customVocabulary: [String] = []
+    ) {
+        self.app = app
+        self.audio = audio
+        self.llm = llm
+        self.directoryWatcher = directoryWatcher
+        self.obsidian = obsidian
+        self.shortcuts = shortcuts
+        self.customVocabulary = customVocabulary
+    }
 }
 
 struct ShortcutConfig: Codable, Identifiable {

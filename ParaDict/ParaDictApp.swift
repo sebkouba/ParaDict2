@@ -144,6 +144,12 @@ struct MainContentView: View {
                 .tabItem {
                     Label("Watcher", systemImage: "folder.badge.gearshape")
                 }
+
+            AdvancedSettingsView()
+                .environmentObject(configManager)
+                .tabItem {
+                    Label("Advanced", systemImage: "gearshape.2")
+                }
         }
         .padding()
         .background(WindowAccessor { window in

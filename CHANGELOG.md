@@ -7,7 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- "Daily" voice keyword: say "daily" to open Obsidian daily note via URI (configurable vault in config.yaml, toggle in menu bar)
+- Advanced settings tab with Obsidian integration (configure vault name and enable/disable "daily" keyword)
+- "Daily" voice keyword: say "daily" to open Obsidian daily note via URI
 - Voice commands for text formatting toggles: say "remove trailing punctuation", "add trailing space", or "add trailing line break" to toggle (matches menu item names)
 - Text formatting toggles in menu bar: remove trailing punctuation, add trailing space, add trailing line break (persisted)
 - Directory Watcher: Cancel button to stop ongoing transcription queue
@@ -27,7 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
-- Unified UI styling across all settings tabs (Permissions, Audio, Shortcuts, LLM, Chat, Watcher)
+- Config file migration now preserves existing settings when new fields are added (custom decoder with fallback defaults)
+- Unified UI styling across all settings tabs (Permissions, Audio, Shortcuts, LLM, Chat, Watcher, Advanced)
 - Shortcuts tab now has its own dedicated view with styled cards for each shortcut
 - Directory Watcher now uses native AVFoundation for audio conversion (no ffmpeg required)
 - Improved how corrections are written into the dictionary

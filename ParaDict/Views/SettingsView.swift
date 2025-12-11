@@ -27,6 +27,13 @@ struct SettingsView: View {
                     Label("Audio", systemImage: "mic")
                 }
                 .tag(2)
+
+            AdvancedSettingsView()
+                .environmentObject(configManager)
+                .tabItem {
+                    Label("Advanced", systemImage: "gearshape.2")
+                }
+                .tag(3)
         }
         .frame(minWidth: 600, minHeight: 500)
     }
