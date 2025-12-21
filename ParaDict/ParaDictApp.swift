@@ -88,15 +88,22 @@ struct ParaDictApp: App {
     @StateObject private var dictationCoordinator = DictationCoordinator.shared
     @StateObject private var menuBarManager = MenuBarManager.shared
     @StateObject private var permissionManager = PermissionManager.shared
+    @StateObject private var betaExpirationManager = BetaExpirationManager.shared
 
     var body: some Scene {
         // Main window for settings
         WindowGroup {
-            MainContentView()
-                .environmentObject(configManager)
-                .environmentObject(dictationCoordinator)
-                .environmentObject(menuBarManager)
-                .frame(minWidth: 600, minHeight: 500)
+            if betaExpirationManager.canUseApp {
+                MainContentView()
+                    .environmentObject(configManager)
+                    .environmentObject(dictationCoordinator)
+                    .environmentObject(menuBarManager)
+                    .environmentObject(betaExpirationManager)
+                    .frame(minWidth: 600, minHeight: 500)
+            } else {
+                BetaExpiredBlockingView()
+                    .environmentObject(betaExpirationManager)
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -149,6 +156,11 @@ struct MainContentView: View {
                 .environmentObject(configManager)
                 .tabItem {
                     Label("Advanced", systemImage: "gearshape.2")
+                }
+
+            BetaLicenseView()
+                .tabItem {
+                    Label("License", systemImage: "key")
                 }
         }
         .padding()

@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Beta expiration system with freedom codes: app expires after hardcoded date, users can enter email + code to unlock permanently
+- License tab in settings showing beta status and freedom code entry
+- CLI tool (`tools/generate-freedom-code.swift`) to generate unlock codes from email addresses
 - Enhancement timeout: configurable timeout that falls back to original transcription when LLM is slow (Advanced settings)
 - Advanced settings tab with Obsidian integration (configure vault name and enable/disable "daily" keyword)
 - "Daily" voice keyword: say "daily" to open Obsidian daily note via URI
