@@ -8,7 +8,9 @@ enum SettingsKeys {
     static let muteDuringRecording = "muteDuringRecording"
 
     // MARK: - Audio
-    static let audioDeviceUID = "audioDeviceUID"
+    static let audioDeviceUID = "audioDeviceUID"  // deprecated, kept for migration
+    static let audioDevicePriority = "audioDevicePriority"  // [String] UIDs in priority order
+    static let audioDevicesEnabled = "audioDevicesEnabled"  // [String] UIDs of enabled devices
 
     // MARK: - LLM Settings
     static let llmModel = "llmModel"
@@ -46,7 +48,9 @@ enum SettingsDefaults {
     static let muteDuringRecording = true
 
     // Audio
-    static let audioDeviceUID: String? = nil  // nil = system default
+    static let audioDeviceUID: String? = nil  // deprecated
+    static let audioDevicePriority: [String] = []  // empty = use discovery order
+    static let audioDevicesEnabled: [String] = []  // empty = all enabled by default
 
     // LLM
     static let llmModel = "moonshotai/kimi-k2-instruct-0905"

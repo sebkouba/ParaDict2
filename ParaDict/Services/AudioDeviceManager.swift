@@ -2,12 +2,14 @@ import Foundation
 import CoreAudio
 import AVFoundation
 import Combine
+import SwiftUI
 import os
 
 class AudioDeviceManager: ObservableObject {
     private let logger = Logger(subsystem: "com.paradict", category: "AudioDeviceManager")
     @Published var availableDevices: [(id: AudioDeviceID, uid: String, name: String)] = []
-    @Published var selectedDeviceUID: String?
+    @Published var devicePriority: [String] = []  // Ordered UIDs (highest priority first)
+    @Published var enabledDevices: Set<String> = []  // UIDs of enabled devices
     var fallbackDeviceID: AudioDeviceID?
 
     static let shared = AudioDeviceManager()
@@ -15,7 +17,8 @@ class AudioDeviceManager: ObservableObject {
     private init() {
         setupFallbackDevice()
         loadAvailableDevices()
-        loadSelectedDevice()
+        loadPrioritySettings()
+        migrateFromLegacySettings()
         setupDeviceChangeNotifications()
     }
 
@@ -43,12 +46,38 @@ class AudioDeviceManager: ObservableObject {
         }
     }
 
-    private func loadSelectedDevice() {
-        // Load saved device UID from UserDefaults
-        if let savedUID = UserDefaults.standard.string(forKey: SettingsKeys.audioDeviceUID) {
-            selectedDeviceUID = savedUID
-            logger.notice("Loaded saved audio device UID: \(savedUID)")
+    private func loadPrioritySettings() {
+        // Load priority order
+        if let savedPriority = UserDefaults.standard.array(forKey: SettingsKeys.audioDevicePriority) as? [String] {
+            devicePriority = savedPriority
+            logger.notice("Loaded device priority: \(savedPriority.count) devices")
         }
+
+        // Load enabled devices
+        if let savedEnabled = UserDefaults.standard.array(forKey: SettingsKeys.audioDevicesEnabled) as? [String] {
+            enabledDevices = Set(savedEnabled)
+            logger.notice("Loaded enabled devices: \(savedEnabled.count) devices")
+        }
+    }
+
+    private func migrateFromLegacySettings() {
+        // Migrate from old single-device selection if present
+        if let legacyUID = UserDefaults.standard.string(forKey: SettingsKeys.audioDeviceUID) {
+            if devicePriority.isEmpty {
+                // Put the legacy device first in priority
+                devicePriority = [legacyUID]
+                enabledDevices = [legacyUID]
+                savePrioritySettings()
+                logger.notice("Migrated legacy device UID: \(legacyUID)")
+            }
+            // Clear legacy setting
+            UserDefaults.standard.removeObject(forKey: SettingsKeys.audioDeviceUID)
+        }
+    }
+
+    private func savePrioritySettings() {
+        UserDefaults.standard.set(devicePriority, forKey: SettingsKeys.audioDevicePriority)
+        UserDefaults.standard.set(Array(enabledDevices), forKey: SettingsKeys.audioDevicesEnabled)
     }
 
     func loadAvailableDevices() {
@@ -99,25 +128,91 @@ class AudioDeviceManager: ObservableObject {
         }
     }
 
-    /// Select an audio device by UID.
-    func selectDevice(uid: String) {
-        selectedDeviceUID = uid
-        UserDefaults.standard.set(uid, forKey: SettingsKeys.audioDeviceUID)
-        logger.notice("Selected device UID: \(uid)")
+    // MARK: - Priority Management
+
+    /// Set the complete device priority order
+    func setDevicePriority(_ uids: [String]) {
+        devicePriority = uids
+        savePrioritySettings()
+        logger.notice("Set device priority order: \(uids.count) devices")
     }
 
-    /// Use the system default device.
-    func useSystemDefault() {
-        selectedDeviceUID = nil
-        UserDefaults.standard.removeObject(forKey: SettingsKeys.audioDeviceUID)
-        logger.notice("Using system default device")
+    /// Toggle whether a device is enabled (tried before fallback devices)
+    func toggleEnabled(uid: String) {
+        if enabledDevices.contains(uid) {
+            enabledDevices.remove(uid)
+        } else {
+            enabledDevices.insert(uid)
+        }
+        savePrioritySettings()
+        logger.notice("Toggled device \(uid) enabled: \(self.enabledDevices.contains(uid))")
+    }
+
+    /// Check if a device is enabled
+    func isEnabled(uid: String) -> Bool {
+        // If no devices are explicitly enabled, treat all as enabled
+        if enabledDevices.isEmpty {
+            return true
+        }
+        return enabledDevices.contains(uid)
+    }
+
+    /// Check if a device is currently available (connected)
+    func isAvailable(uid: String) -> Bool {
+        return availableDevices.contains(where: { $0.uid == uid })
+    }
+
+    /// Get the ordered list of devices for display (merges priority list with available devices)
+    func getOrderedDevices() -> [(id: AudioDeviceID, uid: String, name: String)] {
+        var result: [(id: AudioDeviceID, uid: String, name: String)] = []
+        var seen = Set<String>()
+
+        // First: add devices in priority order
+        for uid in devicePriority {
+            if let device = availableDevices.first(where: { $0.uid == uid }) {
+                result.append(device)
+                seen.insert(uid)
+            }
+        }
+
+        // Then: add any new devices not yet in priority list
+        for device in availableDevices {
+            if !seen.contains(device.uid) {
+                result.append(device)
+                devicePriority.append(device.uid)  // Add to priority list
+            }
+        }
+
+        if !seen.isEmpty || result.count != devicePriority.count {
+            savePrioritySettings()
+        }
+
+        return result
     }
 
     func getCurrentDevice() -> AudioDeviceID {
-        if let uid = selectedDeviceUID,
-           let device = availableDevices.first(where: { $0.uid == uid }) {
-            return device.id
+        let availableUIDs = Set(availableDevices.map { $0.uid })
+
+        // First: try enabled devices in priority order
+        for uid in devicePriority {
+            if isEnabled(uid: uid) && availableUIDs.contains(uid),
+               let device = availableDevices.first(where: { $0.uid == uid }) {
+                logger.debug("Using enabled device: \(device.name)")
+                return device.id
+            }
         }
+
+        // Fallback: try disabled devices in priority order
+        for uid in devicePriority {
+            if !isEnabled(uid: uid) && availableUIDs.contains(uid),
+               let device = availableDevices.first(where: { $0.uid == uid }) {
+                logger.debug("Falling back to disabled device: \(device.name)")
+                return device.id
+            }
+        }
+
+        // Last resort: system default
+        logger.debug("Using system fallback device")
         return fallbackDeviceID ?? 0
     }
 
