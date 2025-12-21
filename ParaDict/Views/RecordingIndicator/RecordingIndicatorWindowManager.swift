@@ -7,8 +7,10 @@ class RecordingIndicatorWindowManager: ObservableObject {
     static let shared = RecordingIndicatorWindowManager()
 
     @Published var isVisible = false
+    @Published var isShowingTimeoutFlash = false
     private var windowController: NSWindowController?
     private var indicatorPanel: RecordingIndicatorPanel?
+    private var timeoutFlashTask: Task<Void, Never>?
 
     private init() {}
 
@@ -64,6 +66,31 @@ class RecordingIndicatorWindowManager: ObservableObject {
             hide()
         } else {
             show()
+        }
+    }
+
+    /// Show a red flash for 2 seconds to indicate the enhancement timed out
+    func showTimeoutFlash() {
+        // Cancel any existing flash task
+        timeoutFlashTask?.cancel()
+
+        // Show the indicator if not already visible
+        if !isVisible {
+            let activeScreen = NSApp.keyWindow?.screen ?? NSScreen.main ?? NSScreen.screens[0]
+            initializeWindow(screen: activeScreen)
+            indicatorPanel?.show()
+        }
+
+        isVisible = true
+        isShowingTimeoutFlash = true
+
+        // Hide after 2 seconds
+        timeoutFlashTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if !Task.isCancelled {
+                self.isShowingTimeoutFlash = false
+                self.hide()
+            }
         }
     }
 }

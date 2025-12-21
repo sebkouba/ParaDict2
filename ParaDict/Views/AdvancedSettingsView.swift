@@ -28,6 +28,111 @@ struct AdvancedSettingsView: View {
                 }
                 .padding(.vertical, 40)
 
+                // Enhancement Timeout
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("Enhancement Timeout", systemImage: "clock.badge.xmark")
+                        .font(.headline)
+
+                    Text("When the LLM takes too long, fall back to the original transcription")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Base timeout
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Base Timeout")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("\(configManager.config.llm.enhancementTimeoutBaseMs) ms")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .monospacedDigit()
+                            }
+
+                            Slider(
+                                value: Binding(
+                                    get: { Double(configManager.config.llm.enhancementTimeoutBaseMs) },
+                                    set: { newValue in
+                                        configManager.config.llm.enhancementTimeoutBaseMs = Int(newValue)
+                                        configManager.saveConfig()
+                                    }
+                                ),
+                                in: 200...3000,
+                                step: 100
+                            )
+
+                            Text("Minimum timeout before falling back to original transcription")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Per-token timeout
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Per-Token Timeout")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("\(configManager.config.llm.enhancementTimeoutPerTokenMs) ms")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .monospacedDigit()
+                            }
+
+                            Slider(
+                                value: Binding(
+                                    get: { Double(configManager.config.llm.enhancementTimeoutPerTokenMs) },
+                                    set: { newValue in
+                                        configManager.config.llm.enhancementTimeoutPerTokenMs = Int(newValue)
+                                        configManager.saveConfig()
+                                    }
+                                ),
+                                in: 0...50,
+                                step: 1
+                            )
+
+                            Text("Additional time per ~4 characters of transcription (longer dictations get more time)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        // Example calculation
+                        let exampleShort = configManager.config.llm.calculateEnhancementTimeout(forText: String(repeating: "x", count: 50))
+                        let exampleMedium = configManager.config.llm.calculateEnhancementTimeout(forText: String(repeating: "x", count: 200))
+                        let exampleLong = configManager.config.llm.calculateEnhancementTimeout(forText: String(repeating: "x", count: 500))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Example timeouts:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            HStack(spacing: 16) {
+                                Text("~10 words: \(String(format: "%.1f", exampleShort))s")
+                                Text("~40 words: \(String(format: "%.1f", exampleMedium))s")
+                                Text("~100 words: \(String(format: "%.1f", exampleLong))s")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                        }
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    )
+                }
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+
                 // Obsidian Integration
                 VStack(alignment: .leading, spacing: 16) {
                     Label("Obsidian Integration", systemImage: "link")

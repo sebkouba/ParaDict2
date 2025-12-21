@@ -82,10 +82,12 @@ struct RecordingIndicatorView: View {
 struct RecordingStatusDisplay: View {
     let currentState: DictationState
     @ObservedObject var recordingService: RecordingService
+    @EnvironmentObject var windowManager: RecordingIndicatorWindowManager
 
     private let matrixGreen = Color(red: 0, green: 1, blue: 0.2)
     private let matrixBlue = Color(red: 0.3, green: 0.6, blue: 1.0)
     private let matrixYellow = Color(red: 1.0, green: 0.8, blue: 0.2)
+    private let matrixRed = Color(red: 1.0, green: 0.3, blue: 0.3)
 
     @State private var processingStartTime: Date = Date()
 
@@ -94,24 +96,29 @@ struct RecordingStatusDisplay: View {
 
     var body: some View {
         Group {
-            // Use the display state - either current if active, or last active state
-            let displayState = currentState.isActiveForIndicator ? currentState : lastActiveState
-
-            if case .enhancing = displayState {
-                DotMatrixProgressIndicator(color: matrixYellow, startTime: processingStartTime)
-            } else if case .transcribing = displayState {
-                DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
-            } else if case .pasting = displayState {
-                DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
-            } else if displayState.isRecording {
-                DotMatrixVisualizer(
-                    recordingService: recordingService,
-                    color: Color(red: 0, green: 1, blue: 0.2),
-                    isActive: true
-                )
+            // Show red if timeout flash is active
+            if windowManager.isShowingTimeoutFlash {
+                DotMatrixProgressIndicator(color: matrixRed, startTime: Date())
             } else {
-                // Fallback - show blue progress (this shouldn't normally be visible)
-                DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
+                // Use the display state - either current if active, or last active state
+                let displayState = currentState.isActiveForIndicator ? currentState : lastActiveState
+
+                if case .enhancing = displayState {
+                    DotMatrixProgressIndicator(color: matrixYellow, startTime: processingStartTime)
+                } else if case .transcribing = displayState {
+                    DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
+                } else if case .pasting = displayState {
+                    DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
+                } else if displayState.isRecording {
+                    DotMatrixVisualizer(
+                        recordingService: recordingService,
+                        color: Color(red: 0, green: 1, blue: 0.2),
+                        isActive: true
+                    )
+                } else {
+                    // Fallback - show blue progress (this shouldn't normally be visible)
+                    DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
+                }
             }
         }
         .animation(nil, value: currentState)

@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Enhancement timeout: configurable timeout that falls back to original transcription when LLM is slow (Advanced settings)
 - Advanced settings tab with Obsidian integration (configure vault name and enable/disable "daily" keyword)
 - "Daily" voice keyword: say "daily" to open Obsidian daily note via URI
 - Voice commands for text formatting toggles: say "remove trailing punctuation", "add trailing space", or "add trailing line break" to toggle (matches menu item names)
@@ -36,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Fixed
+- Red visual feedback when enhancement times out and falls back to original transcription
+- LLMSettings config migration now handles missing timeout fields without losing shortcuts
 - Crash in TranscriptionEditTracker when extracting edited text from a region shorter than original position
 - Menu bar "Open ParaDict" now reliably shows window on current Space (added WindowManager pattern from VoiceInk)
 - Replace SwiftUI MenuBarExtra with traditional NSStatusItem to fix intermittent ghost window blocking mouse clicks

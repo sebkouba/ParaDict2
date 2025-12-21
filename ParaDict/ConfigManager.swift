@@ -112,9 +112,43 @@ struct AudioSettings: Codable {
 struct LLMSettings: Codable {
     var provider: String = "groq"
     var model: String = "moonshotai/kimi-k2-instruct-0905"
+    var enhancementTimeoutBaseMs: Int = 800        // Minimum timeout in ms
+    var enhancementTimeoutPerTokenMs: Int = 10    // Additional ms per estimated token
 
     enum CodingKeys: String, CodingKey {
         case provider, model
+        case enhancementTimeoutBaseMs = "enhancement_timeout_base_ms"
+        case enhancementTimeoutPerTokenMs = "enhancement_timeout_per_token_ms"
+    }
+
+    /// Custom decoder that handles missing keys gracefully (for config migration)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try container.decodeIfPresent(String.self, forKey: .provider) ?? "groq"
+        model = try container.decodeIfPresent(String.self, forKey: .model) ?? "moonshotai/kimi-k2-instruct-0905"
+        enhancementTimeoutBaseMs = try container.decodeIfPresent(Int.self, forKey: .enhancementTimeoutBaseMs) ?? 800
+        enhancementTimeoutPerTokenMs = try container.decodeIfPresent(Int.self, forKey: .enhancementTimeoutPerTokenMs) ?? 10
+    }
+
+    /// Standard memberwise initializer
+    init(
+        provider: String = "groq",
+        model: String = "moonshotai/kimi-k2-instruct-0905",
+        enhancementTimeoutBaseMs: Int = 800,
+        enhancementTimeoutPerTokenMs: Int = 10
+    ) {
+        self.provider = provider
+        self.model = model
+        self.enhancementTimeoutBaseMs = enhancementTimeoutBaseMs
+        self.enhancementTimeoutPerTokenMs = enhancementTimeoutPerTokenMs
+    }
+
+    /// Calculate timeout for enhancement based on text length
+    /// Estimates ~4 characters per token
+    func calculateEnhancementTimeout(forText text: String) -> TimeInterval {
+        let estimatedTokens = max(1, text.count / 4)
+        let timeoutMs = enhancementTimeoutBaseMs + (estimatedTokens * enhancementTimeoutPerTokenMs)
+        return TimeInterval(timeoutMs) / 1000.0  // Convert to seconds
     }
 }
 
@@ -289,7 +323,10 @@ class ConfigManager: ObservableObject {
                 let yamlString = try String(contentsOf: configURL, encoding: .utf8)
                 let decoder = YAMLDecoder()
                 config = try decoder.decode(AppConfig.self, from: yamlString)
-                logger.notice("Config loaded successfully")
+                let shortcutsWithKeys = config.shortcuts.filter { $0.shortcut != nil }.count
+                let timeoutBase = config.llm.enhancementTimeoutBaseMs
+                let shortcutCount = config.shortcuts.count
+                logger.notice("Config loaded: \(shortcutCount) shortcuts (\(shortcutsWithKeys) with keys), LLM timeout: \(timeoutBase)ms base")
 
                 // Migrate: add any missing shortcut modes from defaults
                 migrateShortcuts()

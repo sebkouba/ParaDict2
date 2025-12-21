@@ -545,6 +545,18 @@ final class DictationCoordinator: ObservableObject {
             logTranscription(transcription: text, enhanced: enhanced, mode: stateMachine.state.mode ?? .enhanced)
 
             send(.enhancementComplete(text: enhanced))
+        } catch let error as LLMError {
+            switch error {
+            case .timeout(let originalText):
+                // Timeout: fall back to original transcription and show red flash
+                logger.warning("⚠️ ENHANCEMENT TIMEOUT - LLM took too long, falling back to original transcription")
+                indicatorManager.showTimeoutFlash()
+                send(.enhancementSkipped(text: originalText))
+            default:
+                logger.error("Enhancement failed: \(error.localizedDescription)")
+                // Fall back to raw text on error
+                send(.enhancementSkipped(text: text))
+            }
         } catch {
             logger.error("Enhancement failed: \(error.localizedDescription)")
             // Fall back to raw text on error

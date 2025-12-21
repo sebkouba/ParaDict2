@@ -139,6 +139,7 @@ enum LLMError: LocalizedError {
     case networkError(Error)
     case rateLimitExceeded
     case serverError(Int)
+    case timeout(originalText: String)
 
     var errorDescription: String? {
         switch self {
@@ -158,6 +159,8 @@ enum LLMError: LocalizedError {
             return "Rate limit exceeded. Please wait and try again."
         case .serverError(let code):
             return "Server error (HTTP \(code)). Please try again."
+        case .timeout:
+            return "Enhancement timed out. Using original transcription."
         }
     }
 }
@@ -298,7 +301,38 @@ class LLMClient: ObservableObject {
             ChatMessage(role: "system", content: fullSystemPrompt),
             ChatMessage(role: "user", content: text)
         ]
-        return try await chat(messages: messages)
+
+        // Calculate timeout based on text length
+        let llmSettings = ConfigManager.shared.config.llm
+        let timeout = llmSettings.calculateEnhancementTimeout(forText: text)
+        logger.notice("Enhancement request starting - timeout: \(String(format: "%.2f", timeout))s (base: \(llmSettings.enhancementTimeoutBaseMs)ms + \(text.count) chars)")
+
+        // Race the chat request against a timeout
+        return try await withThrowingTaskGroup(of: String.self) { group in
+            // Add the actual chat task
+            group.addTask {
+                try await self.chat(messages: messages)
+            }
+
+            // Add the timeout task
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                throw LLMError.timeout(originalText: text)
+            }
+
+            // Return whichever completes first
+            do {
+                let result = try await group.next()!
+                group.cancelAll()  // Cancel the other task
+                return result
+            } catch let error as LLMError {
+                group.cancelAll()
+                throw error
+            } catch {
+                group.cancelAll()
+                throw error
+            }
+        }
     }
 
     func chat(messages: [ChatMessage], configContext: String? = nil) async throws -> String {
