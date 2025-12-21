@@ -241,7 +241,7 @@ class LLMClient: ObservableObject {
     func validateAPIKey(_ key: String) async throws -> Bool {
         logger.notice("Validating API key...")
 
-        let model = ConfigManager.shared.config.llm.model
+        let model = UserDefaults.standard.string(forKey: SettingsKeys.llmModel) ?? SettingsDefaults.llmModel
 
         let request = ChatCompletionRequest(
             model: model,
@@ -303,9 +303,9 @@ class LLMClient: ObservableObject {
         ]
 
         // Calculate timeout based on text length
-        let llmSettings = ConfigManager.shared.config.llm
-        let timeout = llmSettings.calculateEnhancementTimeout(forText: text)
-        logger.notice("Enhancement request starting - timeout: \(String(format: "%.2f", timeout))s (base: \(llmSettings.enhancementTimeoutBaseMs)ms + \(text.count) chars)")
+        let timeout = AppSettings.shared.calculateEnhancementTimeout(forText: text)
+        let baseMs = AppSettings.shared.enhancementTimeoutBaseMs
+        logger.notice("Enhancement request starting - timeout: \(String(format: "%.2f", timeout))s (base: \(baseMs)ms + \(text.count) chars)")
 
         // Race the chat request against a timeout
         return try await withThrowingTaskGroup(of: String.self) { group in
@@ -335,36 +335,16 @@ class LLMClient: ObservableObject {
         }
     }
 
-    func chat(messages: [ChatMessage], configContext: String? = nil) async throws -> String {
+    func chat(messages: [ChatMessage]) async throws -> String {
         guard let apiKey = getStoredAPIKey() else {
             throw LLMError.noAPIKey
         }
 
-        let config = ConfigManager.shared.config.llm
-        var allMessages = messages
-
-        // Add config context if provided (for settings chat)
-        if let context = configContext {
-            let systemMessage = ChatMessage(
-                role: "system",
-                content: """
-                You are a helpful assistant for the ParaDict app. You help users configure the app.
-
-                Current config.yaml contents:
-                ```yaml
-                \(context)
-                ```
-
-                When the user asks to modify settings, output the modified YAML in a code block.
-                The user's config file is at: \(ConfigManager.shared.configFilePath)
-                """
-            )
-            allMessages.insert(systemMessage, at: 0)
-        }
+        let model = UserDefaults.standard.string(forKey: SettingsKeys.llmModel) ?? SettingsDefaults.llmModel
 
         let request = ChatCompletionRequest(
-            model: config.model,
-            messages: allMessages,
+            model: model,
+            messages: messages,
             temperature: 0.7,
             maxTokens: 2048
         )
@@ -449,10 +429,10 @@ class LLMClient: ObservableObject {
             throw LLMError.noAPIKey
         }
 
-        let config = ConfigManager.shared.config.llm
+        let model = UserDefaults.standard.string(forKey: SettingsKeys.llmModel) ?? SettingsDefaults.llmModel
 
         let request = ChatCompletionRequestWithTools(
-            model: config.model,
+            model: model,
             messages: messages,
             temperature: 0.6,  // Kimi K2 recommended
             maxTokens: 1024,

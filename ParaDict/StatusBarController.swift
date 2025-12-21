@@ -12,7 +12,6 @@ class StatusBarController: NSObject, NSMenuDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     // References to app state
-    private weak var configManager: ConfigManager?
     private weak var dictationCoordinator: DictationCoordinator?
     private weak var menuBarManager: MenuBarManager?
 
@@ -31,11 +30,9 @@ class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     func setup(
-        configManager: ConfigManager,
         dictationCoordinator: DictationCoordinator,
         menuBarManager: MenuBarManager
     ) {
-        self.configManager = configManager
         self.dictationCoordinator = dictationCoordinator
         self.menuBarManager = menuBarManager
 
@@ -77,11 +74,6 @@ class StatusBarController: NSObject, NSMenuDelegate {
         let openItem = NSMenuItem(title: "Open ParaDict", action: #selector(openParaDict), keyEquivalent: "")
         openItem.target = self
         menu?.addItem(openItem)
-
-        // Open Config File
-        let configItem = NSMenuItem(title: "Open Config File", action: #selector(openConfigFile), keyEquivalent: "")
-        configItem.target = self
-        menu?.addItem(configItem)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -295,15 +287,6 @@ class StatusBarController: NSObject, NSMenuDelegate {
         logger.notice("Opening main window")
         closeMenuThen { [weak self] in
             self?.menuBarManager?.showMainWindow()
-        }
-    }
-
-    @objc private func openConfigFile() {
-        logger.notice("Opening config file")
-        closeMenuThen { [weak self] in
-            if let path = self?.configManager?.configFilePath {
-                NSWorkspace.shared.open(URL(fileURLWithPath: path))
-            }
         }
     }
 

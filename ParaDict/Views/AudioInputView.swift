@@ -39,7 +39,7 @@ struct AudioInputView: View {
                         subtitle: "Use the system's default input device",
                         isSelected: deviceManager.selectedDeviceUID == nil,
                         action: {
-                            deviceManager.useSystemDefault(fromUI: true)
+                            deviceManager.useSystemDefault()
                         }
                     )
 
@@ -56,7 +56,7 @@ struct AudioInputView: View {
                                 subtitle: "UID: \(device.uid.prefix(20))...",
                                 isSelected: deviceManager.selectedDeviceUID == device.uid,
                                 action: {
-                                    deviceManager.selectDevice(uid: device.uid, fromUI: true)
+                                    deviceManager.selectDevice(uid: device.uid)
                                 }
                             )
                         }

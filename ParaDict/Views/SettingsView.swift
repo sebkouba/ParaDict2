@@ -1,39 +1,45 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var configManager: ConfigManager
-    @EnvironmentObject var dictationCoordinator: DictationCoordinator
-    @EnvironmentObject var menuBarManager: MenuBarManager
-
     @State private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            ChatSettingsView()
-                .environmentObject(configManager)
-                .tabItem {
-                    Label("Chat", systemImage: "bubble.left.and.bubble.right")
-                }
-                .tag(0)
-
             PermissionsView()
                 .tabItem {
                     Label("Permissions", systemImage: "shield.lefthalf.filled")
                 }
-                .tag(1)
+                .tag(0)
 
             AudioInputView()
                 .tabItem {
                     Label("Audio", systemImage: "mic")
                 }
+                .tag(1)
+
+            ShortcutsSettingsView()
+                .tabItem {
+                    Label("Shortcuts", systemImage: "keyboard")
+                }
                 .tag(2)
 
+            LLMSettingsView()
+                .tabItem {
+                    Label("LLM", systemImage: "brain.head.profile")
+                }
+                .tag(3)
+
             AdvancedSettingsView()
-                .environmentObject(configManager)
                 .tabItem {
                     Label("Advanced", systemImage: "gearshape.2")
                 }
-                .tag(3)
+                .tag(4)
+
+            DirectoryWatcherView()
+                .tabItem {
+                    Label("Watcher", systemImage: "folder.badge.gearshape")
+                }
+                .tag(5)
         }
         .frame(minWidth: 600, minHeight: 500)
     }
@@ -41,7 +47,4 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
-        .environmentObject(ConfigManager.shared)
-        .environmentObject(DictationCoordinator.shared)
-        .environmentObject(MenuBarManager.shared)
 }

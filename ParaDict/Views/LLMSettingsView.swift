@@ -3,7 +3,7 @@ import SwiftUI
 struct LLMSettingsView: View {
     @StateObject private var llmClient = LLMClient.shared
     @ObservedObject private var promptManager = PromptManager.shared
-    @EnvironmentObject var configManager: ConfigManager
+    @AppStorage(SettingsKeys.llmModel) private var llmModel = SettingsDefaults.llmModel
 
     @State private var apiKeyInput: String = ""
     @State private var showAPIKey: Bool = false
@@ -175,15 +175,9 @@ struct LLMSettingsView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
-            TextField("Model ID", text: Binding(
-                get: { configManager.config.llm.model },
-                set: { newValue in
-                    configManager.config.llm.model = newValue
-                    configManager.saveConfig()
-                }
-            ))
-            .textFieldStyle(.roundedBorder)
-            .font(.system(.body, design: .monospaced))
+            TextField("Model ID", text: $llmModel)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
         }
     }
 
@@ -465,6 +459,5 @@ struct PromptEditorSheet: View {
 
 #Preview {
     LLMSettingsView()
-        .environmentObject(ConfigManager.shared)
         .frame(width: 500, height: 600)
 }

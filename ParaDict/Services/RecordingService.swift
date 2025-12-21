@@ -99,8 +99,7 @@ class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
             isRecording = true
 
             // Mute system audio during recording if enabled
-            let config = ConfigManager.shared.config
-            if config.app.muteDuringRecording {
+            if UserDefaults.standard.bool(forKey: SettingsKeys.muteDuringRecording) {
                 Task {
                     _ = await mediaControlService.muteSystemAudio()
                 }

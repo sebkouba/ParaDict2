@@ -478,7 +478,7 @@ final class DictationCoordinator: ObservableObject {
     /// Check if the transcription is the "daily" keyword
     private func isDailyNoteCommand(_ text: String) -> Bool {
         // Only check if the feature is enabled
-        guard ConfigManager.shared.config.obsidian.dailyNoteKeywordEnabled else { return false }
+        guard AppSettings.shared.obsidianDailyNoteEnabled else { return false }
 
         let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: ".", with: "")
@@ -491,11 +491,9 @@ final class DictationCoordinator: ObservableObject {
 
     /// Open Obsidian daily note
     private func handleDailyNoteCommand() {
-        let obsidianSettings = ConfigManager.shared.config.obsidian
-
         // Build the URI
         var urlString = "obsidian://daily"
-        if let vault = obsidianSettings.vault, !vault.isEmpty {
+        if let vault = AppSettings.shared.obsidianVault, !vault.isEmpty {
             // URL-encode the vault name
             if let encodedVault = vault.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
                 urlString += "?vault=\(encodedVault)"

@@ -91,7 +91,7 @@ Hotkey Press → Recorder → ParakeetTranscriptionService → [Optional: LLMCli
 - **DictationCoordinator** (`DictationCoordinator.swift`): Orchestrates the recording/transcription/pasting pipeline using a state machine pattern. States: `idle → recording → transcribing → [enhancing] → pasting → idle`. Handles correction keyword detection.
 - **DictationStateMachine** (`StateMachine/DictationStateMachine.swift`): Pure state machine for dictation flow. Returns side effects to be executed by the coordinator.
 - **HotkeyManager** (`HotkeyManager.swift`): Handles keyboard shortcuts via KeyboardShortcuts library. Supports hold-to-record and tap-for-hands-free modes
-- **ConfigManager** (`ConfigManager.swift`): YAML-based configuration at `~/Library/Application Support/ParaDict/config.yaml`. File watcher for live reloading
+- **AppSettings** (`Settings/AppSettings.swift`): Observable singleton for app-wide settings using UserDefaults/@AppStorage
 - **ParakeetTranscriptionService** (`Services/ParakeetTranscriptionService.swift`): Parakeet V3 ASR via FluidAudio. Includes VAD for audio > 20 seconds
 - **LLMClient** (`Services/LLMClient.swift`): Groq API client (OpenAI-compatible). API key from `GROQ_API_KEY` environment variable
 - **RecordingService** (`Services/RecordingService.swift`): AVAudioRecorder wrapper. 16kHz mono WAV output for Parakeet
@@ -105,7 +105,7 @@ Hotkey Press → Recorder → ParakeetTranscriptionService → [Optional: LLMCli
 - **FluidAudio**: Parakeet V3 ASR models
 - **KeyboardShortcuts**: Global hotkey handling
 - **LaunchAtLogin**: Login item management
-- **Yams**: YAML parsing for config file
+- **Yams**: YAML parsing (for one-time migration from legacy config)
 
 ### UI Structure
 
@@ -113,16 +113,17 @@ Menu bar app with a single window containing tabs:
 - Permissions (microphone, accessibility, screen recording status)
 - Audio Input (device selection)
 - Shortcuts (keyboard shortcut configuration)
-- Chat (LLM-powered settings assistant)
+- LLM (model selection, timeout settings)
+- Directory Watcher (batch transcription)
+- Advanced (dock icon, Obsidian integration)
+- License (beta license management)
 
-### Config File Schema
+### Settings Storage
 
-Config is YAML at `~/Library/Application Support/ParaDict/config.yaml`:
-- `app`: hide_dock_icon, launch_at_login, mute_during_recording
-- `audio`: device selection
-- `llm`: provider, model, api_key_env
-- `hotkeys`: array of shortcut → mode → prompt mappings
-- `custom_vocabulary`: words for transcription hints
+All settings are stored using native macOS patterns:
+- **UserDefaults/@AppStorage**: All app preferences (see `Settings/SettingsKeys.swift`)
+- **KeyboardShortcuts library**: Handles shortcut persistence automatically
+- **Keychain**: API keys (via environment variable `GROQ_API_KEY`)
 
 ### User Config Files (Important!)
 
@@ -151,7 +152,7 @@ Every Swift file MUST use one of these suffixes. The suffix tells Claude Code ex
 
 | Suffix | Purpose | Contains | Example |
 |--------|---------|----------|---------|
-| `*Manager` | Orchestrates other components, holds state | Class with dependencies on services | `HotkeyManager`, `ConfigManager` |
+| `*Manager` | Orchestrates other components, holds state | Class with dependencies on services | `HotkeyManager`, `MenuBarManager` |
 | `*Coordinator` | Coordinates complex flows with state machines | Class that owns a state machine and executes side effects | `DictationCoordinator` |
 | `*Service` | Single-responsibility capability | Stateless or internal-state-only class | `ParakeetTranscriptionService`, `RecordingService` |
 | `*Client` | External API communication | HTTP/network calls, auth | `LLMClient`, `AnalyticsClient` |
@@ -168,6 +169,10 @@ ParaDict/
 ├── *Manager.swift          # Core orchestration (root level)
 ├── *Coordinator.swift      # State machine coordinators (root level)
 ├── *App.swift              # App entry point
+├── Settings/               # Settings infrastructure
+│   ├── SettingsKeys.swift  # UserDefaults key constants
+│   ├── AppSettings.swift   # Observable settings singleton
+│   └── SettingsMigration.swift # Legacy config migration
 ├── StateMachine/           # State machine components
 │   ├── *StateMachine.swift # Pure state machines (no side effects)
 │   ├── *State.swift        # State enums

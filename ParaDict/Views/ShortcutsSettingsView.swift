@@ -2,8 +2,10 @@ import SwiftUI
 import KeyboardShortcuts
 
 struct ShortcutsSettingsView: View {
-    @EnvironmentObject var configManager: ConfigManager
-    @State private var syncTimer: Timer?
+    @AppStorage(SettingsKeys.enhancedPromptFile) private var enhancedPromptFile = SettingsDefaults.enhancedPromptFile
+    @AppStorage(SettingsKeys.replyPromptFile) private var replyPromptFile = SettingsDefaults.replyPromptFile
+    @AppStorage(SettingsKeys.commandPromptFile) private var commandPromptFile = SettingsDefaults.commandPromptFile
+
     @State private var editingPrompt: String?
     @State private var hoveredPrompt: String?
 
@@ -49,7 +51,7 @@ struct ShortcutsSettingsView: View {
                         title: "Enhanced Dictation",
                         description: "Records, transcribes, then processes with LLM",
                         shortcutName: .enhancedDictation,
-                        promptFile: configManager.config.shortcuts.first(where: { $0.mode == .enhanced })?.promptFile,
+                        promptFile: enhancedPromptFile,
                         hoveredPrompt: $hoveredPrompt,
                         editingPrompt: $editingPrompt
                     )
@@ -59,7 +61,7 @@ struct ShortcutsSettingsView: View {
                         title: "Reply Dictation",
                         description: "Copy text, click target field, press shortcut and speak to generate a response",
                         shortcutName: .replyDictation,
-                        promptFile: configManager.config.shortcuts.first(where: { $0.mode == .reply })?.promptFile,
+                        promptFile: replyPromptFile,
                         hoveredPrompt: $hoveredPrompt,
                         editingPrompt: $editingPrompt
                     )
@@ -69,7 +71,7 @@ struct ShortcutsSettingsView: View {
                         title: "Command Dictation",
                         description: "Execute voice commands like 'open Parakeet' to launch projects",
                         shortcutName: .commandDictation,
-                        promptFile: configManager.config.shortcuts.first(where: { $0.mode == .command })?.promptFile,
+                        promptFile: commandPromptFile,
                         hoveredPrompt: $hoveredPrompt,
                         editingPrompt: $editingPrompt
                     )
@@ -83,20 +85,6 @@ struct ShortcutsSettingsView: View {
             .padding(24)
         }
         .background(Color(NSColor.windowBackgroundColor))
-        .onAppear {
-            syncTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                Task { @MainActor in
-                    HotkeyManager.shared.syncShortcutsToConfig()
-                }
-            }
-        }
-        .onDisappear {
-            syncTimer?.invalidate()
-            syncTimer = nil
-            Task { @MainActor in
-                HotkeyManager.shared.syncShortcutsToConfig()
-            }
-        }
         .sheet(item: $editingPrompt) { promptName in
             PromptEditorSheet(promptName: promptName, onDismiss: { editingPrompt = nil })
         }
@@ -196,6 +184,5 @@ struct PromptFileLink: View {
 
 #Preview {
     ShortcutsSettingsView()
-        .environmentObject(ConfigManager.shared)
         .frame(width: 500, height: 700)
 }

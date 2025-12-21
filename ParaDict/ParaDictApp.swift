@@ -20,6 +20,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("AppDelegate: applicationDidFinishLaunching")
 
+        // Run settings migration from old YAML config (if exists)
+        SettingsMigration.migrateIfNeeded()
+
         // Initialize PromptManager to copy bundled prompts
         _ = PromptManager.shared
 
@@ -31,12 +34,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Start directory watcher if enabled
-        let config = ConfigManager.shared.config.directoryWatcher
-        if config.enabled && !config.inputDirectory.isEmpty && !config.outputDirectory.isEmpty {
+        let watcherEnabled = UserDefaults.standard.bool(forKey: SettingsKeys.directoryWatcherEnabled)
+        let inputDir = UserDefaults.standard.string(forKey: SettingsKeys.directoryWatcherInput) ?? ""
+        let outputDir = UserDefaults.standard.string(forKey: SettingsKeys.directoryWatcherOutput) ?? ""
+        if watcherEnabled && !inputDir.isEmpty && !outputDir.isEmpty {
             logger.notice("Starting directory watcher on launch...")
             DirectoryWatcherService.shared.start(
-                inputDir: URL(fileURLWithPath: config.inputDirectory),
-                outputDir: URL(fileURLWithPath: config.outputDirectory)
+                inputDir: URL(fileURLWithPath: inputDir),
+                outputDir: URL(fileURLWithPath: outputDir)
             )
         }
 
@@ -47,7 +52,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup status bar controller (NSStatusItem with NSMenu)
         statusBarController = StatusBarController()
         statusBarController?.setup(
-            configManager: ConfigManager.shared,
             dictationCoordinator: DictationCoordinator.shared,
             menuBarManager: MenuBarManager.shared
         )
@@ -84,7 +88,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct ParaDictApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
-    @StateObject private var configManager = ConfigManager.shared
     @StateObject private var dictationCoordinator = DictationCoordinator.shared
     @StateObject private var menuBarManager = MenuBarManager.shared
     @StateObject private var permissionManager = PermissionManager.shared
@@ -95,7 +98,6 @@ struct ParaDictApp: App {
         WindowGroup {
             if betaExpirationManager.canUseApp {
                 MainContentView()
-                    .environmentObject(configManager)
                     .environmentObject(dictationCoordinator)
                     .environmentObject(menuBarManager)
                     .environmentObject(betaExpirationManager)
@@ -113,7 +115,6 @@ struct ParaDictApp: App {
 }
 
 struct MainContentView: View {
-    @EnvironmentObject var configManager: ConfigManager
     @EnvironmentObject var dictationCoordinator: DictationCoordinator
     @EnvironmentObject var menuBarManager: MenuBarManager
 
@@ -135,25 +136,16 @@ struct MainContentView: View {
                 }
 
             LLMSettingsView()
-                .environmentObject(configManager)
                 .tabItem {
                     Label("LLM", systemImage: "sparkles")
                 }
 
-            ChatSettingsView()
-                .environmentObject(configManager)
-                .tabItem {
-                    Label("Chat", systemImage: "bubble.left.and.bubble.right")
-                }
-
             DirectoryWatcherView()
-                .environmentObject(configManager)
                 .tabItem {
                     Label("Watcher", systemImage: "folder.badge.gearshape")
                 }
 
             AdvancedSettingsView()
-                .environmentObject(configManager)
                 .tabItem {
                     Label("Advanced", systemImage: "gearshape.2")
                 }

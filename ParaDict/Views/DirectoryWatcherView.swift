@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct DirectoryWatcherView: View {
-    @EnvironmentObject var configManager: ConfigManager
+    @AppStorage(SettingsKeys.directoryWatcherEnabled) private var watcherEnabled = SettingsDefaults.directoryWatcherEnabled
+    @AppStorage(SettingsKeys.directoryWatcherInput) private var inputDirectory = SettingsDefaults.directoryWatcherInput
+    @AppStorage(SettingsKeys.directoryWatcherOutput) private var outputDirectory = SettingsDefaults.directoryWatcherOutput
+
     @ObservedObject private var watcherService = DirectoryWatcherService.shared
     @State private var markedFilesMessage: String?
 
@@ -36,15 +39,11 @@ struct DirectoryWatcherView: View {
                         Text("Enable Watcher")
                             .font(.headline)
                         Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { configManager.config.directoryWatcher.enabled },
-                            set: { newValue in
-                                configManager.config.directoryWatcher.enabled = newValue
-                                configManager.saveConfig()
+                        Toggle("", isOn: $watcherEnabled)
+                            .toggleStyle(.switch)
+                            .onChange(of: watcherEnabled) { _, _ in
                                 updateWatcherState()
                             }
-                        ))
-                        .toggleStyle(.switch)
                     }
 
                     // Status indicator
@@ -124,7 +123,7 @@ struct DirectoryWatcherView: View {
                                 .font(.system(.body, design: .monospaced))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                                .foregroundColor(configManager.config.directoryWatcher.inputDirectory.isEmpty ? .secondary : .primary)
+                                .foregroundColor(inputDirectory.isEmpty ? .secondary : .primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
                             Button("Browse...") {
@@ -154,7 +153,7 @@ struct DirectoryWatcherView: View {
                                 .font(.system(.body, design: .monospaced))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                                .foregroundColor(configManager.config.directoryWatcher.outputDirectory.isEmpty ? .secondary : .primary)
+                                .foregroundColor(outputDirectory.isEmpty ? .secondary : .primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
                             Button("Browse...") {
@@ -235,9 +234,7 @@ struct DirectoryWatcherView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         Button("Skip Existing Files") {
-                            // Pass directory from config since watcher may not be started
-                            let inputPath = configManager.config.directoryWatcher.inputDirectory
-                            let inputDir = inputPath.isEmpty ? nil : URL(fileURLWithPath: inputPath)
+                            let inputDir = inputDirectory.isEmpty ? nil : URL(fileURLWithPath: inputDirectory)
                             let count = watcherService.markAllAsProcessed(inputDir: inputDir)
                             if count > 0 {
                                 markedFilesMessage = "Marked \(count) file\(count == 1 ? "" : "s") as processed"
@@ -250,7 +247,7 @@ struct DirectoryWatcherView: View {
                             }
                         }
                         .buttonStyle(.bordered)
-                        .disabled(configManager.config.directoryWatcher.inputDirectory.isEmpty)
+                        .disabled(inputDirectory.isEmpty)
 
                         Text("Mark all current files as already processed (only transcribe new files)")
                             .font(.caption)
@@ -298,7 +295,7 @@ struct DirectoryWatcherView: View {
     private var statusColor: Color {
         if watcherService.isRunning {
             return .green
-        } else if configManager.config.directoryWatcher.enabled {
+        } else if watcherEnabled {
             return .orange
         } else {
             return .gray
@@ -308,7 +305,7 @@ struct DirectoryWatcherView: View {
     private var statusText: String {
         if watcherService.isRunning {
             return "Watching for new audio files..."
-        } else if configManager.config.directoryWatcher.enabled {
+        } else if watcherEnabled {
             return "Enabled but not running (check configuration)"
         } else {
             return "Stopped"
@@ -316,13 +313,11 @@ struct DirectoryWatcherView: View {
     }
 
     private var inputDirectoryDisplay: String {
-        let path = configManager.config.directoryWatcher.inputDirectory
-        return path.isEmpty ? "Not configured" : path
+        inputDirectory.isEmpty ? "Not configured" : inputDirectory
     }
 
     private var outputDirectoryDisplay: String {
-        let path = configManager.config.directoryWatcher.outputDirectory
-        return path.isEmpty ? "Not configured" : path
+        outputDirectory.isEmpty ? "Not configured" : outputDirectory
     }
 
     // MARK: - Actions
@@ -336,8 +331,7 @@ struct DirectoryWatcherView: View {
         panel.prompt = "Select"
 
         if panel.runModal() == .OK, let url = panel.url {
-            configManager.config.directoryWatcher.inputDirectory = url.path
-            configManager.saveConfig()
+            inputDirectory = url.path
             updateWatcherState()
         }
     }
@@ -352,20 +346,17 @@ struct DirectoryWatcherView: View {
         panel.prompt = "Select"
 
         if panel.runModal() == .OK, let url = panel.url {
-            configManager.config.directoryWatcher.outputDirectory = url.path
-            configManager.saveConfig()
+            outputDirectory = url.path
             updateWatcherState()
         }
     }
 
     private func updateWatcherState() {
-        let config = configManager.config.directoryWatcher
-
-        if config.enabled && !config.inputDirectory.isEmpty && !config.outputDirectory.isEmpty {
+        if watcherEnabled && !inputDirectory.isEmpty && !outputDirectory.isEmpty {
             // Always restart to pick up any directory changes
             watcherService.restart(
-                inputDir: URL(fileURLWithPath: config.inputDirectory),
-                outputDir: URL(fileURLWithPath: config.outputDirectory)
+                inputDir: URL(fileURLWithPath: inputDirectory),
+                outputDir: URL(fileURLWithPath: outputDirectory)
             )
         } else {
             if watcherService.isRunning {
@@ -415,5 +406,4 @@ struct ActivityRow: View {
 
 #Preview {
     DirectoryWatcherView()
-        .environmentObject(ConfigManager.shared)
 }

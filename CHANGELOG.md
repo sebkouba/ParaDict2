@@ -32,12 +32,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
-- Config file migration now preserves existing settings when new fields are added (custom decoder with fallback defaults)
-- Unified UI styling across all settings tabs (Permissions, Audio, Shortcuts, LLM, Chat, Watcher, Advanced)
+- Settings now use native macOS UserDefaults/@AppStorage instead of YAML config file
+- Removed Chat tab (LLM-powered settings assistant)
+- Existing config.yaml settings automatically migrate to UserDefaults on first launch
+- Unified UI styling across all settings tabs (Permissions, Audio, Shortcuts, LLM, Watcher, Advanced)
 - Shortcuts tab now has its own dedicated view with styled cards for each shortcut
 - Directory Watcher now uses native AVFoundation for audio conversion (no ffmpeg required)
 - Improved how corrections are written into the dictionary
 - Removed legacy state manager in favor of new DictationStateMachine
+
+### Removed
+- "Open Config File" menu item (settings now managed in-app via native tabs)
+- LLM chat() method for conversational settings changes (kept enhance() and chatWithTools())
+- ConfigManager.swift and YAML config file dependency (Yams kept only for migration)
 
 ### Fixed
 - Red visual feedback when enhancement times out and falls back to original transcription

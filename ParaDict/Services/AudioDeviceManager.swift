@@ -44,9 +44,11 @@ class AudioDeviceManager: ObservableObject {
     }
 
     private func loadSelectedDevice() {
-        // Device is now loaded from ConfigManager, not UserDefaults
-        // This is called before ConfigManager is fully initialized,
-        // so we don't read from it here. ConfigManager will call applyAudioDevice() later.
+        // Load saved device UID from UserDefaults
+        if let savedUID = UserDefaults.standard.string(forKey: SettingsKeys.audioDeviceUID) {
+            selectedDeviceUID = savedUID
+            logger.notice("Loaded saved audio device UID: \(savedUID)")
+        }
     }
 
     func loadAvailableDevices() {
@@ -97,30 +99,18 @@ class AudioDeviceManager: ObservableObject {
         }
     }
 
-    /// Select an audio device by UID. Set fromUI=true when called from user interaction.
-    func selectDevice(uid: String, fromUI: Bool = false) {
+    /// Select an audio device by UID.
+    func selectDevice(uid: String) {
         selectedDeviceUID = uid
+        UserDefaults.standard.set(uid, forKey: SettingsKeys.audioDeviceUID)
         logger.notice("Selected device UID: \(uid)")
-
-        // Sync back to config file if this was a user action
-        if fromUI {
-            Task { @MainActor in
-                ConfigManager.shared.syncAudioDeviceFromUI()
-            }
-        }
     }
 
-    /// Use the system default device. Set fromUI=true when called from user interaction.
-    func useSystemDefault(fromUI: Bool = false) {
+    /// Use the system default device.
+    func useSystemDefault() {
         selectedDeviceUID = nil
+        UserDefaults.standard.removeObject(forKey: SettingsKeys.audioDeviceUID)
         logger.notice("Using system default device")
-
-        // Sync back to config file if this was a user action
-        if fromUI {
-            Task { @MainActor in
-                ConfigManager.shared.syncAudioDeviceFromUI()
-            }
-        }
     }
 
     func getCurrentDevice() -> AudioDeviceID {

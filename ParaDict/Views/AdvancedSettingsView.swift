@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct AdvancedSettingsView: View {
-    @EnvironmentObject var configManager: ConfigManager
+    @AppStorage(SettingsKeys.enhancementTimeoutBaseMs) private var enhancementTimeoutBaseMs = SettingsDefaults.enhancementTimeoutBaseMs
+    @AppStorage(SettingsKeys.enhancementTimeoutPerTokenMs) private var enhancementTimeoutPerTokenMs = SettingsDefaults.enhancementTimeoutPerTokenMs
+    @AppStorage(SettingsKeys.obsidianDailyNoteEnabled) private var obsidianDailyNoteEnabled = SettingsDefaults.obsidianDailyNoteEnabled
+    @AppStorage(SettingsKeys.obsidianVault) private var obsidianVault: String = ""
 
     var body: some View {
         ScrollView {
@@ -44,7 +47,7 @@ struct AdvancedSettingsView: View {
                                 Text("Base Timeout")
                                     .font(.subheadline)
                                 Spacer()
-                                Text("\(configManager.config.llm.enhancementTimeoutBaseMs) ms")
+                                Text("\(enhancementTimeoutBaseMs) ms")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .monospacedDigit()
@@ -52,11 +55,8 @@ struct AdvancedSettingsView: View {
 
                             Slider(
                                 value: Binding(
-                                    get: { Double(configManager.config.llm.enhancementTimeoutBaseMs) },
-                                    set: { newValue in
-                                        configManager.config.llm.enhancementTimeoutBaseMs = Int(newValue)
-                                        configManager.saveConfig()
-                                    }
+                                    get: { Double(enhancementTimeoutBaseMs) },
+                                    set: { enhancementTimeoutBaseMs = Int($0) }
                                 ),
                                 in: 200...3000,
                                 step: 100
@@ -75,7 +75,7 @@ struct AdvancedSettingsView: View {
                                 Text("Per-Token Timeout")
                                     .font(.subheadline)
                                 Spacer()
-                                Text("\(configManager.config.llm.enhancementTimeoutPerTokenMs) ms")
+                                Text("\(enhancementTimeoutPerTokenMs) ms")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .monospacedDigit()
@@ -83,11 +83,8 @@ struct AdvancedSettingsView: View {
 
                             Slider(
                                 value: Binding(
-                                    get: { Double(configManager.config.llm.enhancementTimeoutPerTokenMs) },
-                                    set: { newValue in
-                                        configManager.config.llm.enhancementTimeoutPerTokenMs = Int(newValue)
-                                        configManager.saveConfig()
-                                    }
+                                    get: { Double(enhancementTimeoutPerTokenMs) },
+                                    set: { enhancementTimeoutPerTokenMs = Int($0) }
                                 ),
                                 in: 0...50,
                                 step: 1
@@ -101,9 +98,9 @@ struct AdvancedSettingsView: View {
                         Divider()
 
                         // Example calculation
-                        let exampleShort = configManager.config.llm.calculateEnhancementTimeout(forText: String(repeating: "x", count: 50))
-                        let exampleMedium = configManager.config.llm.calculateEnhancementTimeout(forText: String(repeating: "x", count: 200))
-                        let exampleLong = configManager.config.llm.calculateEnhancementTimeout(forText: String(repeating: "x", count: 500))
+                        let exampleShort = calculateTimeout(forTextLength: 50)
+                        let exampleMedium = calculateTimeout(forTextLength: 200)
+                        let exampleLong = calculateTimeout(forTextLength: 500)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Example timeouts:")
@@ -144,13 +141,7 @@ struct AdvancedSettingsView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         // Enable toggle
-                        Toggle(isOn: Binding(
-                            get: { configManager.config.obsidian.dailyNoteKeywordEnabled },
-                            set: { newValue in
-                                configManager.config.obsidian.dailyNoteKeywordEnabled = newValue
-                                configManager.saveConfig()
-                            }
-                        )) {
+                        Toggle(isOn: $obsidianDailyNoteEnabled) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("\"Daily\" keyword enabled")
                                     .font(.body)
@@ -171,14 +162,8 @@ struct AdvancedSettingsView: View {
                                 .foregroundColor(.secondary)
 
                             HStack {
-                                TextField("Leave empty for default vault", text: Binding(
-                                    get: { configManager.config.obsidian.vault ?? "" },
-                                    set: { newValue in
-                                        configManager.config.obsidian.vault = newValue.isEmpty ? nil : newValue
-                                        configManager.saveConfig()
-                                    }
-                                ))
-                                .textFieldStyle(.roundedBorder)
+                                TextField("Leave empty for default vault", text: $obsidianVault)
+                                    .textFieldStyle(.roundedBorder)
 
                                 Button("Browse...") {
                                     let panel = NSOpenPanel()
@@ -189,9 +174,7 @@ struct AdvancedSettingsView: View {
                                     panel.prompt = "Select Vault"
 
                                     if panel.runModal() == .OK, let url = panel.url {
-                                        // Use the folder name as the vault name
-                                        configManager.config.obsidian.vault = url.lastPathComponent
-                                        configManager.saveConfig()
+                                        obsidianVault = url.lastPathComponent
                                     }
                                 }
                             }
@@ -219,9 +202,14 @@ struct AdvancedSettingsView: View {
         }
         .background(Color(NSColor.windowBackgroundColor))
     }
+
+    private func calculateTimeout(forTextLength length: Int) -> TimeInterval {
+        let estimatedTokens = max(1, length / 4)
+        let timeoutMs = enhancementTimeoutBaseMs + (estimatedTokens * enhancementTimeoutPerTokenMs)
+        return TimeInterval(timeoutMs) / 1000.0
+    }
 }
 
 #Preview {
     AdvancedSettingsView()
-        .environmentObject(ConfigManager.shared)
 }
