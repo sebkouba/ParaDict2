@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed legacy state manager in favor of new DictationStateMachine
 
 ### Removed
+- Command Dictation shortcut from Shortcuts UI (experimental feature hidden for public beta, code preserved for re-enabling)
 - "Open Config File" menu item (settings now managed in-app via native tabs)
 - LLM chat() method for conversational settings changes (kept enhance() and chatWithTools())
 - ConfigManager.swift and YAML config file dependency (Yams kept only for migration)

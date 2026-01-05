@@ -4,7 +4,8 @@ import KeyboardShortcuts
 struct ShortcutsSettingsView: View {
     @AppStorage(SettingsKeys.enhancedPromptFile) private var enhancedPromptFile = SettingsDefaults.enhancedPromptFile
     @AppStorage(SettingsKeys.replyPromptFile) private var replyPromptFile = SettingsDefaults.replyPromptFile
-    @AppStorage(SettingsKeys.commandPromptFile) private var commandPromptFile = SettingsDefaults.commandPromptFile
+    // Command dictation disabled for public beta - shortcut UI removed but handlers kept in HotkeyManager
+    // @AppStorage(SettingsKeys.commandPromptFile) private var commandPromptFile = SettingsDefaults.commandPromptFile
 
     @State private var editingPrompt: String?
     @State private var hoveredPrompt: String?
@@ -66,15 +67,15 @@ struct ShortcutsSettingsView: View {
                         editingPrompt: $editingPrompt
                     )
 
-                    // Command Dictation
-                    ShortcutCard(
-                        title: "Command Dictation",
-                        description: "Execute voice commands like 'open Parakeet' to launch projects",
-                        shortcutName: .commandDictation,
-                        promptFile: commandPromptFile,
-                        hoveredPrompt: $hoveredPrompt,
-                        editingPrompt: $editingPrompt
-                    )
+                    // Command Dictation - disabled for public beta
+                    // ShortcutCard(
+                    //     title: "Command Dictation",
+                    //     description: "Execute voice commands like 'open Parakeet' to launch projects",
+                    //     shortcutName: .commandDictation,
+                    //     promptFile: commandPromptFile,
+                    //     hoveredPrompt: $hoveredPrompt,
+                    //     editingPrompt: $editingPrompt
+                    // )
                 }
 
                 // Footer hint
