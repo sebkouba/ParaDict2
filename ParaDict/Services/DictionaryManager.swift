@@ -17,15 +17,20 @@ class DictionaryManager {
     private let defaultTemplate = """
     # Custom Dictionary
 
+    This dictionary is automatically appended to all LLM prompts.
+    Add your custom vocabulary and corrections below.
+
     ## Vocabulary
     Words and phrases that should be recognized correctly:
-    - Parakeet
-    - Groq
-    - ParaDict
+    - [Your Name]
+    - [Company Name]
+    - [Technical terms you use]
 
     ## Corrections
     Common transcription errors and their fixes:
-    - "para dict" → "ParaDict"
+    - "[misheard phrase]" → "[correct phrase]"
+
+    <!-- Corrections added via the correction feature will appear below -->
     """
 
     private init() {

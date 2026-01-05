@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
+- Default prompts neutralized for public release with placeholder examples
 - Settings now use native macOS UserDefaults/@AppStorage instead of YAML config file
 - Removed Chat tab (LLM-powered settings assistant)
 - Existing config.yaml settings automatically migrate to UserDefaults on first launch
