@@ -2,6 +2,8 @@
 
 A macOS menu bar voice dictation app with local transcription using Parakeet V3 and optional LLM enhancement.
 
+**Note on licensing**: This is open source and free to use. I'm releasing it as a public beta to get feedback and let others benefit from it. In the future, I may ask for a one-time payment per major version to support continued development—but the code will remain open.
+
 ## Features
 
 - **Local Transcription**: Fast, private speech-to-text using [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) running entirely on your Mac
@@ -216,6 +218,7 @@ This project is licensed under the GNU General Public License v3 - see [LICENSE]
 
 ## Acknowledgments
 
+- [VoiceInk](https://github.com/Beingpax/VoiceInk) - Major inspiration for this project's architecture and approach
 - [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) by NVIDIA for the ASR model
 - [FluidAudio](https://github.com/argmaxinc/FluidAudio) for Swift Parakeet integration
 - [Groq](https://groq.com) for fast LLM inference API
