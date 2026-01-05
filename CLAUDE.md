@@ -204,9 +204,6 @@ ParaDict/
 
 5. **Feature folders at 3+ files**: When a feature needs 3 or more view files, create a subfolder (like `RecordingIndicator/`).
 
-**Reference Codebase:** `/Users/sebastian/code/VoiceInk`
-If you are having problems with implementation, or I tell you to look at the reference implementation at this location, there's a Swift application that is more feature-rich than what we've built thus far. You can always go there to look for working code.
-
 ## Debugging UI Blocking (Rainbow Wheel)
 
 **When the UI freezes, check the ENTRY POINT first, not the processing code.**

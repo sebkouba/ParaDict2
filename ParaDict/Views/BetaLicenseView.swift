@@ -109,7 +109,7 @@ private struct ExpiredView: View {
 
             Button("Check for Updates") {
                 // TODO: Add update URL when available
-                if let url = URL(string: "https://github.com/yourusername/paradict/releases") {
+                if let url = URL(string: "https://github.com/sebkouba/ParaDict2/releases") {
                     NSWorkspace.shared.open(url)
                 }
             }
@@ -259,7 +259,7 @@ struct BetaExpiredBlockingView: View {
                     .foregroundColor(.secondary)
 
                 Button("Check for Updates") {
-                    if let url = URL(string: "https://github.com/yourusername/paradict/releases") {
+                    if let url = URL(string: "https://github.com/sebkouba/ParaDict2/releases") {
                         NSWorkspace.shared.open(url)
                     }
                 }

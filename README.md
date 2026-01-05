@@ -38,7 +38,7 @@ Grant these in System Settings > Privacy & Security when prompted.
 
 ```bash
 # Clone, build, and install in one go
-git clone https://github.com/yourusername/ParaDict.git
+git clone https://github.com/sebkouba/ParaDict2.git
 cd ParaDict
 xcodebuild -project ParaDict.xcodeproj -scheme ParaDict -configuration Release build
 cp -r ~/Library/Developer/Xcode/DerivedData/ParaDict-*/Build/Products/Release/ParaDict.app /Applications/
@@ -49,7 +49,7 @@ Or step by step:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ParaDict.git
+   git clone https://github.com/sebkouba/ParaDict2.git
    cd ParaDict
    ```
 
@@ -149,6 +149,8 @@ On first launch, ParaDict copies bundled prompts and tools to Application Suppor
 
 - **Local Mode**: Direct transcription without LLM processing - fastest, most private
 - **Enhanced Mode**: Transcription + LLM refinement for better formatting and corrections
+
+Partially ready
 - **Command Mode**: Execute voice commands via tool calling (experimental)
 - **Reply Mode**: Copy the text that you want to respond to. Click in the field where you want the response to go, then dictate your instructions using the reply keyboard shortcut.
 

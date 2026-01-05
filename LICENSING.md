@@ -12,7 +12,7 @@ See the [LICENSE](LICENSE) file for the full text.
 
 ## Commercial Licensing
 
-If GPLv3 doesn't work for your use case — for example, if you want to include this software in a proprietary product without open-sourcing your code — commercial licenses are available. Contact [YOUR EMAIL] to discuss options.
+If GPLv3 doesn't work for your use case — for example, if you want to include this software in a proprietary product without open-sourcing your code — commercial licenses are available. Contact sjkouba@gmail.com to discuss options.
 
 ## Why This Approach?
 
