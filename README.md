@@ -2,6 +2,8 @@
 
 A macOS menu bar voice dictation app with local transcription using Parakeet V3 and optional LLM enhancement.
 
+**[Download Latest Release (v1.0.0-beta)](https://github.com/sebkouba/ParaDict2/releases/download/v1.0.0-beta/ParaDict-Notarized.zip)** - Apple notarized, ready to use
+
 **Note on licensing**: This is open source and free to use. I'm releasing it as a public beta to get feedback and let others benefit from it. In the future, I may ask for a one-time payment per major version to support continued development—but the code will remain open.
 
 ## Features
