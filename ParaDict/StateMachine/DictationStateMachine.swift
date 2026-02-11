@@ -89,11 +89,6 @@ final class DictationStateMachine {
             state = .idle
             return [.cancelRecording, .hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
 
-        case (.recording(let mode, let prompt, _, _), .recordingComplete(let url)):
-            // Recording stopped - start transcription
-            state = .transcribing(mode: mode, prompt: prompt, continueAfter: state.shouldContinueAfter)
-            return [.transcribe(url: url)]
-
         // MARK: - From Transcribing
 
         case (.transcribing(let mode, let prompt, let continueAfter), .transcriptionComplete(let text)):

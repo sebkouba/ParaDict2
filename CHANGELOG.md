@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
+- Live dictation transcribes directly from in-memory audio buffer, eliminating WAV file round-trip to disk
 - Upgrade FluidAudio from commit 064164de to v0.12.0 (bug fixes for chunk boundary transcription loss, vocabulary rescoring for long audio)
 - Default prompts neutralized for public release with placeholder examples
 - Settings now use native macOS UserDefaults/@AppStorage instead of YAML config file

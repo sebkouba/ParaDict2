@@ -22,10 +22,6 @@ enum DictationEvent: Equatable {
 
     // MARK: - Processing Events
 
-    /// Recording stopped, audio file ready
-    /// - url: Path to the recorded audio file
-    case recordingComplete(url: URL)
-
     /// Transcription finished successfully
     /// - text: The transcribed text
     case transcriptionComplete(text: String)
@@ -86,8 +82,6 @@ extension DictationEvent: CustomStringConvertible {
             return "enterPressed"
         case .escapePressed:
             return "escapePressed"
-        case .recordingComplete(let url):
-            return "recordingComplete(\(url.lastPathComponent))"
         case .transcriptionComplete(let text):
             return "transcriptionComplete(\(text.prefix(30))...)"
         case .transcriptionEmpty:

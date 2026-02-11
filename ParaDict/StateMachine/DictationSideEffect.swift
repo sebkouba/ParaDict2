@@ -18,14 +18,7 @@ enum DictationSideEffect: Equatable {
     /// Cancel recording and discard the audio
     case cancelRecording
 
-    /// Clean up the recording file after processing
-    case cleanupRecordingFile(url: URL)
-
     // MARK: - Processing
-
-    /// Transcribe audio file with Parakeet
-    /// - url: Path to the audio file
-    case transcribe(url: URL)
 
     /// Enhance text with LLM
     /// - text: The transcription to enhance
@@ -124,10 +117,6 @@ extension DictationSideEffect: CustomStringConvertible {
             return "stopRecording"
         case .cancelRecording:
             return "cancelRecording"
-        case .cleanupRecordingFile(let url):
-            return "cleanupRecordingFile(\(url.lastPathComponent))"
-        case .transcribe(let url):
-            return "transcribe(\(url.lastPathComponent))"
         case .enhance(let text, _, _):
             return "enhance(\(text.prefix(20))...)"
         case .paste(let text):

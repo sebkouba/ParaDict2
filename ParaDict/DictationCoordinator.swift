@@ -39,7 +39,6 @@ final class DictationCoordinator: ObservableObject {
 
     // MARK: - State
 
-    private var currentRecordingURL: URL?
     private var currentContext: String?  // For reply mode
     private var errorTimeoutTask: Task<Void, Never>?
     private var pasteCompleteTask: Task<Void, Never>?
@@ -131,14 +130,6 @@ final class DictationCoordinator: ObservableObject {
             // Resume media immediately when recording is cancelled
             resumeMediaIfNeeded()
 
-        case .cleanupRecordingFile(let url):
-            cleanupFile(url)
-
-        case .transcribe(let url):
-            Task {
-                await transcribe(url: url)
-            }
-
         case .enhance(let text, let prompt, let context):
             Task {
                 await enhance(text: text, prompt: prompt, context: context)
@@ -222,16 +213,10 @@ final class DictationCoordinator: ObservableObject {
         // Store context for later use
         currentContext = context
 
-        // Create temp file for recording
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "paradict_recording_\(Date().timeIntervalSinceReferenceDate).wav"
-        let url = tempDir.appendingPathComponent(fileName)
-        currentRecordingURL = url
-
-        logger.notice("Starting recording to: \(url.lastPathComponent)")
+        logger.notice("Starting recording (buffer-only)")
 
         do {
-            try await recordingService.startRecording(toOutputFile: url)
+            try await recordingService.startRecording()
             logger.notice("Recording started successfully")
         } catch {
             logger.error("Failed to start recording: \(error.localizedDescription)")
@@ -243,31 +228,22 @@ final class DictationCoordinator: ObservableObject {
         recordingService.stopRecording()
         logger.notice("Recording stopped")
 
-        // Transcribe immediately - the state machine has already transitioned to transcribing
-        if let url = currentRecordingURL {
+        // Read audio samples from buffer and transcribe
+        let samples = recordingService.audioBuffer.readAll()
+        if samples.isEmpty {
+            send(.transcriptionEmpty)
+        } else {
             Task {
-                await transcribe(url: url)
+                await transcribe(audioSamples: samples)
             }
         }
     }
 
     private func cancelRecording() {
         recordingService.stopRecording()
-
-        if let url = currentRecordingURL {
-            cleanupFile(url)
-        }
-        currentRecordingURL = nil
         currentContext = nil
 
         logger.notice("Recording cancelled")
-    }
-
-    private func cleanupFile(_ url: URL) {
-        try? FileManager.default.removeItem(at: url)
-        if currentRecordingURL == url {
-            currentRecordingURL = nil
-        }
     }
 
     /// Resume media playback if we paused it at recording start
@@ -281,17 +257,14 @@ final class DictationCoordinator: ObservableObject {
 
     // MARK: - Transcription
 
-    private func transcribe(url: URL) async {
+    private func transcribe(audioSamples: [Float]) async {
         do {
             // Route through TranscriptionExecutor to serialize with streaming transcription
             let text = try await transcriptionExecutor.transcribe(
-                audioURL: url,
+                audioSamples: audioSamples,
                 using: transcriptionService
             )
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Clean up the recording file
-            cleanupFile(url)
 
             if trimmed.isEmpty {
                 send(.transcriptionEmpty)
@@ -323,7 +296,6 @@ final class DictationCoordinator: ObservableObject {
                 send(.transcriptionComplete(text: trimmed))
             }
         } catch {
-            cleanupFile(url)
             send(.error(message: "Transcription failed: \(error.localizedDescription)"))
         }
     }

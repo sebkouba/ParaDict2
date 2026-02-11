@@ -12,7 +12,6 @@ struct AudioMeter: Equatable {
 @MainActor
 class RecordingService: NSObject, ObservableObject {
     private var engine: AVAudioEngine?
-    private var audioFile: AVAudioFile?
     private let logger = Logger(subsystem: "com.paradict", category: "RecordingService")
     private let deviceManager = AudioDeviceManager.shared
     private let mediaControlService = MediaControlService.shared
@@ -25,11 +24,9 @@ class RecordingService: NSObject, ObservableObject {
     /// Shared audio buffer for streaming transcription preview
     let audioBuffer = ThreadSafeAudioBuffer()
 
-    /// The output format used for recording (16kHz mono Int16 WAV)
+    /// The output format used for recording (16kHz mono Float32)
     private let targetSampleRate: Double = 16000.0
     private let targetChannels: AVAudioChannelCount = 1
-
-    private var currentOutputURL: URL?
 
     enum RecordingError: LocalizedError {
         case couldNotStartRecording
@@ -60,21 +57,18 @@ class RecordingService: NSObject, ObservableObject {
         isReconfiguring = true
 
         if engine != nil {
-            let currentURL = currentOutputURL
             stopRecording()
 
-            if let url = currentURL {
-                do {
-                    try await startRecording(toOutputFile: url)
-                } catch {
-                    logger.error("Failed to restart recording after device change: \(error.localizedDescription)")
-                }
+            do {
+                try await startRecording()
+            } catch {
+                logger.error("Failed to restart recording after device change: \(error.localizedDescription)")
             }
         }
         isReconfiguring = false
     }
 
-    func startRecording(toOutputFile url: URL) async throws {
+    func startRecording() async throws {
         let deviceID = deviceManager.getCurrentDevice()
         if deviceID != 0 {
             do {
@@ -102,27 +96,11 @@ class RecordingService: NSObject, ObservableObject {
                 throw RecordingError.couldNotStartRecording
             }
 
-            // Create the output WAV file in 16kHz mono Int16 format (same as before)
-            guard let fileFormat = AVAudioFormat(
-                commonFormat: .pcmFormatInt16,
-                sampleRate: targetSampleRate,
-                channels: targetChannels,
-                interleaved: true
-            ) else {
-                throw RecordingError.couldNotStartRecording
-            }
-
-            let audioFile = try AVAudioFile(forWriting: url, settings: fileFormat.settings)
-
             self.engine = engine
-            self.audioFile = audioFile
-            self.currentOutputURL = url
             audioBuffer.clear()
 
             // Install tap on input node — runs on CoreAudio realtime thread
             let buffer = self.audioBuffer
-            let fileRef = audioFile
-            let loggerRef = self.logger
 
             // Use a converter if the input format doesn't match our target
             // This handles cases where installTap with a different format isn't supported
@@ -149,7 +127,7 @@ class RecordingService: NSObject, ObservableObject {
 
                     guard status != .error, error == nil else { return }
 
-                    // Append Float32 samples to shared buffer for streaming transcription
+                    // Append Float32 samples to shared buffer
                     if let channelData = convertedBuffer.floatChannelData {
                         let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(convertedBuffer.frameLength)))
                         buffer.append(samples)
@@ -160,18 +138,11 @@ class RecordingService: NSObject, ObservableObject {
                             self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
                         }
                     }
-
-                    // Write to file
-                    do {
-                        try fileRef.write(from: convertedBuffer)
-                    } catch {
-                        loggerRef.error("Failed to write audio to file: \(error.localizedDescription)")
-                    }
                 }
             } else {
                 // Input already matches target format, install tap directly
                 inputNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] pcmBuffer, _ in
-                    // Append Float32 samples to shared buffer for streaming transcription
+                    // Append Float32 samples to shared buffer
                     if let channelData = pcmBuffer.floatChannelData {
                         let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(pcmBuffer.frameLength)))
                         buffer.append(samples)
@@ -181,13 +152,6 @@ class RecordingService: NSObject, ObservableObject {
                         Task { @MainActor [weak self] in
                             self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
                         }
-                    }
-
-                    // Write to file
-                    do {
-                        try fileRef.write(from: pcmBuffer)
-                    } catch {
-                        loggerRef.error("Failed to write audio to file: \(error.localizedDescription)")
                     }
                 }
             }
@@ -204,7 +168,7 @@ class RecordingService: NSObject, ObservableObject {
                 }
             }
 
-            logger.notice("Recording started with AVAudioEngine to: \(url.lastPathComponent)")
+            logger.notice("Recording started with AVAudioEngine (buffer-only)")
 
         } catch {
             logger.error("Failed to start audio engine: \(error.localizedDescription)")
@@ -217,8 +181,6 @@ class RecordingService: NSObject, ObservableObject {
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
-        audioFile = nil
-        currentOutputURL = nil
         audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
         isRecording = false
 
