@@ -28,8 +28,11 @@ final class DictationCoordinator: ObservableObject {
 
     let recordingService = RecordingService()
     private let transcriptionService = ParakeetTranscriptionService.shared
+    private let transcriptionExecutor = TranscriptionExecutor.shared
+    private let streamingService = StreamingTranscriptionService.shared
     private let llmClient = LLMClient.shared
     private let indicatorManager = RecordingIndicatorWindowManager.shared
+    private let previewManager = TranscriptionPreviewWindowManager.shared
     private let historyLogger = TranscriptionHistoryLogger.shared
     private let correctionWindowManager = CorrectionWindowManager.shared
     private let mediaControlService = MediaControlService.shared
@@ -152,6 +155,9 @@ final class DictationCoordinator: ObservableObject {
 
         case .hideIndicator:
             indicatorManager.hide()
+            previewManager.hide()
+            streamingService.stop()
+            streamingService.clear()
 
         case .showError(let message):
             // Error is shown via state - UI observes state.error
@@ -195,6 +201,16 @@ final class DictationCoordinator: ObservableObject {
         case .showCorrectionWindow(let originalTranscription, let llmOutput):
             logger.notice("Showing correction window - raw: \(originalTranscription.prefix(30))..., pasted: \(llmOutput.prefix(30))...")
             correctionWindowManager.show(originalTranscription: originalTranscription, llmOutput: llmOutput)
+
+        case .startStreamingPreview:
+            let placement = AppSettings.shared.streamingPreviewPlacement
+            guard placement != .disabled else { break }
+            streamingService.start(buffer: recordingService.audioBuffer)
+            previewManager.show(placement: placement)
+
+        case .stopStreamingPreview:
+            streamingService.stop()
+            // Keep preview panel visible with last text — it hides when indicator hides
         }
     }
 
@@ -268,10 +284,11 @@ final class DictationCoordinator: ObservableObject {
 
     private func transcribe(url: URL) async {
         do {
-            // Run transcription off main thread to prevent UI blocking
-            let text = try await Task.detached(priority: .userInitiated) { [transcriptionService] in
-                try await transcriptionService.transcribe(audioURL: url)
-            }.value
+            // Route through TranscriptionExecutor to serialize with streaming transcription
+            let text = try await transcriptionExecutor.transcribe(
+                audioURL: url,
+                using: transcriptionService
+            )
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
             // Clean up the recording file

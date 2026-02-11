@@ -200,6 +200,26 @@ class ParakeetTranscriptionService {
         return floats
     }
 
+    /// Transcribe in-memory Float32 audio samples directly (for streaming preview).
+    /// Skips file I/O and WAV header parsing. No VAD (streaming buffers are short).
+    func transcribe(audioSamples: [Float]) async throws -> String {
+        guard !audioSamples.isEmpty else {
+            throw ASRError.emptyAudio
+        }
+
+        try await ensureModelsLoaded()
+
+        guard let asrManager = asrManager else {
+            throw ASRError.notInitialized
+        }
+
+        let durationSeconds = Double(audioSamples.count) / 16000.0
+        logger.notice("Streaming transcribe: \(String(format: "%.1f", durationSeconds))s (\(audioSamples.count) samples)")
+
+        let result = try await asrManager.transcribe(audioSamples)
+        return result.text
+    }
+
     func cleanup() {
         logger.notice("Cleaning up ASR resources")
         asrManager?.cleanup()

@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Live transcription preview: streaming transcription shown in a floating overlay while recording (configurable placement: above indicator, subtitle bar, near cursor, or disabled)
+- AVAudioEngine-based recording with in-memory audio buffer for real-time transcription access
+- TranscriptionExecutor actor serializing CoreML model access to prevent concurrent transcription crashes
+- Smart word-level diff algorithm preventing preview text from jumping during streaming updates
 - Priority-ordered audio input selection: drag-and-drop to reorder, first available device is used automatically, unchecked devices act as fallback
 - Beta expiration system with freedom codes: app expires after hardcoded date, users can enter email + code to unlock permanently
 - License tab in settings showing beta status and freedom code entry

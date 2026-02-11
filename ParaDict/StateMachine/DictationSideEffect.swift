@@ -103,6 +103,14 @@ enum DictationSideEffect: Equatable {
     /// - originalTranscription: Raw transcription from Parakeet
     /// - llmOutput: What was actually pasted
     case showCorrectionWindow(originalTranscription: String, llmOutput: String)
+
+    // MARK: - Streaming Preview
+
+    /// Start the streaming transcription preview (during recording)
+    case startStreamingPreview
+
+    /// Stop the streaming transcription preview (when recording stops)
+    case stopStreamingPreview
 }
 
 // MARK: - CustomStringConvertible
@@ -156,6 +164,10 @@ extension DictationSideEffect: CustomStringConvertible {
             return "flashMenuBarError"
         case .showCorrectionWindow(let original, let output):
             return "showCorrectionWindow(orig: \(original.prefix(20))..., out: \(output.prefix(20))...)"
+        case .startStreamingPreview:
+            return "startStreamingPreview"
+        case .stopStreamingPreview:
+            return "stopStreamingPreview"
         }
     }
 }

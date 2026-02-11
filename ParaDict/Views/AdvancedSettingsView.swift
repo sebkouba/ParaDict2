@@ -5,6 +5,8 @@ struct AdvancedSettingsView: View {
     @AppStorage(SettingsKeys.enhancementTimeoutPerTokenMs) private var enhancementTimeoutPerTokenMs = SettingsDefaults.enhancementTimeoutPerTokenMs
     @AppStorage(SettingsKeys.obsidianDailyNoteEnabled) private var obsidianDailyNoteEnabled = SettingsDefaults.obsidianDailyNoteEnabled
     @AppStorage(SettingsKeys.obsidianVault) private var obsidianVault: String = ""
+    @AppStorage(SettingsKeys.streamingPreviewPlacement) private var previewPlacement: String = SettingsDefaults.streamingPreviewPlacement
+    @AppStorage(SettingsKeys.streamingPreviewCharLimit) private var previewCharLimit: Int = SettingsDefaults.streamingPreviewCharLimit
 
     var body: some View {
         ScrollView {
@@ -30,6 +32,74 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 .padding(.vertical, 40)
+
+                // Live Preview
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("Live Preview", systemImage: "text.bubble")
+                        .font(.headline)
+
+                    Text("Show a streaming transcription preview while recording")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Placement picker
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Placement")
+                                .font(.subheadline)
+
+                            Picker("", selection: $previewPlacement) {
+                                ForEach(StreamingPreviewPlacement.allCases, id: \.rawValue) { placement in
+                                    Text(placement.displayName).tag(placement.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                        }
+
+                        if previewPlacement != StreamingPreviewPlacement.disabled.rawValue {
+                            Divider()
+
+                            // Character limit slider
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Character Limit")
+                                        .font(.subheadline)
+                                    Spacer()
+                                    Text("\(previewCharLimit)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .monospacedDigit()
+                                }
+
+                                Slider(
+                                    value: Binding(
+                                        get: { Double(previewCharLimit) },
+                                        set: { previewCharLimit = Int($0) }
+                                    ),
+                                    in: 50...500,
+                                    step: 10
+                                )
+
+                                Text("Maximum characters shown in the preview overlay")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    )
+                }
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
 
                 // Enhancement Timeout
                 VStack(alignment: .leading, spacing: 16) {

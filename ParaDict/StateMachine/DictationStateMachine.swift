@@ -43,7 +43,8 @@ final class DictationStateMachine {
                 .startRecording(mode: mode, prompt: prompt, context: context),
                 .showIndicator,
                 .startEscapeMonitor,
-                .startEnterMonitor
+                .startEnterMonitor,
+                .startStreamingPreview
             ]
 
         // Ignore other events in idle state
@@ -60,7 +61,7 @@ final class DictationStateMachine {
             } else {
                 // Long press - stop recording
                 state = .transcribing(mode: mode, prompt: prompt, continueAfter: false)
-                return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor]
+                return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
             }
 
         // MARK: - From Recording (hands-free, Enter monitor pending)
@@ -75,18 +76,18 @@ final class DictationStateMachine {
         case (.recording(let mode, let prompt, true, false), .hotkeyDown):
             // Second press in hands-free mode - stop recording
             state = .transcribing(mode: mode, prompt: prompt, continueAfter: false)
-            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor]
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
 
         case (.recording(let mode, let prompt, true, false), .enterPressed):
             // Enter in hands-free mode - stop recording and continue after paste
             state = .transcribing(mode: mode, prompt: prompt, continueAfter: true)
-            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor]
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
 
         // MARK: - From Recording (any)
 
         case (.recording, .escapePressed):
             state = .idle
-            return [.cancelRecording, .hideIndicator, .stopEscapeMonitor, .stopEnterMonitor]
+            return [.cancelRecording, .hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
 
         case (.recording(let mode, let prompt, _, _), .recordingComplete(let url)):
             // Recording stopped - start transcription
@@ -122,7 +123,8 @@ final class DictationStateMachine {
                 return [
                     .startRecording(mode: mode, prompt: prompt, context: nil),
                     .startEscapeMonitor,
-                    .scheduleEnterMonitorStart
+                    .scheduleEnterMonitorStart,
+                    .startStreamingPreview
                 ]
             } else {
                 // Normal mode - show error
@@ -189,7 +191,8 @@ final class DictationStateMachine {
                 .pressEnterKey,
                 .startRecording(mode: mode, prompt: prompt, context: nil),
                 .startEscapeMonitor,
-                .scheduleEnterMonitorStart
+                .scheduleEnterMonitorStart,
+                .startStreamingPreview
             ]
 
         case (.pasting, .pasteComplete):
@@ -210,7 +213,8 @@ final class DictationStateMachine {
                 .startRecording(mode: mode, prompt: prompt, context: context),
                 .showIndicator,
                 .startEscapeMonitor,
-                .startEnterMonitor
+                .startEnterMonitor,
+                .startStreamingPreview
             ]
 
         // MARK: - Error from any state

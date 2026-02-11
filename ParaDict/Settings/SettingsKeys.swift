@@ -37,6 +37,10 @@ enum SettingsKeys {
     // MARK: - Custom Vocabulary (stored as JSON string)
     static let customVocabulary = "customVocabulary"
 
+    // MARK: - Streaming Preview
+    static let streamingPreviewPlacement = "streamingPreviewPlacement"
+    static let streamingPreviewCharLimit = "streamingPreviewCharLimit"
+
     // MARK: - Migration Flag
     static let configMigrated = "configMigrated"
 }
@@ -76,4 +80,8 @@ enum SettingsDefaults {
 
     // Custom vocabulary
     static let customVocabulary: [String] = ["Parakeet", "Groq"]
+
+    // Streaming Preview
+    static let streamingPreviewPlacement = "disabled"
+    static let streamingPreviewCharLimit = 150
 }

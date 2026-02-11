@@ -10,8 +10,9 @@ struct AudioMeter: Equatable {
 }
 
 @MainActor
-class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
-    private var recorder: AVAudioRecorder?
+class RecordingService: NSObject, ObservableObject {
+    private var engine: AVAudioEngine?
+    private var audioFile: AVAudioFile?
     private let logger = Logger(subsystem: "com.paradict", category: "RecordingService")
     private let deviceManager = AudioDeviceManager.shared
     private let mediaControlService = MediaControlService.shared
@@ -21,7 +22,14 @@ class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
     @Published var audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
     @Published var isRecording = false
 
-    private var audioMeterUpdateTask: Task<Void, Never>?
+    /// Shared audio buffer for streaming transcription preview
+    let audioBuffer = ThreadSafeAudioBuffer()
+
+    /// The output format used for recording (16kHz mono Int16 WAV)
+    private let targetSampleRate: Double = 16000.0
+    private let targetChannels: AVAudioChannelCount = 1
+
+    private var currentOutputURL: URL?
 
     enum RecordingError: LocalizedError {
         case couldNotStartRecording
@@ -51,8 +59,8 @@ class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
         guard !isReconfiguring else { return }
         isReconfiguring = true
 
-        if recorder != nil {
-            let currentURL = recorder?.url
+        if engine != nil {
+            let currentURL = currentOutputURL
             stopRecording()
 
             if let url = currentURL {
@@ -76,25 +84,116 @@ class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
             }
         }
 
-        let recordSettings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatLinearPCM),
-            AVSampleRateKey: 16000.0,
-            AVNumberOfChannelsKey: 1,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false,
-            AVLinearPCMIsNonInterleaved: false
-        ]
-
         do {
-            recorder = try AVAudioRecorder(url: url, settings: recordSettings)
-            recorder?.delegate = self
-            recorder?.isMeteringEnabled = true
+            let engine = AVAudioEngine()
+            let inputNode = engine.inputNode
+            let inputFormat = inputNode.outputFormat(forBus: 0)
 
-            if recorder?.record() == false {
-                logger.error("Could not start recording")
+            logger.notice("Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch")
+
+            // Create the target format for the tap: 16kHz mono Float32
+            // AVAudioEngine will handle sample rate conversion from the hardware format
+            guard let tapFormat = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: targetSampleRate,
+                channels: targetChannels,
+                interleaved: false
+            ) else {
                 throw RecordingError.couldNotStartRecording
             }
+
+            // Create the output WAV file in 16kHz mono Int16 format (same as before)
+            guard let fileFormat = AVAudioFormat(
+                commonFormat: .pcmFormatInt16,
+                sampleRate: targetSampleRate,
+                channels: targetChannels,
+                interleaved: true
+            ) else {
+                throw RecordingError.couldNotStartRecording
+            }
+
+            let audioFile = try AVAudioFile(forWriting: url, settings: fileFormat.settings)
+
+            self.engine = engine
+            self.audioFile = audioFile
+            self.currentOutputURL = url
+            audioBuffer.clear()
+
+            // Install tap on input node — runs on CoreAudio realtime thread
+            let buffer = self.audioBuffer
+            let fileRef = audioFile
+            let loggerRef = self.logger
+
+            // Use a converter if the input format doesn't match our target
+            // This handles cases where installTap with a different format isn't supported
+            let needsConversion = inputFormat.sampleRate != targetSampleRate || inputFormat.channelCount != targetChannels
+
+            if needsConversion {
+                // Install tap with native input format, convert manually
+                let converter = AVAudioConverter(from: inputFormat, to: tapFormat)
+
+                inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] pcmBuffer, _ in
+                    guard let converter = converter else { return }
+
+                    // Convert to 16kHz mono
+                    let frameCapacity = AVAudioFrameCount(
+                        Double(pcmBuffer.frameLength) * (tapFormat.sampleRate / inputFormat.sampleRate)
+                    )
+                    guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: tapFormat, frameCapacity: frameCapacity + 1) else { return }
+
+                    var error: NSError?
+                    let status = converter.convert(to: convertedBuffer, error: &error) { inNumPackets, outStatus in
+                        outStatus.pointee = .haveData
+                        return pcmBuffer
+                    }
+
+                    guard status != .error, error == nil else { return }
+
+                    // Append Float32 samples to shared buffer for streaming transcription
+                    if let channelData = convertedBuffer.floatChannelData {
+                        let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(convertedBuffer.frameLength)))
+                        buffer.append(samples)
+
+                        // Compute metering from the samples
+                        let (avg, peak) = Self.computeMetering(samples)
+                        Task { @MainActor [weak self] in
+                            self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
+                        }
+                    }
+
+                    // Write to file
+                    do {
+                        try fileRef.write(from: convertedBuffer)
+                    } catch {
+                        loggerRef.error("Failed to write audio to file: \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                // Input already matches target format, install tap directly
+                inputNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] pcmBuffer, _ in
+                    // Append Float32 samples to shared buffer for streaming transcription
+                    if let channelData = pcmBuffer.floatChannelData {
+                        let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(pcmBuffer.frameLength)))
+                        buffer.append(samples)
+
+                        // Compute metering from the samples
+                        let (avg, peak) = Self.computeMetering(samples)
+                        Task { @MainActor [weak self] in
+                            self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
+                        }
+                    }
+
+                    // Write to file
+                    do {
+                        try fileRef.write(from: pcmBuffer)
+                    } catch {
+                        loggerRef.error("Failed to write audio to file: \(error.localizedDescription)")
+                    }
+                }
+            }
+
+            engine.prepare()
+            try engine.start()
 
             isRecording = true
 
@@ -105,26 +204,21 @@ class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 }
             }
 
-            // Start audio meter updates
-            audioMeterUpdateTask?.cancel()
-            audioMeterUpdateTask = Task {
-                while recorder != nil && !Task.isCancelled {
-                    updateAudioMeter()
-                    try? await Task.sleep(nanoseconds: 33_000_000) // ~30fps
-                }
-            }
+            logger.notice("Recording started with AVAudioEngine to: \(url.lastPathComponent)")
 
         } catch {
-            logger.error("Failed to create audio recorder: \(error.localizedDescription)")
+            logger.error("Failed to start audio engine: \(error.localizedDescription)")
             stopRecording()
             throw RecordingError.couldNotStartRecording
         }
     }
 
     func stopRecording() {
-        audioMeterUpdateTask?.cancel()
-        recorder?.stop()
-        recorder = nil
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine = nil
+        audioFile = nil
+        currentOutputURL = nil
         audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
         isRecording = false
 
@@ -133,48 +227,35 @@ class RecordingService: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
     }
 
-    private func updateAudioMeter() {
-        guard let recorder = recorder else { return }
-        recorder.updateMeters()
+    /// Compute RMS average power and peak power from Float32 samples, normalized to 0.0–1.0
+    private static func computeMetering(_ samples: [Float]) -> (average: Double, peak: Double) {
+        guard !samples.isEmpty else { return (0, 0) }
 
-        let averagePower = recorder.averagePower(forChannel: 0)
-        let peakPower = recorder.peakPower(forChannel: 0)
+        var sumOfSquares: Float = 0
+        var maxAbs: Float = 0
 
-        let minVisibleDb: Float = -60.0
-        let maxVisibleDb: Float = 0.0
-
-        let normalizedAverage = normalize(power: averagePower, min: minVisibleDb, max: maxVisibleDb)
-        let normalizedPeak = normalize(power: peakPower, min: minVisibleDb, max: maxVisibleDb)
-
-        audioMeter = AudioMeter(averagePower: Double(normalizedAverage), peakPower: Double(normalizedPeak))
-    }
-
-    private func normalize(power: Float, min: Float, max: Float) -> Float {
-        if power < min { return 0.0 }
-        if power >= max { return 1.0 }
-        return (power - min) / (max - min)
-    }
-
-    // MARK: - AVAudioRecorderDelegate
-
-    nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        if !flag {
-            Task { @MainActor in
-                logger.error("Recording finished unsuccessfully")
-            }
+        for sample in samples {
+            let abs = Swift.abs(sample)
+            sumOfSquares += sample * sample
+            if abs > maxAbs { maxAbs = abs }
         }
-    }
 
-    nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
-        if let error = error {
-            Task { @MainActor in
-                logger.error("Recording encode error: \(error.localizedDescription)")
-            }
-        }
+        let rms = sqrt(sumOfSquares / Float(samples.count))
+
+        // Convert to dB then normalize to 0–1 range (same as the old AVAudioRecorder metering)
+        let minDb: Float = -60.0
+        let maxDb: Float = 0.0
+
+        let rmsDb = rms > 0 ? 20 * log10(rms) : minDb
+        let peakDb = maxAbs > 0 ? 20 * log10(maxAbs) : minDb
+
+        let normalizedAvg = Double(max(0, min(1, (rmsDb - minDb) / (maxDb - minDb))))
+        let normalizedPeak = Double(max(0, min(1, (peakDb - minDb) / (maxDb - minDb))))
+
+        return (normalizedAvg, normalizedPeak)
     }
 
     deinit {
-        audioMeterUpdateTask?.cancel()
         if let observer = deviceObserver {
             NotificationCenter.default.removeObserver(observer)
         }
