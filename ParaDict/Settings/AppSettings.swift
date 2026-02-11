@@ -138,20 +138,9 @@ final class AppSettings {
 
     // MARK: - Streaming Preview
 
-    var streamingPreviewPlacement: StreamingPreviewPlacement {
-        get {
-            let raw = UserDefaults.standard.string(forKey: SettingsKeys.streamingPreviewPlacement) ?? SettingsDefaults.streamingPreviewPlacement
-            return StreamingPreviewPlacement(rawValue: raw) ?? .disabled
-        }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: SettingsKeys.streamingPreviewPlacement) }
-    }
-
-    var streamingPreviewCharLimit: Int {
-        get {
-            let value = UserDefaults.standard.integer(forKey: SettingsKeys.streamingPreviewCharLimit)
-            return value > 0 ? value : SettingsDefaults.streamingPreviewCharLimit
-        }
-        set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.streamingPreviewCharLimit) }
+    var streamingPreviewEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: SettingsKeys.streamingPreviewEnabled) as? Bool ?? SettingsDefaults.streamingPreviewEnabled }
+        set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.streamingPreviewEnabled) }
     }
 
     // MARK: - Custom Vocabulary
@@ -183,20 +172,3 @@ enum DictationMode: String, Codable, CaseIterable {
     case command    // Parakeet + LLM with tool calling (voice commands)
 }
 
-// MARK: - Streaming Preview Placement
-
-enum StreamingPreviewPlacement: String, CaseIterable {
-    case disabled   // No live preview
-    case indicator  // Directly above the recording indicator capsule
-    case subtitle   // Wider bar at bottom-center of screen
-    case cursor     // Near the text cursor (Accessibility API)
-
-    var displayName: String {
-        switch self {
-        case .disabled: return "Disabled"
-        case .indicator: return "Above Indicator"
-        case .subtitle: return "Subtitle Bar"
-        case .cursor: return "Near Cursor"
-        }
-    }
-}

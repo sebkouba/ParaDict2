@@ -203,10 +203,9 @@ final class DictationCoordinator: ObservableObject {
             correctionWindowManager.show(originalTranscription: originalTranscription, llmOutput: llmOutput)
 
         case .startStreamingPreview:
-            let placement = AppSettings.shared.streamingPreviewPlacement
-            guard placement != .disabled else { break }
+            guard AppSettings.shared.streamingPreviewEnabled else { break }
             streamingService.start(buffer: recordingService.audioBuffer)
-            previewManager.show(placement: placement)
+            previewManager.show()
 
         case .stopStreamingPreview:
             streamingService.stop()

@@ -1,49 +1,56 @@
 import SwiftUI
 
 /// SwiftUI view for the streaming transcription preview overlay.
-/// Observes StreamingTranscriptionService for partial transcription updates.
+/// Text is grey while streaming (partial), turns solid white when recording stops (finalized).
 struct TranscriptionPreviewView: View {
     @ObservedObject var streamingService = StreamingTranscriptionService.shared
-    let charLimit: Int
 
     private var displayText: String {
-        let text = streamingService.partialTranscription
-        if text.isEmpty {
-            return "Listening..."
-        }
-        // Truncate from the beginning if over the character limit (show most recent text)
-        if text.count > charLimit {
-            let startIndex = text.index(text.endIndex, offsetBy: -charLimit)
-            return "..." + text[startIndex...]
-        }
-        return text
+        streamingService.partialTranscription.isEmpty ? "Listening..." : streamingService.partialTranscription
     }
 
     private var isListening: Bool {
         streamingService.partialTranscription.isEmpty
     }
 
+    /// Grey while actively streaming, solid white when finalized (recording stopped)
+    private var textColor: Color {
+        if isListening {
+            return .white.opacity(0.4)
+        }
+        return streamingService.isStreaming ? .white.opacity(0.5) : .white.opacity(0.95)
+    }
+
     var body: some View {
-        Text(displayText)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(isListening ? .white.opacity(0.5) : .white.opacity(0.85))
-            .lineLimit(3)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                ZStack {
-                    Color.black.opacity(0.85)
-                    VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
-                        .opacity(0.05)
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                Text(displayText)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(textColor)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .id("bottom")
+            }
+            .onChange(of: streamingService.partialTranscription) { _, _ in
+                DispatchQueue.main.async {
+                    proxy.scrollTo("bottom", anchor: .bottom)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5)
-            )
-            .animation(.easeInOut(duration: 0.15), value: streamingService.partialTranscription)
+            }
+        }
+        .background(
+            ZStack {
+                Color.black.opacity(0.85)
+                VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
+                    .opacity(0.05)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5)
+        )
     }
 }

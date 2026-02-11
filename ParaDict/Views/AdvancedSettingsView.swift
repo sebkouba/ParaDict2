@@ -5,8 +5,7 @@ struct AdvancedSettingsView: View {
     @AppStorage(SettingsKeys.enhancementTimeoutPerTokenMs) private var enhancementTimeoutPerTokenMs = SettingsDefaults.enhancementTimeoutPerTokenMs
     @AppStorage(SettingsKeys.obsidianDailyNoteEnabled) private var obsidianDailyNoteEnabled = SettingsDefaults.obsidianDailyNoteEnabled
     @AppStorage(SettingsKeys.obsidianVault) private var obsidianVault: String = ""
-    @AppStorage(SettingsKeys.streamingPreviewPlacement) private var previewPlacement: String = SettingsDefaults.streamingPreviewPlacement
-    @AppStorage(SettingsKeys.streamingPreviewCharLimit) private var previewCharLimit: Int = SettingsDefaults.streamingPreviewCharLimit
+    @AppStorage(SettingsKeys.streamingPreviewEnabled) private var streamingPreviewEnabled = SettingsDefaults.streamingPreviewEnabled
 
     var body: some View {
         ScrollView {
@@ -38,54 +37,22 @@ struct AdvancedSettingsView: View {
                     Label("Live Preview", systemImage: "text.bubble")
                         .font(.headline)
 
-                    Text("Show a streaming transcription preview while recording")
+                    Text("Show a streaming transcription preview above the recording indicator while speaking")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
                     VStack(alignment: .leading, spacing: 12) {
-                        // Placement picker
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Placement")
-                                .font(.subheadline)
-
-                            Picker("", selection: $previewPlacement) {
-                                ForEach(StreamingPreviewPlacement.allCases, id: \.rawValue) { placement in
-                                    Text(placement.displayName).tag(placement.rawValue)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                        }
-
-                        if previewPlacement != StreamingPreviewPlacement.disabled.rawValue {
-                            Divider()
-
-                            // Character limit slider
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Character Limit")
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Text("\(previewCharLimit)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .monospacedDigit()
-                                }
-
-                                Slider(
-                                    value: Binding(
-                                        get: { Double(previewCharLimit) },
-                                        set: { previewCharLimit = Int($0) }
-                                    ),
-                                    in: 50...500,
-                                    step: 10
-                                )
-
-                                Text("Maximum characters shown in the preview overlay")
+                        Toggle(isOn: $streamingPreviewEnabled) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Show Live Preview")
+                                    .font(.body)
+                                Text("Partial transcription updates in real-time as you speak")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         }
+                        .toggleStyle(.switch)
+                        .padding(.vertical, 4)
                     }
                     .padding()
                     .background(

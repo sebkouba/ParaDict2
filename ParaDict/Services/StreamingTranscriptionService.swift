@@ -27,8 +27,8 @@ class StreamingTranscriptionService: ObservableObject {
     /// The streaming loop task
     private var streamingTask: Task<Void, Never>?
 
-    /// Whether the service is actively streaming
-    private(set) var isStreaming = false
+    /// Whether the service is actively streaming (grey text while true, solid when false)
+    @Published private(set) var isStreaming = false
 
     private init() {}
 
