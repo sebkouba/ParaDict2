@@ -15,6 +15,9 @@ class StreamingTranscriptionService: ObservableObject {
     /// The latest partial transcription text (observed by the preview UI)
     @Published var partialTranscription: String = ""
 
+    /// Number of words confirmed (silence detected after utterance)
+    @Published var confirmedWordCount: Int = 0
+
     /// Interval between transcription attempts
     private let transcriptionInterval: TimeInterval = 0.8
 
@@ -30,6 +33,17 @@ class StreamingTranscriptionService: ObservableObject {
     /// Whether the service is actively streaming (grey text while true, solid when false)
     @Published private(set) var isStreaming = false
 
+    // MARK: - Silence Detection
+
+    /// RMS energy threshold below which audio is considered silence
+    private let silenceEnergyThreshold: Float = 0.005
+
+    /// Number of tail samples to check for silence (0.7s at 16kHz)
+    private let silenceSampleCount = 11200
+
+    /// Whether the previous check detected silence (for edge detection)
+    private var isSilent = false
+
     private init() {}
 
     /// Start the streaming transcription loop
@@ -37,6 +51,8 @@ class StreamingTranscriptionService: ObservableObject {
         stop()
         previousFullTranscription = ""
         partialTranscription = ""
+        confirmedWordCount = 0
+        isSilent = false
         isStreaming = true
 
         logger.notice("Starting streaming transcription")
@@ -59,6 +75,8 @@ class StreamingTranscriptionService: ObservableObject {
     func clear() {
         partialTranscription = ""
         previousFullTranscription = ""
+        confirmedWordCount = 0
+        isSilent = false
     }
 
     // MARK: - Streaming Loop
@@ -93,6 +111,18 @@ class StreamingTranscriptionService: ObservableObject {
                     let updated = smartDiffUpdate(previous: previousFullTranscription, current: trimmed)
                     partialTranscription = updated
                     previousFullTranscription = trimmed
+
+                    // Silence detection: confirm words when utterance ends
+                    let tailSamples = buffer.readTail(count: silenceSampleCount)
+                    let rms = Self.computeRMS(tailSamples)
+                    let nowSilent = rms < silenceEnergyThreshold
+
+                    if nowSilent && !isSilent {
+                        let wordCount = updated.split(separator: " ", omittingEmptySubsequences: true).count
+                        confirmedWordCount = wordCount
+                        logger.notice("Utterance confirmed at \(wordCount) words (RMS: \(rms))")
+                    }
+                    isSilent = nowSilent
                 }
             } catch {
                 // Don't log cancellation errors
@@ -101,6 +131,18 @@ class StreamingTranscriptionService: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Silence Detection
+
+    /// Compute RMS (root mean square) energy of audio samples
+    static func computeRMS(_ samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        var sumSquares: Float = 0
+        for sample in samples {
+            sumSquares += sample * sample
+        }
+        return sqrt(sumSquares / Float(samples.count))
     }
 
     // MARK: - Smart Diff

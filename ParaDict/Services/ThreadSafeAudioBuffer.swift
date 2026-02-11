@@ -22,6 +22,14 @@ final class ThreadSafeAudioBuffer: @unchecked Sendable {
         return copy
     }
 
+    /// Read the last N samples from the buffer (for efficient tail analysis like silence detection)
+    func readTail(count: Int) -> [Float] {
+        lock.lock()
+        let result = buffer.count <= count ? buffer : Array(buffer[(buffer.count - count)...])
+        lock.unlock()
+        return result
+    }
+
     /// Number of accumulated samples
     var count: Int {
         lock.lock()

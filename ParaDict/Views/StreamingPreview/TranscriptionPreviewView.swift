@@ -5,28 +5,56 @@ import SwiftUI
 struct TranscriptionPreviewView: View {
     @ObservedObject var streamingService = StreamingTranscriptionService.shared
 
-    private var displayText: String {
-        streamingService.partialTranscription.isEmpty ? "Listening..." : streamingService.partialTranscription
-    }
-
     private var isListening: Bool {
         streamingService.partialTranscription.isEmpty
     }
 
-    /// Grey while actively streaming, solid white when finalized (recording stopped)
-    private var textColor: Color {
+    /// Build styled text with confirmed (white) and pending (grey) parts
+    private var styledText: Text {
         if isListening {
-            return .white.opacity(0.4)
+            return Text("Listening...")
+                .foregroundColor(.white.opacity(0.4))
         }
-        return streamingService.isStreaming ? .white.opacity(0.5) : .white.opacity(0.95)
+
+        let fullText = streamingService.partialTranscription
+
+        // When streaming stopped, all text is solid white
+        guard streamingService.isStreaming else {
+            return Text(fullText)
+                .foregroundColor(.white.opacity(0.95))
+        }
+
+        // Split at confirmed word boundary
+        let words = fullText.split(separator: " ", omittingEmptySubsequences: true)
+        let confirmedCount = min(streamingService.confirmedWordCount, words.count)
+
+        if confirmedCount == 0 {
+            // No confirmed words yet — all pending
+            return Text(fullText)
+                .foregroundColor(.white.opacity(0.5))
+        }
+
+        let confirmedPart = words.prefix(confirmedCount).joined(separator: " ")
+        let pendingWords = words.dropFirst(confirmedCount)
+
+        if pendingWords.isEmpty {
+            // All words confirmed
+            return Text(confirmedPart)
+                .foregroundColor(.white.opacity(0.95))
+        }
+
+        let pendingPart = pendingWords.joined(separator: " ")
+        return Text(confirmedPart + " ")
+            .foregroundColor(.white.opacity(0.95))
+            + Text(pendingPart)
+            .foregroundColor(.white.opacity(0.5))
     }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                Text(displayText)
+                styledText
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(textColor)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
