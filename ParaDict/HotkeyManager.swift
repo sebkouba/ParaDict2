@@ -24,6 +24,10 @@ class HotkeyManager: ObservableObject {
     private var escapeEventTapSource: CFRunLoopSource?
     private var enterEventTap: CFMachPort?
     private var enterEventTapSource: CFRunLoopSource?
+    private var commandEventTap: CFMachPort?
+    private var commandEventTapSource: CFRunLoopSource?
+    /// Tracks whether Command is currently held (to fire only once per press)
+    private var commandKeyIsDown = false
 
 
     init() {
@@ -43,6 +47,12 @@ class HotkeyManager: ObservableObject {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
         if let tap = enterEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
+        if let source = commandEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        if let tap = commandEventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
     }
@@ -195,6 +205,96 @@ class HotkeyManager: ObservableObject {
         DictationCoordinator.shared.send(.enterPressed)
     }
 
+    // MARK: - Command Key Event Tap (Send and Stop)
+    // Uses CGEvent tap for flagsChanged events to detect Command key press
+
+    /// Start monitoring for Command key (uses CGEvent tap to consume the key)
+    func startCommandKeyMonitor() {
+        guard commandEventTap == nil else { return }
+
+        // Store reference for the C callback
+        HotkeyManager.sharedInstance = self
+
+        // Reset state tracking
+        commandKeyIsDown = false
+
+        // Create an event tap for flagsChanged events
+        let eventMask = (1 << CGEventType.flagsChanged.rawValue)
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                guard let manager = HotkeyManager.sharedInstance else {
+                    return Unmanaged.passRetained(event)
+                }
+
+                let flags = event.flags
+
+                // Check if Command is pressed without other modifiers (Shift, Option, Control)
+                let commandOnly = flags.contains(.maskCommand)
+                    && !flags.contains(.maskShift)
+                    && !flags.contains(.maskAlternate)
+                    && !flags.contains(.maskControl)
+
+                if commandOnly && !manager.commandKeyIsDown {
+                    // Command just pressed (key-down) — fire once
+                    manager.commandKeyIsDown = true
+                    Task { @MainActor in
+                        manager.handleCommandPressed()
+                    }
+                    // Consume the event to prevent it reaching other apps
+                    return nil
+                } else if !flags.contains(.maskCommand) && manager.commandKeyIsDown {
+                    // Command released — reset tracking, consume the release too
+                    manager.commandKeyIsDown = false
+                    return nil
+                }
+
+                // Pass through all other modifier events
+                return Unmanaged.passRetained(event)
+            },
+            userInfo: nil
+        ) else {
+            logger.error("Failed to create CGEvent tap for Command key")
+            return
+        }
+
+        commandEventTap = tap
+
+        // Create a run loop source and add it to the main run loop
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        commandEventTapSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+
+        // Enable the tap
+        CGEvent.tapEnable(tap: tap, enable: true)
+
+        logger.notice("Command key event tap started (will consume Command during hands-free recording)")
+    }
+
+    /// Stop monitoring for Command key
+    func stopCommandKeyMonitor() {
+        if let source = commandEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            commandEventTapSource = nil
+        }
+        if let tap = commandEventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            commandEventTap = nil
+        }
+        commandKeyIsDown = false
+        logger.notice("Command key event tap stopped")
+    }
+
+    private func handleCommandPressed() {
+        logger.notice("Command pressed - sending event to coordinator")
+        // Send event to DictationCoordinator - it handles all state transitions
+        DictationCoordinator.shared.send(.commandPressed)
+    }
+
     func setupKeyboardShortcuts() {
         logger.notice("Setting up keyboard shortcut handlers...")
 
@@ -343,6 +443,7 @@ class HotkeyManager: ObservableObject {
         shouldContinueAfterSubmit = false
         stopEscapeKeyMonitor()
         stopEnterKeyMonitor()
+        stopCommandKeyMonitor()
     }
 
     /// Start a new recording in continued hands-free mode after submit-and-continue

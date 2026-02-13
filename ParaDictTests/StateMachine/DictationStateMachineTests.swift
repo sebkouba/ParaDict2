@@ -46,7 +46,7 @@ final class DictationStateMachineTests: XCTestCase {
             .hotkeyUp(duration: 0.5),
             .enterPressed,
             .escapePressed,
-            .recordingComplete(url: URL(fileURLWithPath: "/test")),
+            .transcriptionEmpty,
             .transcriptionComplete(text: "test"),
             .pasteComplete,
         ]
@@ -83,15 +83,16 @@ final class DictationStateMachineTests: XCTestCase {
         // Long release (>= 1 second)
         let effects = sut.handle(.hotkeyUp(duration: 1.5))
 
-        if case .transcribing(let mode, _, let continueAfter) = sut.state {
+        if case .transcribing(let mode, _, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .local)
-            XCTAssertFalse(continueAfter)
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected transcribing state, got \(sut.state)")
         }
         XCTAssertTrue(effects.contains(.stopRecording))
         XCTAssertTrue(effects.contains(.stopEscapeMonitor))
         XCTAssertTrue(effects.contains(.stopEnterMonitor))
+        XCTAssertTrue(effects.contains(.stopCommandMonitor))
     }
 
     // MARK: - Hands-Free: Second Press Stops
@@ -105,9 +106,9 @@ final class DictationStateMachineTests: XCTestCase {
         // Second press
         let effects = sut.handle(.hotkeyDown(mode: .enhanced, prompt: nil, context: nil))
 
-        if case .transcribing(let mode, _, let continueAfter) = sut.state {
+        if case .transcribing(let mode, _, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .enhanced)
-            XCTAssertFalse(continueAfter)
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected transcribing state, got \(sut.state)")
         }
@@ -116,7 +117,7 @@ final class DictationStateMachineTests: XCTestCase {
 
     // MARK: - Hands-Free: Enter Pressed (Submit and Continue)
 
-    func testEnterPressedInHandsFreeModeSetsContinueAfter() {
+    func testEnterPressedInHandsFreeModeSetsSendAndContinue() {
         // Start in hands-free mode
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
         _ = sut.handle(.hotkeyUp(duration: 0.2))
@@ -124,9 +125,9 @@ final class DictationStateMachineTests: XCTestCase {
         // Press Enter
         let effects = sut.handle(.enterPressed)
 
-        if case .transcribing(let mode, _, let continueAfter) = sut.state {
+        if case .transcribing(let mode, _, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .local)
-            XCTAssertTrue(continueAfter, "continueAfter should be true when Enter pressed")
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected transcribing state, got \(sut.state)")
         }
@@ -173,14 +174,14 @@ final class DictationStateMachineTests: XCTestCase {
 
     func testTranscriptionCompleteToEnhancing() {
         // Set up transcribing state for enhanced mode
-        sut.setState(.transcribing(mode: .enhanced, prompt: "test prompt", continueAfter: false))
+        sut.setState(.transcribing(mode: .enhanced, prompt: "test prompt", postPasteAction: .stop))
 
         let effects = sut.handle(.transcriptionComplete(text: "Hello world"))
 
-        if case .enhancing(let mode, let prompt, let continueAfter) = sut.state {
+        if case .enhancing(let mode, let prompt, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .enhanced)
             XCTAssertEqual(prompt, "test prompt")
-            XCTAssertFalse(continueAfter)
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected enhancing state, got \(sut.state)")
         }
@@ -189,13 +190,13 @@ final class DictationStateMachineTests: XCTestCase {
 
     func testTranscriptionCompleteLocalModeToPasting() {
         // Set up transcribing state for local mode (no prompt)
-        sut.setState(.transcribing(mode: .local, prompt: nil, continueAfter: false))
+        sut.setState(.transcribing(mode: .local, prompt: nil, postPasteAction: .stop))
 
         let effects = sut.handle(.transcriptionComplete(text: "Hello world"))
 
-        if case .pasting(let mode, _, let continueAfter) = sut.state {
+        if case .pasting(let mode, _, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .local)
-            XCTAssertFalse(continueAfter)
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected pasting state, got \(sut.state)")
         }
@@ -204,7 +205,7 @@ final class DictationStateMachineTests: XCTestCase {
     }
 
     func testEmptyTranscriptionGoesToError() {
-        sut.setState(.transcribing(mode: .local, prompt: nil, continueAfter: false))
+        sut.setState(.transcribing(mode: .local, prompt: nil, postPasteAction: .stop))
 
         let effects = sut.handle(.transcriptionEmpty)
 
@@ -220,13 +221,13 @@ final class DictationStateMachineTests: XCTestCase {
     // MARK: - Enhancement Flow
 
     func testEnhancementCompleteToPasting() {
-        sut.setState(.enhancing(mode: .enhanced, prompt: "test", continueAfter: false))
+        sut.setState(.enhancing(mode: .enhanced, prompt: "test", postPasteAction: .stop))
 
         let effects = sut.handle(.enhancementComplete(text: "Enhanced text"))
 
-        if case .pasting(let mode, _, let continueAfter) = sut.state {
+        if case .pasting(let mode, _, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .enhanced)
-            XCTAssertFalse(continueAfter)
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected pasting state, got \(sut.state)")
         }
@@ -234,13 +235,13 @@ final class DictationStateMachineTests: XCTestCase {
     }
 
     func testEnhancementSkippedToPasting() {
-        sut.setState(.enhancing(mode: .enhanced, prompt: "test", continueAfter: true))
+        sut.setState(.enhancing(mode: .enhanced, prompt: "test", postPasteAction: .sendAndContinue))
 
         let effects = sut.handle(.enhancementSkipped(text: "Raw text"))
 
-        if case .pasting(let mode, _, let continueAfter) = sut.state {
+        if case .pasting(let mode, _, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .enhanced)
-            XCTAssertTrue(continueAfter)
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected pasting state, got \(sut.state)")
         }
@@ -250,7 +251,7 @@ final class DictationStateMachineTests: XCTestCase {
     // MARK: - Paste Complete
 
     func testPasteCompleteReturnsToIdle() {
-        sut.setState(.pasting(mode: .local, prompt: nil, continueAfter: false))
+        sut.setState(.pasting(mode: .local, prompt: nil, postPasteAction: .stop))
 
         let effects = sut.handle(.pasteComplete)
 
@@ -260,8 +261,8 @@ final class DictationStateMachineTests: XCTestCase {
 
     // MARK: - Continue After Submit
 
-    func testPasteCompleteWithContinueAfterRestartsRecording() {
-        sut.setState(.pasting(mode: .enhanced, prompt: "test prompt", continueAfter: true))
+    func testPasteCompleteWithSendAndContinueRestartsRecording() {
+        sut.setState(.pasting(mode: .enhanced, prompt: "test prompt", postPasteAction: .sendAndContinue))
 
         let effects = sut.handle(.pasteComplete)
 
@@ -274,19 +275,20 @@ final class DictationStateMachineTests: XCTestCase {
         XCTAssertFalse(effects.contains(.showIndicator), "showIndicator should NOT be included to avoid white flash")
         XCTAssertTrue(effects.contains(.startEscapeMonitor))
         XCTAssertTrue(effects.contains(.scheduleEnterMonitorStart))
+        XCTAssertTrue(effects.contains(.startCommandMonitor))
     }
 
-    func testContinueAfterPreservesThroughFlow() {
+    func testPostPasteActionPreservesThroughFlow() {
         // Start and activate hands-free
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
         _ = sut.handle(.hotkeyUp(duration: 0.2))
 
-        // Press Enter - sets continueAfter = true
+        // Press Enter - sets postPasteAction = .sendAndContinue
         _ = sut.handle(.enterPressed)
 
-        // Verify continueAfter is preserved through transitions
-        if case .transcribing(_, _, let continueAfter) = sut.state {
-            XCTAssertTrue(continueAfter)
+        // Verify postPasteAction is preserved through transitions
+        if case .transcribing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected transcribing state")
         }
@@ -294,8 +296,8 @@ final class DictationStateMachineTests: XCTestCase {
         // Complete transcription (local mode - no enhancement)
         _ = sut.handle(.transcriptionComplete(text: "test"))
 
-        if case .pasting(_, _, let continueAfter) = sut.state {
-            XCTAssertTrue(continueAfter)
+        if case .pasting(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected pasting state")
         }
@@ -307,9 +309,9 @@ final class DictationStateMachineTests: XCTestCase {
         let states: [DictationState] = [
             .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false),
             .recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false),
-            .transcribing(mode: .local, prompt: nil, continueAfter: false),
-            .enhancing(mode: .enhanced, prompt: "test", continueAfter: false),
-            .pasting(mode: .local, prompt: nil, continueAfter: false),
+            .transcribing(mode: .local, prompt: nil, postPasteAction: .stop),
+            .enhancing(mode: .enhanced, prompt: "test", postPasteAction: .stop),
+            .pasting(mode: .local, prompt: nil, postPasteAction: .stop),
         ]
 
         for initialState in states {
@@ -325,6 +327,7 @@ final class DictationStateMachineTests: XCTestCase {
             XCTAssertTrue(effects.contains(.hideIndicator))
             XCTAssertTrue(effects.contains(.stopEscapeMonitor))
             XCTAssertTrue(effects.contains(.stopEnterMonitor))
+            XCTAssertTrue(effects.contains(.stopCommandMonitor))
             XCTAssertTrue(effects.contains(.scheduleErrorTimeout))
         }
     }
@@ -353,15 +356,15 @@ final class DictationStateMachineTests: XCTestCase {
         XCTAssertFalse(DictationState.idle.isRecording)
         XCTAssertTrue(DictationState.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isRecording)
         XCTAssertTrue(DictationState.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).isRecording)
-        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).isRecording)
+        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, postPasteAction: .stop).isRecording)
     }
 
     func testStateIsProcessingProperty() {
         XCTAssertFalse(DictationState.idle.isProcessing)
         XCTAssertFalse(DictationState.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isProcessing)
-        XCTAssertTrue(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).isProcessing)
-        XCTAssertTrue(DictationState.enhancing(mode: .enhanced, prompt: "test", continueAfter: false).isProcessing)
-        XCTAssertTrue(DictationState.pasting(mode: .local, prompt: nil, continueAfter: false).isProcessing)
+        XCTAssertTrue(DictationState.transcribing(mode: .local, prompt: nil, postPasteAction: .stop).isProcessing)
+        XCTAssertTrue(DictationState.enhancing(mode: .enhanced, prompt: "test", postPasteAction: .stop).isProcessing)
+        XCTAssertTrue(DictationState.pasting(mode: .local, prompt: nil, postPasteAction: .stop).isProcessing)
         XCTAssertFalse(DictationState.error(message: "test").isProcessing)
     }
 
@@ -369,15 +372,16 @@ final class DictationStateMachineTests: XCTestCase {
         XCTAssertFalse(DictationState.idle.isHandsFree)
         XCTAssertFalse(DictationState.recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false).isHandsFree)
         XCTAssertTrue(DictationState.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).isHandsFree)
-        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).isHandsFree)
+        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, postPasteAction: .stop).isHandsFree)
     }
 
     func testStateShouldContinueAfterProperty() {
         XCTAssertFalse(DictationState.idle.shouldContinueAfter)
         XCTAssertFalse(DictationState.recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false).shouldContinueAfter)
-        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: false).shouldContinueAfter)
-        XCTAssertTrue(DictationState.transcribing(mode: .local, prompt: nil, continueAfter: true).shouldContinueAfter)
-        XCTAssertTrue(DictationState.pasting(mode: .local, prompt: nil, continueAfter: true).shouldContinueAfter)
+        XCTAssertFalse(DictationState.transcribing(mode: .local, prompt: nil, postPasteAction: .stop).shouldContinueAfter)
+        XCTAssertTrue(DictationState.transcribing(mode: .local, prompt: nil, postPasteAction: .sendAndContinue).shouldContinueAfter)
+        XCTAssertTrue(DictationState.pasting(mode: .local, prompt: nil, postPasteAction: .sendAndContinue).shouldContinueAfter)
+        XCTAssertFalse(DictationState.pasting(mode: .local, prompt: nil, postPasteAction: .sendAndStop).shouldContinueAfter)
     }
 
     // MARK: - Multiple Enter Presses (Regression Test)
@@ -389,7 +393,7 @@ final class DictationStateMachineTests: XCTestCase {
 
         // First Enter press
         _ = sut.handle(.enterPressed)
-        XCTAssertTrue(sut.state.shouldContinueAfter)
+        XCTAssertEqual(sut.state.postPasteAction, .sendAndContinue)
 
         // Simulate transcription complete
         _ = sut.handle(.transcriptionComplete(text: "first message"))
@@ -405,8 +409,8 @@ final class DictationStateMachineTests: XCTestCase {
 
         // Second Enter press should also work
         let effects2 = sut.handle(.enterPressed)
-        if case .transcribing(_, _, let continueAfter) = sut.state {
-            XCTAssertTrue(continueAfter)
+        if case .transcribing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected transcribing state after second Enter")
         }
@@ -425,10 +429,10 @@ final class DictationStateMachineTests: XCTestCase {
 
         // User releases after 2 seconds (long press)
         let stopEffects = sut.handle(.hotkeyUp(duration: 2.0))
-        if case .transcribing(let mode, let prompt, let continueAfter) = sut.state {
+        if case .transcribing(let mode, let prompt, let postPasteAction) = sut.state {
             XCTAssertEqual(mode, .enhanced)
             XCTAssertEqual(prompt, "test prompt")
-            XCTAssertFalse(continueAfter)
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected transcribing state")
         }
@@ -464,8 +468,8 @@ final class DictationStateMachineTests: XCTestCase {
 
         // Second tap stops recording
         let stopEffects = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
-        if case .transcribing(_, _, let continueAfter) = sut.state {
-            XCTAssertFalse(continueAfter)
+        if case .transcribing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .stop)
         } else {
             XCTFail("Expected transcribing state")
         }
@@ -481,8 +485,8 @@ final class DictationStateMachineTests: XCTestCase {
 
         // First Enter - submit and continue
         let enter1Effects = sut.handle(.enterPressed)
-        if case .transcribing(_, _, let continueAfter) = sut.state {
-            XCTAssertTrue(continueAfter, "continueAfter should be true after Enter")
+        if case .transcribing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected transcribing state")
         }
@@ -504,8 +508,8 @@ final class DictationStateMachineTests: XCTestCase {
 
         // Second Enter - submit and continue again
         _ = sut.handle(.enterPressed)
-        if case .transcribing(_, _, let continueAfter) = sut.state {
-            XCTAssertTrue(continueAfter)
+        if case .transcribing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndContinue)
         } else {
             XCTFail("Expected transcribing state after second Enter")
         }
@@ -615,5 +619,91 @@ final class DictationStateMachineTests: XCTestCase {
         let effects = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
         XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
         XCTAssertTrue(effects.contains(.startRecording(mode: .local, prompt: nil, context: nil)))
+    }
+
+    // MARK: - Command Key (Send and Stop)
+
+    func testCommandPressedInHandsFreeModeSetsSendAndStop() {
+        // Start in hands-free mode
+        _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
+        _ = sut.handle(.hotkeyUp(duration: 0.2))
+
+        // Press Command
+        let effects = sut.handle(.commandPressed)
+
+        if case .transcribing(let mode, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(mode, .local)
+            XCTAssertEqual(postPasteAction, .sendAndStop)
+        } else {
+            XCTFail("Expected transcribing state, got \(sut.state)")
+        }
+        XCTAssertTrue(effects.contains(.stopRecording))
+        XCTAssertTrue(effects.contains(.stopEscapeMonitor))
+        XCTAssertTrue(effects.contains(.stopEnterMonitor))
+        XCTAssertTrue(effects.contains(.stopCommandMonitor))
+    }
+
+    func testPasteCompleteWithSendAndStop_PressesEnterAndGoesIdle() {
+        sut.setState(.pasting(mode: .enhanced, prompt: "test prompt", postPasteAction: .sendAndStop))
+
+        let effects = sut.handle(.pasteComplete)
+
+        XCTAssertEqual(sut.state, .idle)
+        XCTAssertTrue(effects.contains(.pressEnterKey))
+        XCTAssertTrue(effects.contains(.hideIndicator))
+        // Should NOT restart recording
+        XCTAssertFalse(effects.contains(where: {
+            if case .startRecording = $0 { return true }
+            return false
+        }))
+    }
+
+    func testCommandIgnoredWhenNotHandsFree() {
+        // Start recording (not hands-free)
+        _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+
+        // Press Command - should be ignored
+        let effects = sut.handle(.commandPressed)
+
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertTrue(effects.isEmpty)
+    }
+
+    func testSendAndStopPreservesThroughEnhancementFlow() {
+        // Start in hands-free mode
+        _ = sut.handle(.hotkeyDown(mode: .enhanced, prompt: "dictation", context: nil))
+        _ = sut.handle(.hotkeyUp(duration: 0.2))
+
+        // Command press - send and stop
+        _ = sut.handle(.commandPressed)
+
+        if case .transcribing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndStop)
+        } else {
+            XCTFail("Expected transcribing state")
+        }
+
+        // Through enhancement
+        _ = sut.handle(.transcriptionComplete(text: "test message"))
+        if case .enhancing(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndStop)
+        } else {
+            XCTFail("Expected enhancing state")
+        }
+
+        // Through pasting
+        _ = sut.handle(.enhancementComplete(text: "Test message."))
+        if case .pasting(_, _, let postPasteAction) = sut.state {
+            XCTAssertEqual(postPasteAction, .sendAndStop)
+        } else {
+            XCTFail("Expected pasting state")
+        }
+
+        // Paste complete - should press Enter and go idle
+        let effects = sut.handle(.pasteComplete)
+        XCTAssertEqual(sut.state, .idle)
+        XCTAssertTrue(effects.contains(.pressEnterKey))
+        XCTAssertTrue(effects.contains(.hideIndicator))
     }
 }

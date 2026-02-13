@@ -17,6 +17,9 @@ enum DictationEvent: Equatable {
     /// User pressed Enter during hands-free recording (submit and continue)
     case enterPressed
 
+    /// User pressed Command during hands-free recording (send and stop)
+    case commandPressed
+
     /// User pressed Escape to cancel
     case escapePressed
 
@@ -80,6 +83,8 @@ extension DictationEvent: CustomStringConvertible {
             return "hotkeyUp(duration: \(String(format: "%.2f", duration))s)"
         case .enterPressed:
             return "enterPressed"
+        case .commandPressed:
+            return "commandPressed"
         case .escapePressed:
             return "escapePressed"
         case .transcriptionComplete(let text):

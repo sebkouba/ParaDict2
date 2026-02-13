@@ -166,6 +166,12 @@ final class DictationCoordinator: ObservableObject {
         case .stopEnterMonitor:
             HotkeyManager.shared.stopEnterKeyMonitor()
 
+        case .startCommandMonitor:
+            HotkeyManager.shared.startCommandKeyMonitor()
+
+        case .stopCommandMonitor:
+            HotkeyManager.shared.stopCommandKeyMonitor()
+
         case .scheduleEnterMonitorStart:
             scheduleEnterMonitorStart()
 

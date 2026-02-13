@@ -44,6 +44,7 @@ final class DictationStateMachine {
                 .showIndicator,
                 .startEscapeMonitor,
                 .startEnterMonitor,
+                .startCommandMonitor,
                 .startStreamingPreview
             ]
 
@@ -60,8 +61,8 @@ final class DictationStateMachine {
                 return []
             } else {
                 // Long press - stop recording
-                state = .transcribing(mode: mode, prompt: prompt, continueAfter: false)
-                return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
+                state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .stop)
+                return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
             }
 
         // MARK: - From Recording (hands-free, Enter monitor pending)
@@ -75,23 +76,28 @@ final class DictationStateMachine {
 
         case (.recording(let mode, let prompt, true, false), .hotkeyDown):
             // Second press in hands-free mode - stop recording
-            state = .transcribing(mode: mode, prompt: prompt, continueAfter: false)
-            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
+            state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .stop)
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
 
         case (.recording(let mode, let prompt, true, false), .enterPressed):
             // Enter in hands-free mode - stop recording and continue after paste
-            state = .transcribing(mode: mode, prompt: prompt, continueAfter: true)
-            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
+            state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .sendAndContinue)
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
+
+        case (.recording(let mode, let prompt, true, false), .commandPressed):
+            // Command in hands-free mode - stop recording, send and stop
+            state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .sendAndStop)
+            return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
 
         // MARK: - From Recording (any)
 
         case (.recording, .escapePressed):
             state = .idle
-            return [.cancelRecording, .hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopStreamingPreview]
+            return [.cancelRecording, .hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
 
         // MARK: - From Transcribing
 
-        case (.transcribing(let mode, let prompt, let continueAfter), .transcriptionComplete(let text)):
+        case (.transcribing(let mode, let prompt, let postPasteAction), .transcriptionComplete(let text)):
             // Check mode for appropriate processing
             if mode == .command, let prompt = prompt {
                 // Command mode - execute tool calls
@@ -99,11 +105,11 @@ final class DictationStateMachine {
                 return [.executeCommand(text: text, prompt: prompt)]
             } else if (mode == .enhanced || mode == .reply), let prompt = prompt {
                 // Enhanced/reply mode - LLM enhancement
-                state = .enhancing(mode: mode, prompt: prompt, continueAfter: continueAfter)
+                state = .enhancing(mode: mode, prompt: prompt, postPasteAction: postPasteAction)
                 return [.enhance(text: text, prompt: prompt, context: nil)]
             } else {
                 // Local mode or no prompt - go straight to pasting
-                state = .pasting(mode: mode, prompt: prompt, continueAfter: continueAfter)
+                state = .pasting(mode: mode, prompt: prompt, postPasteAction: postPasteAction)
                 return [
                     .paste(text: text),
                     .logTranscription(transcription: text, enhanced: nil, mode: mode),
@@ -111,25 +117,26 @@ final class DictationStateMachine {
                 ]
             }
 
-        case (.transcribing(let mode, let prompt, let continueAfter), .transcriptionEmpty):
-            if continueAfter {
+        case (.transcribing(let mode, let prompt, let postPasteAction), .transcriptionEmpty):
+            if postPasteAction == .sendAndContinue {
                 // Continuous mode - restart recording instead of showing error
                 state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: true)
                 return [
                     .startRecording(mode: mode, prompt: prompt, context: nil),
                     .startEscapeMonitor,
                     .scheduleEnterMonitorStart,
+                    .startCommandMonitor,
                     .startStreamingPreview
                 ]
             } else {
-                // Normal mode - show error
+                // Normal mode or sendAndStop - show error
                 state = .error(message: "No speech detected")
-                return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: "No speech detected"), .scheduleErrorTimeout]
+                return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .showError(message: "No speech detected"), .scheduleErrorTimeout]
             }
 
         case (.transcribing, .correctionKeywordDetected(let originalTranscription, let llmOutput)):
             state = .idle
-            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showCorrectionWindow(originalTranscription: originalTranscription, llmOutput: llmOutput)]
+            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .showCorrectionWindow(originalTranscription: originalTranscription, llmOutput: llmOutput)]
 
         case (.transcribing, .escapePressed):
             // Allow canceling during transcription
@@ -138,16 +145,16 @@ final class DictationStateMachine {
 
         // MARK: - From Enhancing
 
-        case (.enhancing(let mode, let prompt, let continueAfter), .enhancementComplete(let text)):
-            state = .pasting(mode: mode, prompt: prompt, continueAfter: continueAfter)
+        case (.enhancing(let mode, let prompt, let postPasteAction), .enhancementComplete(let text)):
+            state = .pasting(mode: mode, prompt: prompt, postPasteAction: postPasteAction)
             return [
                 .paste(text: text),
                 .schedulePasteComplete
             ]
 
-        case (.enhancing(let mode, let prompt, let continueAfter), .enhancementSkipped(let text)):
+        case (.enhancing(let mode, let prompt, let postPasteAction), .enhancementSkipped(let text)):
             // LLM not available - use raw transcription
-            state = .pasting(mode: mode, prompt: prompt, continueAfter: continueAfter)
+            state = .pasting(mode: mode, prompt: prompt, postPasteAction: postPasteAction)
             return [
                 .paste(text: text),
                 .logTranscription(transcription: text, enhanced: nil, mode: mode),
@@ -176,7 +183,7 @@ final class DictationStateMachine {
 
         // MARK: - From Pasting
 
-        case (.pasting(let mode, let prompt, true), .pasteComplete):
+        case (.pasting(let mode, let prompt, .sendAndContinue), .pasteComplete):
             // Continue after paste - press Enter and restart recording
             // Don't hide/show indicator - keep it visible to avoid white flash
             // IMPORTANT: Start Enter monitor LATER via scheduleEnterMonitorStart to avoid
@@ -187,8 +194,14 @@ final class DictationStateMachine {
                 .startRecording(mode: mode, prompt: prompt, context: nil),
                 .startEscapeMonitor,
                 .scheduleEnterMonitorStart,
+                .startCommandMonitor,
                 .startStreamingPreview
             ]
+
+        case (.pasting(_, _, .sendAndStop), .pasteComplete):
+            // Send and stop - press Enter then go idle
+            state = .idle
+            return [.pressEnterKey, .hideIndicator]
 
         case (.pasting, .pasteComplete):
             // Normal paste complete - return to idle
@@ -209,6 +222,7 @@ final class DictationStateMachine {
                 .showIndicator,
                 .startEscapeMonitor,
                 .startEnterMonitor,
+                .startCommandMonitor,
                 .startStreamingPreview
             ]
 
@@ -216,7 +230,7 @@ final class DictationStateMachine {
 
         case (_, .error(let message)):
             state = .error(message: message)
-            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .showError(message: message), .scheduleErrorTimeout]
+            return [.hideIndicator, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .showError(message: message), .scheduleErrorTimeout]
 
         // MARK: - Default (invalid transitions)
 

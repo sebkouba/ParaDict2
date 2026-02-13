@@ -58,6 +58,12 @@ enum DictationSideEffect: Equatable {
     /// Stop monitoring for Enter key
     case stopEnterMonitor
 
+    /// Start monitoring for Command key (send and stop)
+    case startCommandMonitor
+
+    /// Stop monitoring for Command key
+    case stopCommandMonitor
+
     /// Schedule a timer to start Enter monitor after delay (avoids catching programmatic Enter)
     case scheduleEnterMonitorStart
 
@@ -137,6 +143,10 @@ extension DictationSideEffect: CustomStringConvertible {
             return "startEnterMonitor"
         case .stopEnterMonitor:
             return "stopEnterMonitor"
+        case .startCommandMonitor:
+            return "startCommandMonitor"
+        case .stopCommandMonitor:
+            return "stopCommandMonitor"
         case .scheduleEnterMonitorStart:
             return "scheduleEnterMonitorStart"
         case .scheduleErrorTimeout:

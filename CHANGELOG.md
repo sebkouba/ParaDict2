@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Command key "Send and Stop" during hands-free dictation: press Command to transcribe, paste, send Enter, and stop (vs Enter which sends and continues)
 - Utterance-level text finalization in streaming preview: confirmed words turn white on silence detection, in-progress words stay gray
 - Live transcription preview: streaming transcription shown in a floating overlay while recording (configurable placement: above indicator, subtitle bar, near cursor, or disabled)
 - AVAudioEngine-based recording with in-memory audio buffer for real-time transcription access
