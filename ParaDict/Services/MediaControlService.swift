@@ -11,6 +11,7 @@ private let mediaRemoteBundle: CFBundle? = {
 }()
 
 private typealias MRMediaRemoteSendCommandFunction = @convention(c) (UInt32, UnsafeRawPointer?) -> Bool
+private typealias MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction = @convention(c) (DispatchQueue, @escaping @convention(block) (Bool) -> Void) -> Void
 
 private let MRMediaRemoteSendCommand: MRMediaRemoteSendCommandFunction? = {
     guard let bundle = mediaRemoteBundle,
@@ -18,6 +19,14 @@ private let MRMediaRemoteSendCommand: MRMediaRemoteSendCommandFunction? = {
         return nil
     }
     return unsafeBitCast(pointer, to: MRMediaRemoteSendCommandFunction.self)
+}()
+
+private let MRMediaRemoteGetNowPlayingApplicationIsPlaying: MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction? = {
+    guard let bundle = mediaRemoteBundle,
+          let pointer = CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying" as CFString) else {
+        return nil
+    }
+    return unsafeBitCast(pointer, to: MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction.self)
 }()
 
 private let kMRPlay: UInt32 = 0
@@ -109,7 +118,37 @@ class MediaControlService: ObservableObject {
         }
     }
 
-    // MARK: - Media Playback Control (YouTube Mode)
+    // MARK: - Media Playback Control
+
+    /// Query whether system media is currently playing.
+    func isMediaPlaying() async -> Bool {
+        guard let getIsPlaying = MRMediaRemoteGetNowPlayingApplicationIsPlaying else {
+            logger.warning("isMediaPlaying: MediaRemote query not available")
+            return false
+        }
+        return await withCheckedContinuation { continuation in
+            getIsPlaying(DispatchQueue.main) { isPlaying in
+                continuation.resume(returning: isPlaying)
+            }
+        }
+    }
+
+    /// Pause system media only if something is currently playing.
+    /// Returns true if media was actually paused, false if nothing was playing or command failed.
+    func pauseIfPlaying() async -> Bool {
+        let playing = await isMediaPlaying()
+        guard playing else {
+            logger.notice("pauseIfPlaying: nothing playing, skipping pause")
+            return false
+        }
+        guard let sendCommand = MRMediaRemoteSendCommand else {
+            logger.warning("pauseIfPlaying: MediaRemote send not available")
+            return false
+        }
+        let success = sendCommand(kMRPause, nil)
+        logger.notice("pauseIfPlaying: media was playing, sent pause command, success=\(success)")
+        return success
+    }
 
     /// Send pause command to system media. Returns true if command was sent.
     func pauseMedia() -> Bool {
@@ -122,7 +161,8 @@ class MediaControlService: ObservableObject {
         return success
     }
 
-    /// Send play command to system media. Returns true if command was sent.
+    /// Resume media playback. Uses explicit play (not toggle) to avoid state mismatches.
+    /// Only call this if you previously paused media via pauseIfPlaying().
     func resumeMedia() -> Bool {
         guard let sendCommand = MRMediaRemoteSendCommand else {
             logger.warning("resumeMedia: MediaRemote not available")

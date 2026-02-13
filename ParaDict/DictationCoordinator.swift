@@ -51,9 +51,11 @@ final class DictationCoordinator: ObservableObject {
 
     // MARK: - Playback Pausing Mode
 
-    /// When enabled, media is paused during dictation and resumed after
-    @Published private(set) var isPlaybackPausingEnabled = false
-    /// Tracks if we sent a pause command (to know whether to resume)
+    /// When enabled, media is paused during dictation and resumed after (persisted)
+    @Published private(set) var isPlaybackPausingEnabled: Bool {
+        didSet { AppSettings.shared.pauseMediaDuringDictation = isPlaybackPausingEnabled }
+    }
+    /// Tracks if we actually paused media this session (to know whether to resume)
     private var didPauseMedia = false
 
     // MARK: - Text Formatting Options (persisted)
@@ -74,7 +76,8 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Initialization
 
     private init() {
-        // Load persisted text formatting options
+        // Load persisted settings
+        isPlaybackPausingEnabled = AppSettings.shared.pauseMediaDuringDictation
         isTrailingPunctuationRemovalEnabled = UserDefaults.standard.bool(forKey: "TrailingPunctuationRemoval")
         isTrailingSpaceEnabled = UserDefaults.standard.bool(forKey: "TrailingSpace")
         isTrailingLineBreakEnabled = UserDefaults.standard.bool(forKey: "TrailingLineBreak")
@@ -109,13 +112,8 @@ final class DictationCoordinator: ObservableObject {
 
         switch effect {
         case .startRecording(let mode, let prompt, let context):
-            // Pause media SYNCHRONOUSLY before the async recording starts
-            // This ensures didPauseMedia is set before any subsequent events
-            if isPlaybackPausingEnabled {
-                logger.notice("Playback pausing enabled - pausing media (sync)")
-                didPauseMedia = mediaControlService.pauseMedia()
-                logger.notice("didPauseMedia set to: \(self.didPauseMedia)")
-            }
+            // Reset media pause tracking for this session
+            didPauseMedia = false
             Task {
                 await startRecording(mode: mode, prompt: prompt, context: context)
             }
@@ -213,9 +211,6 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Recording
 
     private func startRecording(mode: DictationMode, prompt: String?, context: String?) async {
-        // Note: Media pausing is handled synchronously in execute() before this async function runs
-        // This ensures didPauseMedia is set before any subsequent events can check it
-
         // Store context for later use
         currentContext = context
 
@@ -224,7 +219,17 @@ final class DictationCoordinator: ObservableObject {
         do {
             try await recordingService.startRecording()
             logger.notice("Recording started successfully")
+
+            // Pause media AFTER successful audio setup (spec: "after audio setup succeeds
+            // but before processing audio"). This avoids pausing for sessions that fail to start.
+            if isPlaybackPausingEnabled {
+                let paused = await mediaControlService.pauseIfPlaying()
+                didPauseMedia = paused
+                logger.notice("Playback pausing: didPauseMedia=\(paused)")
+            }
         } catch {
+            // Resume media if we somehow paused it before the failure
+            resumeMediaIfNeeded()
             logger.error("Failed to start recording: \(error.localizedDescription)")
             send(.error(message: "Failed to start recording: \(error.localizedDescription)"))
         }
@@ -704,6 +709,13 @@ final class DictationCoordinator: ObservableObject {
         isPlaybackPausingEnabled.toggle()
         NSSound.beep()
         logger.notice("Playback pausing toggled via UI: \(self.isPlaybackPausingEnabled)")
+    }
+
+    /// Sync playback pausing state from settings UI (avoids double-write since @AppStorage already persisted)
+    func syncPlaybackPausing(_ enabled: Bool) {
+        guard isPlaybackPausingEnabled != enabled else { return }
+        isPlaybackPausingEnabled = enabled
+        logger.notice("Playback pausing synced from settings: \(enabled)")
     }
 
     func toggleTrailingPunctuationRemoval() {

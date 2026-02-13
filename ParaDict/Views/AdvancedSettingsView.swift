@@ -5,6 +5,7 @@ struct AdvancedSettingsView: View {
     @AppStorage(SettingsKeys.enhancementTimeoutPerTokenMs) private var enhancementTimeoutPerTokenMs = SettingsDefaults.enhancementTimeoutPerTokenMs
     @AppStorage(SettingsKeys.obsidianDailyNoteEnabled) private var obsidianDailyNoteEnabled = SettingsDefaults.obsidianDailyNoteEnabled
     @AppStorage(SettingsKeys.obsidianVault) private var obsidianVault: String = ""
+    @AppStorage(SettingsKeys.pauseMediaDuringDictation) private var pauseMediaDuringDictation = SettingsDefaults.pauseMediaDuringDictation
     @AppStorage(SettingsKeys.streamingPreviewEnabled) private var streamingPreviewEnabled = SettingsDefaults.streamingPreviewEnabled
 
     var body: some View {
@@ -53,6 +54,45 @@ struct AdvancedSettingsView: View {
                         }
                         .toggleStyle(.switch)
                         .padding(.vertical, 4)
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    )
+                }
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+
+                // Media Playback
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("Media Playback", systemImage: "pause.circle")
+                        .font(.headline)
+
+                    Text("Control system media during dictation")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle(isOn: $pauseMediaDuringDictation) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Pause Media During Dictation")
+                                    .font(.body)
+                                Text("Automatically pause playing audio/video when recording starts. Resumes only if ParaDict paused it.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .padding(.vertical, 4)
+                        .onChange(of: pauseMediaDuringDictation) {
+                            DictationCoordinator.shared.syncPlaybackPausing(pauseMediaDuringDictation)
+                        }
                     }
                     .padding()
                     .background(
