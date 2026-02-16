@@ -53,6 +53,9 @@ enum DictationEvent: Equatable {
     /// Enter key monitor delay completed - safe to start monitoring
     case enterMonitorReady
 
+    /// Command key monitor delay completed - safe to start monitoring
+    case commandMonitorReady
+
     // MARK: - Command Events
 
     /// Command execution completed successfully
@@ -101,6 +104,8 @@ extension DictationEvent: CustomStringConvertible {
             return "pasteComplete"
         case .enterMonitorReady:
             return "enterMonitorReady"
+        case .commandMonitorReady:
+            return "commandMonitorReady"
         case .commandComplete:
             return "commandComplete"
         case .commandFailed(let message):

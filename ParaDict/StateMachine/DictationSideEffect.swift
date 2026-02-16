@@ -67,6 +67,9 @@ enum DictationSideEffect: Equatable {
     /// Schedule a timer to start Enter monitor after delay (avoids catching programmatic Enter)
     case scheduleEnterMonitorStart
 
+    /// Schedule a timer to start Command monitor after delay (avoids catching Command key-up from shortcut)
+    case scheduleCommandMonitorStart
+
     // MARK: - Timers
 
     /// Schedule a timer to dismiss error after delay
@@ -149,6 +152,8 @@ extension DictationSideEffect: CustomStringConvertible {
             return "stopCommandMonitor"
         case .scheduleEnterMonitorStart:
             return "scheduleEnterMonitorStart"
+        case .scheduleCommandMonitorStart:
+            return "scheduleCommandMonitorStart"
         case .scheduleErrorTimeout:
             return "scheduleErrorTimeout"
         case .schedulePasteComplete:

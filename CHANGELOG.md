@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Command key monitor debounce: releasing Command from the shortcut key combo no longer falsely triggers "Send and Stop" during hands-free dictation
+
 ### Added
 - Command key "Send and Stop" during hands-free dictation: press Command to transcribe, paste, send Enter, and stop (vs Enter which sends and continues)
 - Utterance-level text finalization in streaming preview: confirmed words turn white on silence detection, in-progress words stay gray

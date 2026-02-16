@@ -38,13 +38,13 @@ final class DictationStateMachine {
         // MARK: - From Idle
 
         case (.idle, .hotkeyDown(let mode, let prompt, let context)):
-            state = .recording(mode: mode, prompt: prompt, isHandsFree: false, enterMonitorPending: false)
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: false, commandMonitorPending: true)
             return [
                 .startRecording(mode: mode, prompt: prompt, context: context),
                 .showIndicator,
                 .startEscapeMonitor,
                 .startEnterMonitor,
-                .startCommandMonitor,
+                .scheduleCommandMonitorStart,
                 .startStreamingPreview
             ]
 
@@ -54,10 +54,10 @@ final class DictationStateMachine {
 
         // MARK: - From Recording (not hands-free)
 
-        case (.recording(let mode, let prompt, false, _), .hotkeyUp(let duration)):
+        case (.recording(let mode, let prompt, false, _, let cmdPending), .hotkeyUp(let duration)):
             if duration < briefPressThreshold {
-                // Brief press - activate hands-free mode
-                state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: false)
+                // Brief press - activate hands-free mode, preserve commandMonitorPending
+                state = .recording(mode: mode, prompt: prompt, isHandsFree: true, commandMonitorPending: cmdPending)
                 return []
             } else {
                 // Long press - stop recording
@@ -65,27 +65,32 @@ final class DictationStateMachine {
                 return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
             }
 
-        // MARK: - From Recording (hands-free, Enter monitor pending)
+        // MARK: - From Recording (hands-free, monitor pending states)
 
-        case (.recording(let mode, let prompt, true, true), .enterMonitorReady):
+        case (.recording(let mode, let prompt, true, true, let cmdPending), .enterMonitorReady):
             // Enter monitor delay completed - now safe to start monitoring
-            state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: false)
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: false, commandMonitorPending: cmdPending)
             return [.startEnterMonitor]
 
-        // MARK: - From Recording (hands-free, Enter monitor active)
+        case (.recording(let mode, let prompt, true, let enterPending, true), .commandMonitorReady):
+            // Command monitor delay completed - now safe to start monitoring
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: true, enterMonitorPending: enterPending, commandMonitorPending: false)
+            return [.startCommandMonitor]
 
-        case (.recording(let mode, let prompt, true, false), .hotkeyDown):
+        // MARK: - From Recording (hands-free, monitors active)
+
+        case (.recording(let mode, let prompt, true, false, _), .hotkeyDown):
             // Second press in hands-free mode - stop recording
             state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .stop)
             return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
 
-        case (.recording(let mode, let prompt, true, false), .enterPressed):
+        case (.recording(let mode, let prompt, true, false, _), .enterPressed):
             // Enter in hands-free mode - stop recording and continue after paste
             state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .sendAndContinue)
             return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
 
-        case (.recording(let mode, let prompt, true, false), .commandPressed):
-            // Command in hands-free mode - stop recording, send and stop
+        case (.recording(let mode, let prompt, true, _, false), .commandPressed):
+            // Command in hands-free mode (monitor active) - stop recording, send and stop
             state = .transcribing(mode: mode, prompt: prompt, postPasteAction: .sendAndStop)
             return [.stopRecording, .stopEscapeMonitor, .stopEnterMonitor, .stopCommandMonitor, .stopStreamingPreview]
 
@@ -216,13 +221,13 @@ final class DictationStateMachine {
 
         case (.error, .hotkeyDown(let mode, let prompt, let context)):
             // Allow starting new recording from error state
-            state = .recording(mode: mode, prompt: prompt, isHandsFree: false, enterMonitorPending: false)
+            state = .recording(mode: mode, prompt: prompt, isHandsFree: false, commandMonitorPending: true)
             return [
                 .startRecording(mode: mode, prompt: prompt, context: context),
                 .showIndicator,
                 .startEscapeMonitor,
                 .startEnterMonitor,
-                .startCommandMonitor,
+                .scheduleCommandMonitorStart,
                 .startStreamingPreview
             ]
 

@@ -43,6 +43,7 @@ final class DictationCoordinator: ObservableObject {
     private var errorTimeoutTask: Task<Void, Never>?
     private var pasteCompleteTask: Task<Void, Never>?
     private var enterMonitorStartTask: Task<Void, Never>?
+    private var commandMonitorStartTask: Task<Void, Never>?
 
     /// Tracks the last raw transcription from Parakeet (for correction feature)
     private var lastRawTranscription: String?
@@ -174,6 +175,9 @@ final class DictationCoordinator: ObservableObject {
 
         case .scheduleEnterMonitorStart:
             scheduleEnterMonitorStart()
+
+        case .scheduleCommandMonitorStart:
+            scheduleCommandMonitorStart()
 
         case .scheduleErrorTimeout:
             scheduleErrorTimeout()
@@ -618,6 +622,18 @@ final class DictationCoordinator: ObservableObject {
             try? await Task.sleep(nanoseconds: 300_000_000)
             if !Task.isCancelled {
                 send(.enterMonitorReady)
+            }
+        }
+    }
+
+    private func scheduleCommandMonitorStart() {
+        commandMonitorStartTask?.cancel()
+        commandMonitorStartTask = Task {
+            // Wait for Command key-up from the shortcut to be fully processed
+            // 300ms is enough for the modifier key release to propagate
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            if !Task.isCancelled {
+                send(.commandMonitorReady)
             }
         }
     }

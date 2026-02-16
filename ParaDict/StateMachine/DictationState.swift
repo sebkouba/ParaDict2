@@ -21,7 +21,8 @@ enum DictationState: Equatable {
     /// - prompt: The prompt to use for enhancement (if applicable)
     /// - isHandsFree: True if user did a brief press (tap-to-record), false if holding
     /// - enterMonitorPending: True if Enter key monitor hasn't started yet (after sendAndContinue)
-    case recording(mode: DictationMode, prompt: String?, isHandsFree: Bool, enterMonitorPending: Bool = false)
+    /// - commandMonitorPending: True if Command key monitor hasn't started yet (after hotkeyDown)
+    case recording(mode: DictationMode, prompt: String?, isHandsFree: Bool, enterMonitorPending: Bool = false, commandMonitorPending: Bool = false)
 
     /// Transcribing recorded audio with Parakeet
     /// - mode: The dictation mode
@@ -56,7 +57,7 @@ enum DictationState: Equatable {
         switch self {
         case .idle, .error:
             return nil
-        case .recording(let mode, _, _, _),
+        case .recording(let mode, _, _, _, _),
              .transcribing(let mode, _, postPasteAction: _),
              .enhancing(let mode, _, postPasteAction: _),
              .pasting(let mode, _, postPasteAction: _),
@@ -83,7 +84,7 @@ enum DictationState: Equatable {
 
     /// Returns true if in hands-free recording mode
     var isHandsFree: Bool {
-        if case .recording(_, _, let handsFree, _) = self {
+        if case .recording(_, _, let handsFree, _, _) = self {
             return handsFree
         }
         return false
@@ -120,7 +121,7 @@ enum DictationState: Equatable {
     /// Returns the prompt if in a state that has one
     var prompt: String? {
         switch self {
-        case .recording(_, let prompt, _, _),
+        case .recording(_, let prompt, _, _, _),
              .transcribing(_, let prompt, postPasteAction: _),
              .enhancing(_, let prompt, postPasteAction: _),
              .pasting(_, let prompt, postPasteAction: _),
@@ -139,12 +140,12 @@ extension DictationState: CustomStringConvertible {
         switch self {
         case .idle:
             return "idle"
-        case .recording(let mode, _, let isHandsFree, let enterMonitorPending):
-            if enterMonitorPending {
-                return "recording(\(mode.rawValue), handsFree: \(isHandsFree), enterMonitorPending)"
-            } else {
-                return "recording(\(mode.rawValue), handsFree: \(isHandsFree))"
-            }
+        case .recording(let mode, _, let isHandsFree, let enterMonitorPending, let commandMonitorPending):
+            var extras: [String] = []
+            if enterMonitorPending { extras.append("enterMonitorPending") }
+            if commandMonitorPending { extras.append("commandMonitorPending") }
+            let suffix = extras.isEmpty ? "" : ", \(extras.joined(separator: ", "))"
+            return "recording(\(mode.rawValue), handsFree: \(isHandsFree)\(suffix))"
         case .transcribing(let mode, _, let action):
             return "transcribing(\(mode.rawValue), postPasteAction: \(action))"
         case .enhancing(let mode, _, let action):
