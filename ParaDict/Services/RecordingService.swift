@@ -29,12 +29,12 @@ class RecordingService: NSObject, ObservableObject {
     private let targetChannels: AVAudioChannelCount = 1
 
     enum RecordingError: LocalizedError {
-        case couldNotStartRecording
+        case couldNotStartRecording(reason: String)
 
         var errorDescription: String? {
             switch self {
-            case .couldNotStartRecording:
-                return "Could not start recording"
+            case .couldNotStartRecording(let reason):
+                return reason
             }
         }
     }
@@ -85,6 +85,12 @@ class RecordingService: NSObject, ObservableObject {
 
             logger.notice("Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch")
 
+            if inputFormat.sampleRate == 0 || inputFormat.channelCount == 0 {
+                throw RecordingError.couldNotStartRecording(
+                    reason: "Microphone unavailable — check if laptop lid is closed or try a different input device"
+                )
+            }
+
             // Create the target format for the tap: 16kHz mono Float32
             // AVAudioEngine will handle sample rate conversion from the hardware format
             guard let tapFormat = AVAudioFormat(
@@ -93,7 +99,7 @@ class RecordingService: NSObject, ObservableObject {
                 channels: targetChannels,
                 interleaved: false
             ) else {
-                throw RecordingError.couldNotStartRecording
+                throw RecordingError.couldNotStartRecording(reason: "Could not create audio format")
             }
 
             self.engine = engine
@@ -170,10 +176,16 @@ class RecordingService: NSObject, ObservableObject {
 
             logger.notice("Recording started with AVAudioEngine (buffer-only)")
 
+        } catch let recordingError as RecordingError {
+            logger.error("Recording failed: \(recordingError.localizedDescription)")
+            stopRecording()
+            throw recordingError
         } catch {
             logger.error("Failed to start audio engine: \(error.localizedDescription)")
             stopRecording()
-            throw RecordingError.couldNotStartRecording
+            throw RecordingError.couldNotStartRecording(
+                reason: "Audio engine error — try a different input device"
+            )
         }
     }
 
