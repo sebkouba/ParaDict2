@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Command key monitor debounce: releasing Command from the shortcut key combo no longer falsely triggers "Send and Stop" during hands-free dictation
 
 ### Added
+- Pause media during dictation: automatically pause system media (including browser audio like YouTube) when recording starts, resume when done. Toggle via Advanced settings, menu bar, or voice command ("pause playback")
 - Command key "Send and Stop" during hands-free dictation: press Command to transcribe, paste, send Enter, and stop (vs Enter which sends and continues)
 - Utterance-level text finalization in streaming preview: confirmed words turn white on silence detection, in-progress words stay gray
 - Live transcription preview: streaming transcription shown in a floating overlay while recording (configurable placement: above indicator, subtitle bar, near cursor, or disabled)
@@ -28,7 +29,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Directory Watcher: Cancel button to stop ongoing transcription queue
 - Directory Watcher: "Skip Existing Files" button to mark all current files as processed
 - Directory Watcher: Shows pending files count during batch processing
-- Playback Pausing Mode: voice-controlled media pause/resume during dictation (say "playback pausing on/off") with menu bar toggle
 - Directory Watcher shows processing indicator when transcribing a file
 - Directory Watcher feature: automatically transcribe audio files dropped into a watched folder
 - Clickable prompts in shortcuts view for quick configuration
@@ -73,7 +73,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Prompt file double extension bug (e.g., `dictation.md.md`) when saving prompts with `.md` in the name
 - Directory Watcher now properly restarts when input/output directories change in UI
 - Restore GCD background queue for audio sample reading (regression from cleanup commit)
-- Playback pausing mode resumes immediately when recording stops (not after paste)
 - WAV to float sample conversion optimized (eliminated 81M Data slice allocations)
 - Audio conversion no longer blocks UI (moved to GCD background queue)
 - Live dictation no longer blocks UI during transcription (moved to background thread)

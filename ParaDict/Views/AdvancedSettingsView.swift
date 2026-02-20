@@ -5,6 +5,7 @@ struct AdvancedSettingsView: View {
     @AppStorage(SettingsKeys.enhancementTimeoutPerTokenMs) private var enhancementTimeoutPerTokenMs = SettingsDefaults.enhancementTimeoutPerTokenMs
     @AppStorage(SettingsKeys.obsidianDailyNoteEnabled) private var obsidianDailyNoteEnabled = SettingsDefaults.obsidianDailyNoteEnabled
     @AppStorage(SettingsKeys.obsidianVault) private var obsidianVault: String = ""
+    @AppStorage(SettingsKeys.pauseMediaDuringDictation) private var pauseMediaDuringDictation = SettingsDefaults.pauseMediaDuringDictation
     @AppStorage(SettingsKeys.streamingPreviewEnabled) private var streamingPreviewEnabled = SettingsDefaults.streamingPreviewEnabled
 
     var body: some View {
@@ -31,6 +32,42 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 .padding(.vertical, 40)
+
+                // Media Playback
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("Media Playback", systemImage: "pause.circle")
+                        .font(.headline)
+
+                    Text("Automatically pause media while dictating and resume when done")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle(isOn: $pauseMediaDuringDictation) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Pause Playback During Dictation")
+                                    .font(.body)
+                                Text("Pauses system media (including browser audio) while recording")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .padding(.vertical, 4)
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    )
+                }
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
 
                 // Live Preview
                 VStack(alignment: .leading, spacing: 16) {
