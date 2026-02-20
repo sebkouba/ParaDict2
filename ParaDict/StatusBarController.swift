@@ -77,10 +77,10 @@ class StatusBarController: NSObject, NSMenuDelegate {
 
         menu?.addItem(NSMenuItem.separator())
 
-        // Playback Pausing toggle
-        playbackPausingItem = NSMenuItem(title: "Playback Pausing", action: #selector(togglePlaybackPausing), keyEquivalent: "")
+        // Playback pausing toggle
+        playbackPausingItem = NSMenuItem(title: "Pause Playback", action: #selector(togglePlaybackPausing), keyEquivalent: "")
         playbackPausingItem?.target = self
-        playbackPausingItem?.state = .off
+        playbackPausingItem?.state = dictationCoordinator?.isPlaybackPausingEnabled == true ? .on : .off
         menu?.addItem(playbackPausingItem!)
 
         menu?.addItem(NSMenuItem.separator())

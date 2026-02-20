@@ -33,21 +33,21 @@ struct AdvancedSettingsView: View {
                 }
                 .padding(.vertical, 40)
 
-                // Live Preview
+                // Media Playback
                 VStack(alignment: .leading, spacing: 16) {
-                    Label("Live Preview", systemImage: "text.bubble")
+                    Label("Media Playback", systemImage: "pause.circle")
                         .font(.headline)
 
-                    Text("Show a streaming transcription preview above the recording indicator while speaking")
+                    Text("Automatically pause media while dictating and resume when done")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle(isOn: $streamingPreviewEnabled) {
+                        Toggle(isOn: $pauseMediaDuringDictation) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Show Live Preview")
+                                Text("Pause Playback During Dictation")
                                     .font(.body)
-                                Text("Partial transcription updates in real-time as you speak")
+                                Text("Pauses system media (including browser audio) while recording")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -69,30 +69,27 @@ struct AdvancedSettingsView: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
 
-                // Media Playback
+                // Live Preview
                 VStack(alignment: .leading, spacing: 16) {
-                    Label("Media Playback", systemImage: "pause.circle")
+                    Label("Live Preview", systemImage: "text.bubble")
                         .font(.headline)
 
-                    Text("Control system media during dictation")
+                    Text("Show a streaming transcription preview above the recording indicator while speaking")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle(isOn: $pauseMediaDuringDictation) {
+                        Toggle(isOn: $streamingPreviewEnabled) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Pause Media During Dictation")
+                                Text("Show Live Preview")
                                     .font(.body)
-                                Text("Automatically pause playing audio/video when recording starts. Resumes only if ParaDict paused it.")
+                                Text("Partial transcription updates in real-time as you speak")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         }
                         .toggleStyle(.switch)
                         .padding(.vertical, 4)
-                        .onChange(of: pauseMediaDuringDictation) {
-                            DictationCoordinator.shared.syncPlaybackPausing(pauseMediaDuringDictation)
-                        }
                     }
                     .padding()
                     .background(
