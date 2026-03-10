@@ -2,14 +2,14 @@
   "tools": [
     {
       "name": "open_project",
-      "description": "Opens a coding project in VS Code. Use when the user says 'open [project name]'.",
+      "description": "Opens a coding project in VS Code by path. Use when the user says 'open [project name]'. The system prompt contains a list of known projects with their paths.",
       "parameters": {
-        "project_name": {
+        "path": {
           "type": "string",
-          "description": "The name of the project to open"
+          "description": "The absolute path to the project folder (e.g., '/Users/sebastian/code/ParaDict2')"
         }
       },
-      "required": ["project_name"],
+      "required": ["path"],
       "executor": "open_project"
     },
     {

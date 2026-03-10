@@ -612,8 +612,12 @@ final class DictationCoordinator: ObservableObject {
             return
         }
 
+        // Inject dynamic context (e.g., VS Code recent projects) into the prompt
+        let projectList = executor.getProjectListForPrompt()
+        let enrichedPrompt = prompt + projectList
+
         let messages = [
-            ChatMessage(role: "system", content: prompt),
+            ChatMessage(role: "system", content: enrichedPrompt),
             ChatMessage(role: "user", content: text)
         ]
 

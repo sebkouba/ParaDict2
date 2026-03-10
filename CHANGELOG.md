@@ -7,7 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Voice command dictation re-enabled: hold the Command Dictation shortcut and speak to execute commands like "open ParaDict" or "switch to speakers"
+- VS Code project opening via voice: command mode dynamically reads recent VS Code projects from state database and injects them into the LLM prompt for fuzzy name matching (e.g., "open pixel" opens /Users/sebastian/code/pixel)
 - LLM response time logging: enhancement requests now log elapsed time in milliseconds on both success and timeout, making it easy to diagnose Groq latency issues
+
+### Fixed
+- open_project tool parameter mismatch: tools.json defined `project_name` but executor expected `path`, causing all project-open commands to fail
 
 ### Fixed
 - Recording indicator missing after LLM enhancement timeout: the timeout flash timer from a timed-out enhancement could fire during the next dictation session and hide the indicator window, making it appear as if no indicator was shown

@@ -394,6 +394,80 @@ class CommandExecutorService {
         return "Available audio outputs:\n\(deviceList)"
     }
 
+    // MARK: - VS Code Recent Projects
+
+    /// Reads recently opened folders from VS Code's state database
+    func getRecentVSCodeProjects() -> [(name: String, path: String)] {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let dbPath = homeDir
+            .appendingPathComponent("Library/Application Support/Code/User/globalStorage/state.vscdb")
+            .path
+
+        guard FileManager.default.fileExists(atPath: dbPath) else {
+            logger.warning("VS Code state database not found at \(dbPath)")
+            return []
+        }
+
+        // Use sqlite3 CLI to query — avoids linking SQLite framework
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [dbPath, "SELECT value FROM ItemTable WHERE key = 'history.recentlyOpenedPathsList'"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let jsonString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !jsonString.isEmpty,
+                  let jsonData = jsonString.data(using: .utf8) else {
+                return []
+            }
+
+            struct RecentPaths: Decodable {
+                struct Entry: Decodable {
+                    let folderUri: String?
+                }
+                let entries: [Entry]
+            }
+
+            let recent = try JSONDecoder().decode(RecentPaths.self, from: jsonData)
+            let filePrefix = "file://"
+
+            return recent.entries.compactMap { entry in
+                guard let uri = entry.folderUri, uri.hasPrefix(filePrefix) else { return nil }
+                let path = String(uri.dropFirst(filePrefix.count))
+                // Percent-decode the path
+                let decoded = path.removingPercentEncoding ?? path
+                // Skip root path
+                guard decoded != "/" else { return nil }
+                let name = (decoded as NSString).lastPathComponent
+                return (name: name, path: decoded)
+            }
+        } catch {
+            logger.error("Failed to read VS Code recent projects: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// Builds a project list string for injection into the command prompt
+    func getProjectListForPrompt() -> String {
+        let projects = getRecentVSCodeProjects()
+        guard !projects.isEmpty else { return "" }
+
+        var lines = ["\n## Known VS Code Projects\n"]
+        lines.append("When the user says \"open [name]\", match it to one of these projects and use open_project with the full path:\n")
+        for project in projects {
+            lines.append("- **\(project.name)** → `\(project.path)`")
+        }
+        lines.append("")
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: - Helpers
 
     private func bundleIdentifier(for appName: String) -> String {
