@@ -307,6 +307,8 @@ class LLMClient: ObservableObject {
         let baseMs = AppSettings.shared.enhancementTimeoutBaseMs
         logger.notice("Enhancement request starting - timeout: \(String(format: "%.2f", timeout))s (base: \(baseMs)ms + \(text.count) chars)")
 
+        let startTime = ContinuousClock.now
+
         // Race the chat request against a timeout
         return try await withThrowingTaskGroup(of: String.self) { group in
             // Add the actual chat task
@@ -324,9 +326,15 @@ class LLMClient: ObservableObject {
             do {
                 let result = try await group.next()!
                 group.cancelAll()  // Cancel the other task
+                let elapsed = startTime.duration(to: .now)
+                let elapsedMs = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+                self.logger.notice("Enhancement completed in \(elapsedMs)ms (budget: \(String(format: "%.0f", timeout * 1000))ms)")
                 return result
             } catch let error as LLMError {
                 group.cancelAll()
+                let elapsed = startTime.duration(to: .now)
+                let elapsedMs = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+                self.logger.warning("Enhancement timed out after \(elapsedMs)ms (budget: \(String(format: "%.0f", timeout * 1000))ms)")
                 throw error
             } catch {
                 group.cancelAll()

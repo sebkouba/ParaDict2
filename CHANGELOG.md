@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- LLM response time logging: enhancement requests now log elapsed time in milliseconds on both success and timeout, making it easy to diagnose Groq latency issues
+
 ### Fixed
+- Recording indicator missing after LLM enhancement timeout: the timeout flash timer from a timed-out enhancement could fire during the next dictation session and hide the indicator window, making it appear as if no indicator was shown
 - Command key monitor debounce: releasing Command from the shortcut key combo no longer falsely triggers "Send and Stop" during hands-free dictation
 
 ### Added

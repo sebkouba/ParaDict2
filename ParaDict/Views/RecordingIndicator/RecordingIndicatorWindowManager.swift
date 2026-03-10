@@ -15,6 +15,12 @@ class RecordingIndicatorWindowManager: ObservableObject {
     private init() {}
 
     func show() {
+        // Cancel any pending timeout flash from a previous session
+        // to prevent it from hiding this new indicator
+        timeoutFlashTask?.cancel()
+        timeoutFlashTask = nil
+        isShowingTimeoutFlash = false
+
         if isVisible { return }
 
         let activeScreen = NSApp.keyWindow?.screen ?? NSScreen.main ?? NSScreen.screens[0]
