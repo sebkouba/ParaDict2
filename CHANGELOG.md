@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LLM response time logging: enhancement requests now log elapsed time in milliseconds on both success and timeout, making it easy to diagnose Groq latency issues
 
 ### Fixed
+- Dictation no longer truncates trailing words at stop time: recording now drains in-flight audio tap frames and flushes resampler tail before final transcription starts
 - open_project tool parameter mismatch: tools.json defined `project_name` but executor expected `path`, causing all project-open commands to fail
 
 ### Fixed
