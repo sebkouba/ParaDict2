@@ -234,15 +234,13 @@ final class DictationCoordinator: ObservableObject {
     }
 
     private func stopRecording() {
-        recordingService.stopRecording()
-        logger.notice("Recording stopped")
+        Task {
+            let samples = await recordingService.finalizeRecording()
+            logger.notice("Recording stopped")
 
-        // Read audio samples from buffer and transcribe
-        let samples = recordingService.audioBuffer.readAll()
-        if samples.isEmpty {
-            send(.transcriptionEmpty)
-        } else {
-            Task {
+            if samples.isEmpty {
+                send(.transcriptionEmpty)
+            } else {
                 await transcribe(audioSamples: samples)
             }
         }
@@ -698,4 +696,3 @@ final class DictationCoordinator: ObservableObject {
 extension Notification.Name {
     static let menuBarFlash = Notification.Name("menuBarFlash")
 }
-

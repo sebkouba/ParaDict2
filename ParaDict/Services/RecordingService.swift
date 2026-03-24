@@ -9,6 +9,59 @@ struct AudioMeter: Equatable {
     let peakPower: Double
 }
 
+private final class TapDrainState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var inFlightCallbacks = 0
+    private var drainContinuation: CheckedContinuation<Void, Never>?
+
+    func reset() {
+        lock.lock()
+        inFlightCallbacks = 0
+        drainContinuation = nil
+        lock.unlock()
+    }
+
+    func beginCallback() {
+        lock.lock()
+        inFlightCallbacks += 1
+        lock.unlock()
+    }
+
+    func endCallback() {
+        var continuation: CheckedContinuation<Void, Never>?
+
+        lock.lock()
+        inFlightCallbacks -= 1
+        if inFlightCallbacks == 0 {
+            continuation = drainContinuation
+            drainContinuation = nil
+        }
+        lock.unlock()
+
+        continuation?.resume()
+    }
+
+    func waitUntilDrained() async {
+        lock.lock()
+        if inFlightCallbacks == 0 {
+            lock.unlock()
+            return
+        }
+        lock.unlock()
+
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if inFlightCallbacks == 0 {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            drainContinuation = continuation
+            lock.unlock()
+        }
+    }
+}
+
 @MainActor
 class RecordingService: NSObject, ObservableObject {
     private var engine: AVAudioEngine?
@@ -17,6 +70,9 @@ class RecordingService: NSObject, ObservableObject {
     private let mediaControlService = MediaControlService.shared
     private var deviceObserver: NSObjectProtocol?
     private var isReconfiguring = false
+    private let tapDrainState = TapDrainState()
+    private var activeConverter: AVAudioConverter?
+    private var activeTapFormat: AVAudioFormat?
 
     @Published var audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
     @Published var isRecording = false
@@ -27,6 +83,8 @@ class RecordingService: NSObject, ObservableObject {
     /// The output format used for recording (16kHz mono Float32)
     private let targetSampleRate: Double = 16000.0
     private let targetChannels: AVAudioChannelCount = 1
+    /// Smaller tap buffers reduce how much trailing speech can be stranded at stop time.
+    private let tapBufferSize: AVAudioFrameCount = 1024
 
     enum RecordingError: LocalizedError {
         case couldNotStartRecording(reason: String)
@@ -104,9 +162,13 @@ class RecordingService: NSObject, ObservableObject {
 
             self.engine = engine
             audioBuffer.clear()
+            tapDrainState.reset()
+            activeConverter = nil
+            activeTapFormat = nil
 
             // Install tap on input node — runs on CoreAudio realtime thread
             let buffer = self.audioBuffer
+            let tapDrainState = self.tapDrainState
 
             // Use a converter if the input format doesn't match our target
             // This handles cases where installTap with a different format isn't supported
@@ -115,8 +177,13 @@ class RecordingService: NSObject, ObservableObject {
             if needsConversion {
                 // Install tap with native input format, convert manually
                 let converter = AVAudioConverter(from: inputFormat, to: tapFormat)
+                activeConverter = converter
+                activeTapFormat = tapFormat
 
-                inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] pcmBuffer, _ in
+                inputNode.installTap(onBus: 0, bufferSize: tapBufferSize, format: inputFormat) { [weak self] pcmBuffer, _ in
+                    tapDrainState.beginCallback()
+                    defer { tapDrainState.endCallback() }
+
                     guard let converter = converter else { return }
 
                     // Convert to 16kHz mono
@@ -147,7 +214,10 @@ class RecordingService: NSObject, ObservableObject {
                 }
             } else {
                 // Input already matches target format, install tap directly
-                inputNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] pcmBuffer, _ in
+                inputNode.installTap(onBus: 0, bufferSize: tapBufferSize, format: tapFormat) { [weak self] pcmBuffer, _ in
+                    tapDrainState.beginCallback()
+                    defer { tapDrainState.endCallback() }
+
                     // Append Float32 samples to shared buffer
                     if let channelData = pcmBuffer.floatChannelData {
                         let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(pcmBuffer.frameLength)))
@@ -190,14 +260,77 @@ class RecordingService: NSObject, ObservableObject {
     }
 
     func stopRecording() {
+        stopEngine()
+        activeConverter = nil
+        activeTapFormat = nil
+        tapDrainState.reset()
+
+        Task {
+            await mediaControlService.unmuteSystemAudio()
+        }
+    }
+
+    /// Stop recording and wait for in-flight tap/converter work to finish so
+    /// final transcription sees the complete utterance.
+    func finalizeRecording() async -> [Float] {
+        let converter = activeConverter
+        let tapFormat = activeTapFormat
+
+        stopEngine()
+        await tapDrainState.waitUntilDrained()
+
+        if let converter, let tapFormat {
+            flushConverterTail(converter: converter, tapFormat: tapFormat)
+        }
+
+        activeConverter = nil
+        activeTapFormat = nil
+
+        Task {
+            await mediaControlService.unmuteSystemAudio()
+        }
+
+        return audioBuffer.readAll()
+    }
+
+    private func stopEngine() {
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
         audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
         isRecording = false
+    }
 
-        Task {
-            await mediaControlService.unmuteSystemAudio()
+    private func flushConverterTail(converter: AVAudioConverter, tapFormat: AVAudioFormat) {
+        while true {
+            guard let convertedBuffer = AVAudioPCMBuffer(
+                pcmFormat: tapFormat,
+                frameCapacity: tapBufferSize * 2
+            ) else {
+                return
+            }
+
+            var error: NSError?
+            let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+                outStatus.pointee = .endOfStream
+                return nil
+            }
+
+            if let error {
+                logger.error("Failed to flush converter tail: \(error.localizedDescription)")
+                return
+            }
+
+            if let channelData = convertedBuffer.floatChannelData, convertedBuffer.frameLength > 0 {
+                let samples = Array(
+                    UnsafeBufferPointer(start: channelData[0], count: Int(convertedBuffer.frameLength))
+                )
+                audioBuffer.append(samples)
+            }
+
+            if status == .endOfStream || convertedBuffer.frameLength == 0 {
+                return
+            }
         }
     }
 
