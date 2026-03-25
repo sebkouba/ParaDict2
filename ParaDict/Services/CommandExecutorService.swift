@@ -21,6 +21,102 @@ struct ToolsFile: Codable {
     let tools: [ToolConfig]
 }
 
+struct ProjectCommandMatcherService {
+    static func resolveProjectPath(
+        command text: String,
+        recentProjectPaths: [String]
+    ) -> String? {
+        guard !recentProjectPaths.isEmpty else { return nil }
+        guard let query = projectQuery(from: text) else { return nil }
+
+        let normalizedQuery = normalizedLookupString(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+
+        var bestPath: String?
+        var bestScore = 0
+        var hasTie = false
+
+        for projectPath in recentProjectPaths {
+            let score = projectMatchScore(query: normalizedQuery, projectPath: projectPath)
+            guard score > 0 else { continue }
+
+            if score > bestScore {
+                bestScore = score
+                bestPath = projectPath
+                hasTie = false
+            } else if score == bestScore, projectPath != bestPath {
+                hasTie = true
+            }
+        }
+
+        guard bestScore >= 75, !hasTie else { return nil }
+        return bestPath
+    }
+
+    private static func projectQuery(from text: String) -> String? {
+        let tokens = normalizedTokens(from: text)
+        guard let verbIndex = tokens.firstIndex(where: { ["open", "launch"].contains($0) }) else {
+            return nil
+        }
+        guard verbIndex + 1 < tokens.count else { return nil }
+
+        var targetTokens = Array(tokens[(verbIndex + 1)...])
+        let leadingNoise = Set(["the", "my", "please"])
+        let trailingNoise = Set([
+            "project", "projects", "repo", "repository", "folder",
+            "please", "for", "me", "in", "code", "vscode", "vs", "visual", "studio"
+        ])
+
+        while let first = targetTokens.first, leadingNoise.contains(first) {
+            targetTokens.removeFirst()
+        }
+
+        while let last = targetTokens.last, trailingNoise.contains(last) {
+            targetTokens.removeLast()
+        }
+
+        guard !targetTokens.isEmpty else { return nil }
+        return targetTokens.joined(separator: " ")
+    }
+
+    private static func projectMatchScore(query: String, projectPath: String) -> Int {
+        let lastPathComponent = normalizedLookupString((projectPath as NSString).lastPathComponent)
+        let path = normalizedLookupString(projectPath)
+
+        if lastPathComponent == query {
+            return 100
+        }
+
+        if lastPathComponent.hasPrefix(query) || query.hasPrefix(lastPathComponent) {
+            return 90
+        }
+
+        if lastPathComponent.contains(query) || query.contains(lastPathComponent) {
+            return 80
+        }
+
+        if path.contains(query) {
+            return 75
+        }
+
+        return 0
+    }
+
+    private static func normalizedLookupString(_ text: String) -> String {
+        normalizedTokens(from: text).joined()
+    }
+
+    private static func normalizedTokens(from text: String) -> [String] {
+        let normalized = text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .replacingOccurrences(of: "[^a-z0-9]+", with: " ", options: .regularExpression)
+
+        return normalized
+            .split(separator: " ")
+            .map(String.init)
+    }
+}
+
 /// Defines available tools and executes tool calls from LLM
 @MainActor
 class CommandExecutorService {
@@ -195,6 +291,19 @@ class CommandExecutorService {
         default:
             throw CommandError.unknownExecutor(tool.executor)
         }
+    }
+
+    func executeDirectCommandIfPossible(_ text: String) throws -> String? {
+        let recentProjectPaths = getRecentVSCodeProjects().map(\.path)
+        guard let projectPath = ProjectCommandMatcherService.resolveProjectPath(
+            command: text,
+            recentProjectPaths: recentProjectPaths
+        ) else {
+            return nil
+        }
+
+        logger.notice("Resolved command locally to project path: \(projectPath)")
+        return try openProject(path: projectPath)
     }
 
     // MARK: - Executors

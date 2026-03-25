@@ -603,6 +603,19 @@ final class DictationCoordinator: ObservableObject {
 
     private func executeCommand(text: String, prompt: String) async {
         let executor = CommandExecutorService.shared
+
+        do {
+            if let output = try executor.executeDirectCommandIfPossible(text) {
+                logger.notice("Command resolved locally without LLM: \(output)")
+                send(.commandComplete)
+                return
+            }
+        } catch {
+            logger.error("Direct command execution failed: \(error.localizedDescription)")
+            send(.commandFailed(message: error.localizedDescription))
+            return
+        }
+
         let tools = executor.getToolDefinitions()
 
         guard !tools.isEmpty else {

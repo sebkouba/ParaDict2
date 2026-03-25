@@ -143,6 +143,45 @@ final class CommandExecutorTests: XCTestCase {
 
     // MARK: - Project Matching
 
+    @MainActor
+    func testDirectProjectPath_ResolvesOpenRobinLocally() {
+        let projects = [
+            "/Users/sebastian/personal_synced/Robin",
+            "/Users/sebastian/code/ParaDict2"
+        ]
+
+        let path = ProjectCommandMatcherService.resolveProjectPath(
+            command: "open robin",
+            recentProjectPaths: projects
+        )
+
+        XCTAssertEqual(path, "/Users/sebastian/personal_synced/Robin")
+    }
+
+    @MainActor
+    func testDirectProjectPath_StripsFillerWordsAndMatchesPrefix() {
+        let projects = ["/Users/sebastian/code/ParaDict2"]
+
+        let path = ProjectCommandMatcherService.resolveProjectPath(
+            command: "can you open the para dict project for me",
+            recentProjectPaths: projects
+        )
+
+        XCTAssertEqual(path, "/Users/sebastian/code/ParaDict2")
+    }
+
+    @MainActor
+    func testDirectProjectPath_IgnoresNonProjectOpenCommands() {
+        let projects = ["/Users/sebastian/personal_synced/Robin"]
+
+        let path = ProjectCommandMatcherService.resolveProjectPath(
+            command: "open github.com",
+            recentProjectPaths: projects
+        )
+
+        XCTAssertNil(path)
+    }
+
     func testProjectMatching_CaseInsensitive() {
         // Test the parsing logic
         let mockProjects = """
