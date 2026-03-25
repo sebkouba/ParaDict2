@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 - Dictation no longer truncates trailing words at stop time: recording now drains in-flight audio tap frames and flushes resampler tail before final transcription starts
 - open_project tool parameter mismatch: tools.json defined `project_name` but executor expected `path`, causing all project-open commands to fail
+- Command-mode project opening no longer depends entirely on Groq tool calls: simple commands like "open robin" now resolve recent VS Code projects locally before falling back to the LLM
 
 ### Fixed
 - Recording indicator missing after LLM enhancement timeout: the timeout flash timer from a timed-out enhancement could fire during the next dictation session and hide the indicator window, making it appear as if no indicator was shown
