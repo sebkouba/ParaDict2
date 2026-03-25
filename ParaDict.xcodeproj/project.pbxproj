@@ -29,6 +29,16 @@
 		};
 /* End PBXCopyFilesBuildPhase section */
 
+/* Begin PBXContainerItemProxy section */
+		9EF14A372F01F15A00A1B2C3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9E32EC542ED71A7100ED3EB2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9E32EC5B2ED71A7100ED3EB2;
+			remoteInfo = ParaDict;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		9E0696392EDF36F5006DE06F /* ParaDictTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ParaDictTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9E0696432EDF3773006DE06F /* ParaDict.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = ParaDict.xctestplan; sourceTree = "<group>"; };
@@ -121,6 +131,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				9EF14A382F01F15A00A1B2C3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				9E06963A2EDF36F5006DE06F /* ParaDictTests */,
@@ -204,6 +215,14 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXTargetDependency section */
+		9EF14A382F01F15A00A1B2C3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9E32EC5B2ED71A7100ED3EB2 /* ParaDict */;
+			targetProxy = 9EF14A372F01F15A00A1B2C3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		9E0696372EDF36F5006DE06F /* Resources */ = {
