@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Menu bar toggle to send Enter immediately after pasting, making it possible to submit chat messages in one dictation step
 - Voice command dictation re-enabled: hold the Command Dictation shortcut and speak to execute commands like "open ParaDict" or "switch to speakers"
 - VS Code project opening via voice: command mode dynamically reads recent VS Code projects from state database and injects them into the LLM prompt for fuzzy name matching (e.g., "open pixel" opens /Users/sebastian/code/pixel)
 - LLM response time logging: enhancement requests now log elapsed time in milliseconds on both success and timeout, making it easy to diagnose Groq latency issues
