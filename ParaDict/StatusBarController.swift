@@ -21,6 +21,7 @@ class StatusBarController: NSObject, NSMenuDelegate {
     private var trailingPunctuationItem: NSMenuItem?
     private var trailingSpaceItem: NSMenuItem?
     private var trailingLineBreakItem: NSMenuItem?
+    private var trailingEnterItem: NSMenuItem?
     private var copyTranscriptionItem: NSMenuItem?
     private var copyEnhancementItem: NSMenuItem?
     private var copySeparator: NSMenuItem?
@@ -100,6 +101,11 @@ class StatusBarController: NSObject, NSMenuDelegate {
         trailingLineBreakItem?.target = self
         trailingLineBreakItem?.state = dictationCoordinator?.isTrailingLineBreakEnabled == true ? .on : .off
         menu?.addItem(trailingLineBreakItem!)
+
+        trailingEnterItem = NSMenuItem(title: "Send Enter After Paste", action: #selector(toggleTrailingEnter), keyEquivalent: "")
+        trailingEnterItem?.target = self
+        trailingEnterItem?.state = dictationCoordinator?.isTrailingEnterEnabled == true ? .on : .off
+        menu?.addItem(trailingEnterItem!)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -199,6 +205,13 @@ class StatusBarController: NSObject, NSMenuDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isEnabled in
                 self?.trailingLineBreakItem?.state = isEnabled ? .on : .off
+            }
+            .store(in: &cancellables)
+
+        dictationCoordinator?.$isTrailingEnterEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.trailingEnterItem?.state = isEnabled ? .on : .off
             }
             .store(in: &cancellables)
     }
@@ -308,6 +321,11 @@ class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func toggleTrailingLineBreak() {
         logger.notice("Toggling trailing line break")
         dictationCoordinator?.toggleTrailingLineBreak()
+    }
+
+    @objc private func toggleTrailingEnter() {
+        logger.notice("Toggling trailing enter")
+        dictationCoordinator?.toggleTrailingEnter()
     }
 
     @objc private func copyLastTranscription() {

@@ -41,6 +41,12 @@ enum SettingsKeys {
     // MARK: - Streaming Preview
     static let streamingPreviewEnabled = "streamingPreviewEnabled"
 
+    // MARK: - Text Formatting
+    static let trailingPunctuationRemoval = "TrailingPunctuationRemoval"
+    static let trailingSpace = "TrailingSpace"
+    static let trailingLineBreak = "TrailingLineBreak"
+    static let trailingEnter = "TrailingEnter"
+
     // MARK: - Migration Flag
     static let configMigrated = "configMigrated"
 }
@@ -84,4 +90,10 @@ enum SettingsDefaults {
 
     // Streaming Preview
     static let streamingPreviewEnabled = false
+
+    // Text Formatting
+    static let trailingPunctuationRemoval = false
+    static let trailingSpace = false
+    static let trailingLineBreak = false
+    static let trailingEnter = false
 }

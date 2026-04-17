@@ -6,8 +6,8 @@ private let logger = Logger(subsystem: "com.paradict", category: "PastingService
 
 class PastingService {
 
-    static func pasteAtCursor(_ text: String) {
-        logger.notice("pasteAtCursor called - text length: \(text.count) chars")
+    static func pasteAtCursor(_ text: String, pressEnterAfterPaste: Bool = false) {
+        logger.notice("pasteAtCursor called - text length: \(text.count) chars, pressEnterAfterPaste: \(pressEnterAfterPaste)")
 
         // Check accessibility permission first
         let isTrusted = AXIsProcessTrusted()
@@ -51,9 +51,15 @@ class PastingService {
             logger.notice("Executing Cmd+V keystroke")
             pasteUsingCommandV()
 
-            // Start tracking for edits after paste completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                TranscriptionEditTracker.shared.startTracking(originalText: text)
+            if pressEnterAfterPaste {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    pressEnter()
+                }
+            } else {
+                // Start tracking for edits after paste completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    TranscriptionEditTracker.shared.startTracking(originalText: text)
+                }
             }
         }
 

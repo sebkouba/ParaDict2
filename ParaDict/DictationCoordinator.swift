@@ -62,15 +62,19 @@ final class DictationCoordinator: ObservableObject {
 
     /// When enabled, trailing punctuation (. ? !) is removed before pasting
     @Published private(set) var isTrailingPunctuationRemovalEnabled: Bool {
-        didSet { UserDefaults.standard.set(isTrailingPunctuationRemovalEnabled, forKey: "TrailingPunctuationRemoval") }
+        didSet { UserDefaults.standard.set(isTrailingPunctuationRemovalEnabled, forKey: SettingsKeys.trailingPunctuationRemoval) }
     }
     /// When enabled, a trailing space is added before pasting (ignored if line break is enabled)
     @Published private(set) var isTrailingSpaceEnabled: Bool {
-        didSet { UserDefaults.standard.set(isTrailingSpaceEnabled, forKey: "TrailingSpace") }
+        didSet { UserDefaults.standard.set(isTrailingSpaceEnabled, forKey: SettingsKeys.trailingSpace) }
     }
     /// When enabled, a trailing line break is added before pasting
     @Published private(set) var isTrailingLineBreakEnabled: Bool {
-        didSet { UserDefaults.standard.set(isTrailingLineBreakEnabled, forKey: "TrailingLineBreak") }
+        didSet { UserDefaults.standard.set(isTrailingLineBreakEnabled, forKey: SettingsKeys.trailingLineBreak) }
+    }
+    /// When enabled, press Enter after pasting to submit chat-style inputs
+    @Published private(set) var isTrailingEnterEnabled: Bool {
+        didSet { UserDefaults.standard.set(isTrailingEnterEnabled, forKey: SettingsKeys.trailingEnter) }
     }
 
     // MARK: - Initialization
@@ -78,9 +82,10 @@ final class DictationCoordinator: ObservableObject {
     private init() {
         // Load persisted settings
         isPlaybackPausingEnabled = AppSettings.shared.pauseMediaDuringDictation
-        isTrailingPunctuationRemovalEnabled = UserDefaults.standard.bool(forKey: "TrailingPunctuationRemoval")
-        isTrailingSpaceEnabled = UserDefaults.standard.bool(forKey: "TrailingSpace")
-        isTrailingLineBreakEnabled = UserDefaults.standard.bool(forKey: "TrailingLineBreak")
+        isTrailingPunctuationRemovalEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingPunctuationRemoval) as? Bool ?? SettingsDefaults.trailingPunctuationRemoval
+        isTrailingSpaceEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingSpace) as? Bool ?? SettingsDefaults.trailingSpace
+        isTrailingLineBreakEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingLineBreak) as? Bool ?? SettingsDefaults.trailingLineBreak
+        isTrailingEnterEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingEnter) as? Bool ?? SettingsDefaults.trailingEnter
 
         logger.notice("DictationCoordinator initializing...")
         // Initialize HotkeyManager to set up keyboard shortcuts
@@ -507,7 +512,7 @@ final class DictationCoordinator: ObservableObject {
         let processed = applyTextFormatting(text)
         // Track pasted text for correction feature
         lastPastedText = processed
-        PastingService.pasteAtCursor(processed)
+        PastingService.pasteAtCursor(processed, pressEnterAfterPaste: isTrailingEnterEnabled)
     }
 
     /// Apply text formatting options (trailing punctuation removal, space/line break)
@@ -691,6 +696,11 @@ final class DictationCoordinator: ObservableObject {
     func toggleTrailingLineBreak() {
         isTrailingLineBreakEnabled.toggle()
         logger.notice("Trailing line break toggled: \(self.isTrailingLineBreakEnabled)")
+    }
+
+    func toggleTrailingEnter() {
+        isTrailingEnterEnabled.toggle()
+        logger.notice("Trailing enter toggled: \(self.isTrailingEnterEnabled)")
     }
 
     /// Whether currently recording
