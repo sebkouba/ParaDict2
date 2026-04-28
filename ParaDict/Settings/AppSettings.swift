@@ -57,6 +57,16 @@ final class AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.enhancementTimeoutPerTokenMs) }
     }
 
+    // MARK: - Transcription Settings
+
+    var transcriptionProvider: TranscriptionProvider {
+        get {
+            let rawValue = UserDefaults.standard.string(forKey: SettingsKeys.transcriptionProvider) ?? SettingsDefaults.transcriptionProvider
+            return TranscriptionProvider(rawValue: rawValue) ?? .parakeet
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: SettingsKeys.transcriptionProvider) }
+    }
+
     /// Calculate timeout for enhancement based on text length (estimates ~4 characters per token)
     func calculateEnhancementTimeout(forText text: String) -> TimeInterval {
         let estimatedTokens = max(1, text.count / 4)
@@ -177,3 +187,18 @@ enum DictationMode: String, Codable, CaseIterable {
     case command    // Parakeet + LLM with tool calling (voice commands)
 }
 
+enum TranscriptionProvider: String, Codable, CaseIterable, Identifiable {
+    case parakeet
+    case xai
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .parakeet:
+            return "Parakeet"
+        case .xai:
+            return "x.ai"
+        }
+    }
+}

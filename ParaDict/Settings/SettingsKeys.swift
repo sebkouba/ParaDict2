@@ -18,6 +18,9 @@ enum SettingsKeys {
     static let enhancementTimeoutBaseMs = "enhancementTimeoutBaseMs"
     static let enhancementTimeoutPerTokenMs = "enhancementTimeoutPerTokenMs"
 
+    // MARK: - Transcription Settings
+    static let transcriptionProvider = "transcriptionProvider"
+
     // MARK: - Directory Watcher
     static let directoryWatcherEnabled = "directoryWatcherEnabled"
     static let directoryWatcherInput = "directoryWatcherInput"
@@ -67,6 +70,9 @@ enum SettingsDefaults {
     static let llmModel = "moonshotai/kimi-k2-instruct-0905"
     static let enhancementTimeoutBaseMs = 800
     static let enhancementTimeoutPerTokenMs = 10
+
+    // Transcription
+    static let transcriptionProvider = TranscriptionProvider.parakeet.rawValue
 
     // Directory Watcher
     static let directoryWatcherEnabled = false

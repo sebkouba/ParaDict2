@@ -17,29 +17,35 @@ struct SettingsView: View {
                 }
                 .tag(1)
 
+            TranscriptionSettingsView()
+                .tabItem {
+                    Label("Transcription", systemImage: "waveform")
+                }
+                .tag(2)
+
             ShortcutsSettingsView()
                 .tabItem {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
-                .tag(2)
+                .tag(3)
 
             LLMSettingsView()
                 .tabItem {
                     Label("LLM", systemImage: "brain.head.profile")
                 }
-                .tag(3)
+                .tag(4)
 
             AdvancedSettingsView()
                 .tabItem {
                     Label("Advanced", systemImage: "gearshape.2")
                 }
-                .tag(4)
+                .tag(5)
 
             DirectoryWatcherView()
                 .tabItem {
                     Label("Watcher", systemImage: "folder.badge.gearshape")
                 }
-                .tag(5)
+                .tag(6)
         }
         .frame(minWidth: 600, minHeight: 500)
     }

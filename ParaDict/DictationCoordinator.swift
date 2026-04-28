@@ -204,6 +204,7 @@ final class DictationCoordinator: ObservableObject {
 
         case .startStreamingPreview:
             guard AppSettings.shared.streamingPreviewEnabled else { break }
+            guard AppSettings.shared.transcriptionProvider == .parakeet else { break }
             streamingService.start(buffer: recordingService.audioBuffer)
             previewManager.show()
 
@@ -265,7 +266,7 @@ final class DictationCoordinator: ObservableObject {
             // Route through TranscriptionExecutor to serialize with streaming transcription
             let text = try await transcriptionExecutor.transcribe(
                 audioSamples: audioSamples,
-                using: transcriptionService
+                provider: AppSettings.shared.transcriptionProvider
             )
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 

@@ -17,6 +17,18 @@ actor TranscriptionExecutor {
         return try await service.transcribe(audioURL: audioURL)
     }
 
+    /// Transcribe final recording samples with the selected provider.
+    func transcribe(audioSamples: [Float], provider: TranscriptionProvider) async throws -> String {
+        switch provider {
+        case .parakeet:
+            logger.notice("Executor: transcribing samples with Parakeet")
+            return try await ParakeetTranscriptionService.shared.transcribe(audioSamples: audioSamples)
+        case .xai:
+            logger.notice("Executor: transcribing samples with x.ai")
+            return try await XAITranscriptionService.shared.transcribe(audioSamples: audioSamples)
+        }
+    }
+
     /// Transcribe in-memory audio samples (used for streaming preview during recording)
     func transcribe(audioSamples: [Float], using service: ParakeetTranscriptionService) async throws -> String {
         logger.notice("Executor: transcribing \(audioSamples.count) samples")
