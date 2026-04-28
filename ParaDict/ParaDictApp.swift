@@ -130,6 +130,11 @@ struct MainContentView: View {
                     Label("Audio", systemImage: "mic")
                 }
 
+            TranscriptionSettingsView()
+                .tabItem {
+                    Label("Transcription", systemImage: "waveform")
+                }
+
             ShortcutsSettingsView()
                 .tabItem {
                     Label("Shortcuts", systemImage: "keyboard")
