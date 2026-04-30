@@ -136,13 +136,15 @@ struct AudioInputView: View {
                         }
                     }
 
-                    Stepper(value: retentionBinding, in: 1...999) {
-                        HStack {
-                            Text("Keep recordings")
-                            Spacer()
-                            Text("\(archiveRetentionDays) days")
-                                .foregroundStyle(.secondary)
-                        }
+                    HStack {
+                        Text("Keep recordings")
+                        Spacer()
+                        SelectAllNumberField(value: retentionBinding, range: 1...999, isEnabled: archiveEnabled)
+                            .frame(width: 56, height: 24)
+                        Text("days")
+                            .foregroundStyle(.secondary)
+                        Stepper("", value: retentionBinding, in: 1...999)
+                            .labelsHidden()
                     }
                     .disabled(!archiveEnabled)
 
@@ -231,6 +233,75 @@ struct DeviceRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+}
+
+private struct SelectAllNumberField: NSViewRepresentable {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let isEnabled: Bool
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.delegate = context.coordinator
+        textField.alignment = .right
+        textField.isBezeled = true
+        textField.bezelStyle = .roundedBezel
+        textField.controlSize = .small
+        textField.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        textField.formatter = context.coordinator.formatter
+        textField.target = context.coordinator
+        textField.action = #selector(Coordinator.commitFromSender(_:))
+        return textField
+    }
+
+    func updateNSView(_ textField: NSTextField, context: Context) {
+        context.coordinator.parent = self
+        if textField.stringValue != String(value) {
+            textField.stringValue = String(value)
+        }
+        textField.isEnabled = isEnabled
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: SelectAllNumberField
+        let formatter: NumberFormatter
+
+        init(parent: SelectAllNumberField) {
+            self.parent = parent
+            formatter = NumberFormatter()
+            formatter.allowsFloats = false
+            formatter.minimum = NSNumber(value: parent.range.lowerBound)
+            formatter.maximum = NSNumber(value: parent.range.upperBound)
+            super.init()
+        }
+
+        func controlTextDidBeginEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField,
+                  let editor = textField.currentEditor() else {
+                return
+            }
+            editor.selectAll(nil)
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            commit(textField.stringValue)
+        }
+
+        @objc func commitFromSender(_ sender: NSTextField) {
+            commit(sender.stringValue)
+        }
+
+        private func commit(_ string: String) {
+            let rawValue = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parsedValue = Int(rawValue) ?? parent.value
+            parent.value = max(parent.range.lowerBound, min(parsedValue, parent.range.upperBound))
+        }
     }
 }
 
