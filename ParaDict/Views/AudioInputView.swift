@@ -1,8 +1,12 @@
 import SwiftUI
 import CoreAudio
+import AppKit
 
 struct AudioInputView: View {
     @ObservedObject private var deviceManager = AudioDeviceManager.shared
+    @AppStorage(SettingsKeys.recordingArchiveEnabled) private var archiveEnabled = SettingsDefaults.recordingArchiveEnabled
+    @AppStorage(SettingsKeys.recordingArchiveDirectory) private var archiveDirectory = SettingsDefaults.recordingArchiveDirectory
+    @AppStorage(SettingsKeys.recordingArchiveRetentionDays) private var archiveRetentionDays = SettingsDefaults.recordingArchiveRetentionDays
     @State private var orderedDevices: [(id: AudioDeviceID, uid: String, name: String)] = []
 
     var body: some View {
@@ -108,6 +112,51 @@ struct AudioInputView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Toggle("Store recordings on disk", isOn: $archiveEnabled)
+                        .toggleStyle(.switch)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Archive Directory")
+                            .font(.headline)
+
+                        HStack(spacing: 8) {
+                            Text(archiveDirectory.isEmpty ? "No folder selected" : archiveDirectory)
+                                .font(.system(size: 12))
+                                .foregroundStyle(archiveDirectory.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button("Choose...") {
+                                chooseArchiveDirectory()
+                            }
+                            .disabled(!archiveEnabled)
+                        }
+                    }
+
+                    Stepper(value: retentionBinding, in: 1...999) {
+                        HStack {
+                            Text("Keep recordings")
+                            Spacer()
+                            Text("\(archiveRetentionDays) days")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(!archiveEnabled)
+
+                    Text("Each dictation is saved as a 16 kHz mono WAV with a matching JSON sidecar containing the transcript and metadata.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(16)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
             }
             .padding(24)
         }
@@ -122,6 +171,26 @@ struct AudioInputView: View {
 
     private func updateOrderedDevices() {
         orderedDevices = deviceManager.getOrderedDevices()
+    }
+
+    private var retentionBinding: Binding<Int> {
+        Binding(
+            get: { max(1, min(archiveRetentionDays, 999)) },
+            set: { archiveRetentionDays = max(1, min($0, 999)) }
+        )
+    }
+
+    private func chooseArchiveDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            archiveDirectory = url.path
+        }
     }
 }
 

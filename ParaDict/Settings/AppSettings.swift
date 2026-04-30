@@ -34,6 +34,24 @@ final class AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.audioDeviceUID) }
     }
 
+    var recordingArchiveEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: SettingsKeys.recordingArchiveEnabled) as? Bool ?? SettingsDefaults.recordingArchiveEnabled }
+        set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.recordingArchiveEnabled) }
+    }
+
+    var recordingArchiveDirectory: String {
+        get { UserDefaults.standard.string(forKey: SettingsKeys.recordingArchiveDirectory) ?? SettingsDefaults.recordingArchiveDirectory }
+        set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.recordingArchiveDirectory) }
+    }
+
+    var recordingArchiveRetentionDays: Int {
+        get {
+            let value = UserDefaults.standard.integer(forKey: SettingsKeys.recordingArchiveRetentionDays)
+            return value > 0 ? min(value, 999) : SettingsDefaults.recordingArchiveRetentionDays
+        }
+        set { UserDefaults.standard.set(max(1, min(newValue, 999)), forKey: SettingsKeys.recordingArchiveRetentionDays) }
+    }
+
     // MARK: - LLM Settings
 
     var llmModel: String {

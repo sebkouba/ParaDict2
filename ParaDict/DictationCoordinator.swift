@@ -34,6 +34,7 @@ final class DictationCoordinator: ObservableObject {
     private let indicatorManager = RecordingIndicatorWindowManager.shared
     private let previewManager = TranscriptionPreviewWindowManager.shared
     private let historyLogger = TranscriptionHistoryLogger.shared
+    private let recordingArchiveService = RecordingArchiveService.shared
     private let correctionWindowManager = CorrectionWindowManager.shared
 
     // MARK: - State
@@ -43,6 +44,11 @@ final class DictationCoordinator: ObservableObject {
     private var pasteCompleteTask: Task<Void, Never>?
     private var enterMonitorStartTask: Task<Void, Never>?
     private var commandMonitorStartTask: Task<Void, Never>?
+    private var currentRecordingStartedAt: Date?
+    private var currentRecordingSamples: [Float]?
+    private var currentRecordingMode: DictationMode?
+    private var currentRecordingProvider: TranscriptionProvider?
+    private var didArchiveCurrentRecording = false
 
     /// Tracks the last raw transcription from Parakeet (for correction feature)
     private var lastRawTranscription: String?
@@ -219,6 +225,11 @@ final class DictationCoordinator: ObservableObject {
     private func startRecording(mode: DictationMode, prompt: String?, context: String?) async {
         // Store context for later use
         currentContext = context
+        currentRecordingStartedAt = Date()
+        currentRecordingSamples = nil
+        currentRecordingMode = mode
+        currentRecordingProvider = AppSettings.shared.transcriptionProvider
+        didArchiveCurrentRecording = false
 
         logger.notice("Starting recording (buffer-only)")
 
@@ -245,8 +256,10 @@ final class DictationCoordinator: ObservableObject {
             logger.notice("Recording stopped")
 
             if samples.isEmpty {
+                clearCurrentRecordingArchiveState()
                 send(.transcriptionEmpty)
             } else {
+                currentRecordingSamples = samples
                 await transcribe(audioSamples: samples)
             }
         }
@@ -255,6 +268,7 @@ final class DictationCoordinator: ObservableObject {
     private func cancelRecording() {
         recordingService.stopRecording()
         currentContext = nil
+        clearCurrentRecordingArchiveState()
 
         logger.notice("Recording cancelled")
     }
@@ -274,6 +288,7 @@ final class DictationCoordinator: ObservableObject {
                 send(.transcriptionEmpty)
             } else if isCorrectionKeyword(trimmed) {
                 // Check for correction keyword
+                await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
                 logger.notice("Correction keyword detected")
                 if let rawTranscription = lastRawTranscription, let pastedText = lastPastedText {
                     send(.correctionKeywordDetected(originalTranscription: rawTranscription, llmOutput: pastedText))
@@ -283,20 +298,26 @@ final class DictationCoordinator: ObservableObject {
                 }
             } else if isPlaybackPausingCommand(trimmed) {
                 // Check for playback pausing voice command
+                await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
                 togglePlaybackPausing()
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
             } else if let formattingCommand = parseTextFormattingCommand(trimmed) {
                 // Check for text formatting command
+                await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
                 handleTextFormattingCommand(formattingCommand)
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
             } else if isDailyNoteCommand(trimmed) {
                 // Check for "daily" keyword to open Obsidian daily note
+                await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
                 handleDailyNoteCommand()
                 send(.transcriptionEmpty)  // Don't paste anything
             } else {
                 // Store raw transcription for correction feature and UI
                 lastRawTranscription = trimmed
                 lastTranscription = trimmed
+                if currentRecordingMode == .local || currentRecordingMode == .command {
+                    await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                }
                 send(.transcriptionComplete(text: trimmed))
             }
         } catch {
@@ -462,6 +483,7 @@ final class DictationCoordinator: ObservableObject {
     private func enhance(text: String, prompt: String, context: String?) async {
         guard llmClient.isConfigured else {
             logger.warning("LLM not configured - skipping enhancement")
+            await archiveCurrentRecording(rawTranscription: text, enhancedText: nil)
             send(.enhancementSkipped(text: text))
             return
         }
@@ -485,6 +507,7 @@ final class DictationCoordinator: ObservableObject {
 
             // Store for UI and log
             lastEnhancement = enhanced
+            await archiveCurrentRecording(rawTranscription: text, enhancedText: enhanced)
             logTranscription(transcription: text, enhanced: enhanced, mode: stateMachine.state.mode ?? .enhanced)
 
             send(.enhancementComplete(text: enhanced))
@@ -494,17 +517,51 @@ final class DictationCoordinator: ObservableObject {
                 // Timeout: fall back to original transcription and show red flash
                 logger.warning("⚠️ ENHANCEMENT TIMEOUT - LLM took too long, falling back to original transcription")
                 indicatorManager.showTimeoutFlash()
+                await archiveCurrentRecording(rawTranscription: originalText, enhancedText: nil)
                 send(.enhancementSkipped(text: originalText))
             default:
                 logger.error("Enhancement failed: \(error.localizedDescription)")
                 // Fall back to raw text on error
+                await archiveCurrentRecording(rawTranscription: text, enhancedText: nil)
                 send(.enhancementSkipped(text: text))
             }
         } catch {
             logger.error("Enhancement failed: \(error.localizedDescription)")
             // Fall back to raw text on error
+            await archiveCurrentRecording(rawTranscription: text, enhancedText: nil)
             send(.enhancementSkipped(text: text))
         }
+    }
+
+    private func archiveCurrentRecording(rawTranscription: String?, enhancedText: String?) async {
+        guard !didArchiveCurrentRecording,
+              let samples = currentRecordingSamples,
+              let recordedAt = currentRecordingStartedAt,
+              let mode = currentRecordingMode,
+              let provider = currentRecordingProvider else {
+            return
+        }
+
+        didArchiveCurrentRecording = true
+        let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        await recordingArchiveService.archive(
+            audioSamples: samples,
+            recordedAt: recordedAt,
+            mode: mode,
+            transcriptionProvider: provider,
+            rawTranscription: rawTranscription,
+            enhancedText: enhancedText,
+            targetApp: targetApp
+        )
+        clearCurrentRecordingArchiveState()
+    }
+
+    private func clearCurrentRecordingArchiveState() {
+        currentRecordingStartedAt = nil
+        currentRecordingSamples = nil
+        currentRecordingMode = nil
+        currentRecordingProvider = nil
+        didArchiveCurrentRecording = false
     }
 
     // MARK: - Pasting

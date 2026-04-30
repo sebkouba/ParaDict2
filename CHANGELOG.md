@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Audio recording archive: Audio settings can store dictation WAV files with JSON sidecars in a chosen folder, with retention configurable up to 999 days
 - x.ai transcription provider option with Settings controls for choosing Parakeet or x.ai and managing the x.ai API key
 - Menu bar toggle to send Enter immediately after pasting, making it possible to submit chat messages in one dictation step
 - Voice command dictation re-enabled: hold the Command Dictation shortcut and speak to execute commands like "open ParaDict" or "switch to speakers"
