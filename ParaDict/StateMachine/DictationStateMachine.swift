@@ -146,7 +146,7 @@ final class DictationStateMachine {
         case (.transcribing, .escapePressed):
             // Allow canceling during transcription
             state = .idle
-            return [.hideIndicator]
+            return [.cancelProcessing, .hideIndicator]
 
         // MARK: - From Enhancing
 
@@ -169,7 +169,7 @@ final class DictationStateMachine {
         case (.enhancing, .escapePressed):
             // Allow canceling during enhancement
             state = .idle
-            return [.hideIndicator]
+            return [.cancelProcessing, .hideIndicator]
 
         // MARK: - From Executing Command
 
@@ -184,7 +184,7 @@ final class DictationStateMachine {
         case (.executingCommand, .escapePressed):
             // Allow canceling during command execution
             state = .idle
-            return [.hideIndicator]
+            return [.cancelProcessing, .hideIndicator]
 
         // MARK: - From Pasting
 

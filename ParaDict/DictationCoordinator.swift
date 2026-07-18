@@ -44,6 +44,10 @@ final class DictationCoordinator: ObservableObject {
     private var pasteCompleteTask: Task<Void, Never>?
     private var enterMonitorStartTask: Task<Void, Never>?
     private var commandMonitorStartTask: Task<Void, Never>?
+    private var recordingStartTask: Task<Void, Never>?
+    private var recordingPipelineTask: Task<Void, Never>?
+    private var enhancementTask: Task<Void, Never>?
+    private var commandExecutionTask: Task<Void, Never>?
     private var currentRecordingStartedAt: Date?
     private var currentRecordingSamples: [Float]?
     private var currentRecordingMode: DictationMode?
@@ -105,7 +109,6 @@ final class DictationCoordinator: ObservableObject {
     func send(_ event: DictationEvent) {
         logger.notice("Received event: \(event.description)")
 
-        let previousState = stateMachine.state
         let effects = stateMachine.handle(event)
         state = stateMachine.state
 
@@ -124,21 +127,30 @@ final class DictationCoordinator: ObservableObject {
         switch effect {
         case .startRecording(let mode, let prompt, let context):
             didPauseMedia = false
-            Task {
-                await startRecording(mode: mode, prompt: prompt, context: context)
+            let provider = AppSettings.shared.transcriptionProvider
+            recordingStartTask?.cancel()
+            recordingStartTask = Task { [weak self] in
+                await self?.startRecording(
+                    mode: mode,
+                    prompt: prompt,
+                    context: context,
+                    provider: provider
+                )
             }
 
         case .stopRecording:
             stopRecording()
-            resumeMediaIfNeeded()
 
         case .cancelRecording:
             cancelRecording()
-            resumeMediaIfNeeded()
+
+        case .cancelProcessing:
+            cancelProcessing()
 
         case .enhance(let text, let prompt, let context):
-            Task {
-                await enhance(text: text, prompt: prompt, context: context)
+            enhancementTask?.cancel()
+            enhancementTask = Task { [weak self] in
+                await self?.enhance(text: text, prompt: prompt, context: context)
             }
 
         case .paste(let text):
@@ -194,8 +206,9 @@ final class DictationCoordinator: ObservableObject {
             logTranscription(transcription: transcription, enhanced: enhanced, mode: mode)
 
         case .executeCommand(let text, let prompt):
-            Task {
-                await executeCommand(text: text, prompt: prompt)
+            commandExecutionTask?.cancel()
+            commandExecutionTask = Task { [weak self] in
+                await self?.executeCommand(text: text, prompt: prompt)
             }
 
         case .flashMenuBarSuccess:
@@ -222,19 +235,31 @@ final class DictationCoordinator: ObservableObject {
 
     // MARK: - Recording
 
-    private func startRecording(mode: DictationMode, prompt: String?, context: String?) async {
+    private func startRecording(
+        mode: DictationMode,
+        prompt: String?,
+        context: String?,
+        provider: TranscriptionProvider
+    ) async {
+        guard !Task.isCancelled else { return }
+
         // Store context for later use
         currentContext = context
         currentRecordingStartedAt = Date()
         currentRecordingSamples = nil
         currentRecordingMode = mode
-        currentRecordingProvider = AppSettings.shared.transcriptionProvider
+        currentRecordingProvider = provider
         didArchiveCurrentRecording = false
 
         logger.notice("Starting recording (buffer-only)")
 
         do {
             try await recordingService.startRecording()
+            guard !Task.isCancelled else {
+                recordingService.stopRecording()
+                clearCurrentRecordingArchiveState()
+                return
+            }
             logger.notice("Recording started successfully")
 
             // Pause media AFTER successful audio setup to avoid pausing for sessions that fail to start
@@ -251,37 +276,65 @@ final class DictationCoordinator: ObservableObject {
     }
 
     private func stopRecording() {
-        Task {
+        recordingPipelineTask?.cancel()
+        guard let provider = currentRecordingProvider else {
+            recordingPipelineTask = Task { [weak self] in
+                guard let self else { return }
+                _ = await recordingService.finalizeRecording()
+                resumeMediaIfNeeded()
+                send(.error(message: "Recording session lost its transcription provider"))
+            }
+            return
+        }
+        recordingPipelineTask = Task { [weak self] in
+            guard let self else { return }
             let samples = await recordingService.finalizeRecording()
+            resumeMediaIfNeeded()
             logger.notice("Recording stopped")
+
+            guard !Task.isCancelled else {
+                clearCurrentRecordingArchiveState()
+                return
+            }
 
             if samples.isEmpty {
                 clearCurrentRecordingArchiveState()
                 send(.transcriptionEmpty)
             } else {
                 currentRecordingSamples = samples
-                await transcribe(audioSamples: samples)
+                await transcribe(audioSamples: samples, provider: provider)
             }
         }
     }
 
     private func cancelRecording() {
+        recordingStartTask?.cancel()
         recordingService.stopRecording()
+        resumeMediaIfNeeded()
         currentContext = nil
         clearCurrentRecordingArchiveState()
 
         logger.notice("Recording cancelled")
     }
 
+    private func cancelProcessing() {
+        recordingPipelineTask?.cancel()
+        enhancementTask?.cancel()
+        commandExecutionTask?.cancel()
+        clearCurrentRecordingArchiveState()
+        logger.notice("Processing cancelled")
+    }
+
     // MARK: - Transcription
 
-    private func transcribe(audioSamples: [Float]) async {
+    private func transcribe(audioSamples: [Float], provider: TranscriptionProvider) async {
         do {
             // Route through TranscriptionExecutor to serialize with streaming transcription
             let text = try await transcriptionExecutor.transcribe(
                 audioSamples: audioSamples,
-                provider: AppSettings.shared.transcriptionProvider
+                provider: provider
             )
+            guard !Task.isCancelled else { return }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
             if trimmed.isEmpty {
@@ -289,6 +342,7 @@ final class DictationCoordinator: ObservableObject {
             } else if isCorrectionKeyword(trimmed) {
                 // Check for correction keyword
                 await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                guard !Task.isCancelled else { return }
                 logger.notice("Correction keyword detected")
                 if let rawTranscription = lastRawTranscription, let pastedText = lastPastedText {
                     send(.correctionKeywordDetected(originalTranscription: rawTranscription, llmOutput: pastedText))
@@ -299,16 +353,19 @@ final class DictationCoordinator: ObservableObject {
             } else if isPlaybackPausingCommand(trimmed) {
                 // Check for playback pausing voice command
                 await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                guard !Task.isCancelled else { return }
                 togglePlaybackPausing()
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
             } else if let formattingCommand = parseTextFormattingCommand(trimmed) {
                 // Check for text formatting command
                 await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                guard !Task.isCancelled else { return }
                 handleTextFormattingCommand(formattingCommand)
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
             } else if isDailyNoteCommand(trimmed) {
                 // Check for "daily" keyword to open Obsidian daily note
                 await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                guard !Task.isCancelled else { return }
                 handleDailyNoteCommand()
                 send(.transcriptionEmpty)  // Don't paste anything
             } else {
@@ -317,10 +374,14 @@ final class DictationCoordinator: ObservableObject {
                 lastTranscription = trimmed
                 if currentRecordingMode == .local || currentRecordingMode == .command {
                     await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                    guard !Task.isCancelled else { return }
                 }
                 send(.transcriptionComplete(text: trimmed))
             }
+        } catch is CancellationError {
+            logger.notice("Transcription cancelled")
         } catch {
+            guard !Task.isCancelled else { return }
             send(.error(message: "Transcription failed: \(error.localizedDescription)"))
         }
     }
@@ -481,9 +542,12 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Enhancement
 
     private func enhance(text: String, prompt: String, context: String?) async {
+        guard !Task.isCancelled else { return }
+
         guard llmClient.isConfigured else {
             logger.warning("LLM not configured - skipping enhancement")
             await archiveCurrentRecording(rawTranscription: text, enhancedText: nil)
+            guard !Task.isCancelled else { return }
             send(.enhancementSkipped(text: text))
             return
         }
@@ -504,31 +568,39 @@ final class DictationCoordinator: ObservableObject {
             }
 
             let enhanced = try await llmClient.enhance(text: userMessage, systemPrompt: prompt)
+            guard !Task.isCancelled else { return }
 
             // Store for UI and log
             lastEnhancement = enhanced
             await archiveCurrentRecording(rawTranscription: text, enhancedText: enhanced)
+            guard !Task.isCancelled else { return }
             logTranscription(transcription: text, enhanced: enhanced, mode: stateMachine.state.mode ?? .enhanced)
 
             send(.enhancementComplete(text: enhanced))
         } catch let error as LLMError {
             switch error {
             case .timeout(let originalText):
+                guard !Task.isCancelled else { return }
                 // Timeout: fall back to original transcription and show red flash
                 logger.warning("⚠️ ENHANCEMENT TIMEOUT - LLM took too long, falling back to original transcription")
                 indicatorManager.showTimeoutFlash()
                 await archiveCurrentRecording(rawTranscription: originalText, enhancedText: nil)
+                guard !Task.isCancelled else { return }
                 send(.enhancementSkipped(text: originalText))
             default:
+                guard !Task.isCancelled else { return }
                 logger.error("Enhancement failed: \(error.localizedDescription)")
                 // Fall back to raw text on error
                 await archiveCurrentRecording(rawTranscription: text, enhancedText: nil)
+                guard !Task.isCancelled else { return }
                 send(.enhancementSkipped(text: text))
             }
         } catch {
+            guard !Task.isCancelled else { return }
             logger.error("Enhancement failed: \(error.localizedDescription)")
             // Fall back to raw text on error
             await archiveCurrentRecording(rawTranscription: text, enhancedText: nil)
+            guard !Task.isCancelled else { return }
             send(.enhancementSkipped(text: text))
         }
     }
@@ -665,10 +737,12 @@ final class DictationCoordinator: ObservableObject {
     // MARK: - Command Execution
 
     private func executeCommand(text: String, prompt: String) async {
+        guard !Task.isCancelled else { return }
         let executor = CommandExecutorService.shared
 
         do {
             if let output = try executor.executeDirectCommandIfPossible(text) {
+                guard !Task.isCancelled else { return }
                 logger.notice("Command resolved locally without LLM: \(output)")
                 send(.commandComplete)
                 return
@@ -697,6 +771,7 @@ final class DictationCoordinator: ObservableObject {
 
         do {
             let result = try await llmClient.chatWithTools(messages: messages, tools: tools)
+            guard !Task.isCancelled else { return }
 
             switch result {
             case .content(let response):
@@ -708,11 +783,13 @@ final class DictationCoordinator: ObservableObject {
                 // Execute each tool call
                 for toolCall in toolCalls {
                     let output = try await executor.execute(toolCall: toolCall)
+                    guard !Task.isCancelled else { return }
                     logger.notice("Tool executed: \(toolCall.function.name) -> \(output)")
                 }
                 send(.commandComplete)
             }
         } catch {
+            guard !Task.isCancelled else { return }
             logger.error("Command execution failed: \(error.localizedDescription)")
             send(.commandFailed(message: error.localizedDescription))
         }

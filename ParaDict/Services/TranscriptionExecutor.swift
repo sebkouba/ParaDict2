@@ -8,30 +8,65 @@ actor TranscriptionExecutor {
     static let shared = TranscriptionExecutor()
 
     private let logger = Logger(subsystem: "com.paradict", category: "TranscriptionExecutor")
+    private var tail: Task<Void, Never>
 
-    private init() {}
+    private init() {
+        tail = Task {}
+    }
+
+    /// Actors are reentrant at every `await`, so actor isolation alone does not serialize
+    /// CoreML work. Chain each operation behind the previous task before awaiting its result.
+    private func enqueue(
+        _ operation: @escaping @Sendable () async throws -> String
+    ) async throws -> String {
+        let predecessor = tail
+        let operationTask = Task<String, Error> {
+            await predecessor.value
+            try Task.checkCancellation()
+            return try await operation()
+        }
+
+        tail = Task {
+            _ = try? await operationTask.value
+        }
+
+        return try await withTaskCancellationHandler {
+            try await operationTask.value
+        } onCancel: {
+            operationTask.cancel()
+        }
+    }
 
     /// Transcribe an audio file (used for final transcription after recording stops)
     func transcribe(audioURL: URL, using service: ParakeetTranscriptionService) async throws -> String {
         logger.notice("Executor: transcribing file \(audioURL.lastPathComponent)")
-        return try await service.transcribe(audioURL: audioURL)
+        return try await enqueue {
+            try await service.transcribe(audioURL: audioURL)
+        }
     }
 
     /// Transcribe final recording samples with the selected provider.
     func transcribe(audioSamples: [Float], provider: TranscriptionProvider) async throws -> String {
-        switch provider {
-        case .parakeet:
-            logger.notice("Executor: transcribing samples with Parakeet")
-            return try await ParakeetTranscriptionService.shared.transcribe(audioSamples: audioSamples)
-        case .xai:
-            logger.notice("Executor: transcribing samples with x.ai")
-            return try await XAITranscriptionService.shared.transcribe(audioSamples: audioSamples)
+        logger.notice("Executor: transcribing samples with \(provider.rawValue)")
+        return try await enqueue {
+            switch provider {
+            case .parakeet:
+                return try await ParakeetTranscriptionService.shared.transcribe(
+                    audioSamples: audioSamples
+                )
+            case .xai:
+                return try await XAITranscriptionService.shared.transcribe(
+                    audioSamples: audioSamples
+                )
+            }
         }
     }
 
     /// Transcribe in-memory audio samples (used for streaming preview during recording)
     func transcribe(audioSamples: [Float], using service: ParakeetTranscriptionService) async throws -> String {
         logger.notice("Executor: transcribing \(audioSamples.count) samples")
-        return try await service.transcribe(audioSamples: audioSamples)
+        return try await enqueue {
+            try await service.transcribe(audioSamples: audioSamples)
+        }
     }
 }

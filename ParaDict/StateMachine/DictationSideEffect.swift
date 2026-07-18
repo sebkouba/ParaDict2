@@ -18,6 +18,9 @@ enum DictationSideEffect: Equatable {
     /// Cancel recording and discard the audio
     case cancelRecording
 
+    /// Cancel transcription, enhancement, or command work that is still in flight
+    case cancelProcessing
+
     // MARK: - Processing
 
     /// Enhance text with LLM
@@ -126,6 +129,8 @@ extension DictationSideEffect: CustomStringConvertible {
             return "stopRecording"
         case .cancelRecording:
             return "cancelRecording"
+        case .cancelProcessing:
+            return "cancelProcessing"
         case .enhance(let text, _, _):
             return "enhance(\(text.prefix(20))...)"
         case .paste(let text):
