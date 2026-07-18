@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LLM response time logging: enhancement requests now log elapsed time in milliseconds on both success and timeout, making it easy to diagnose Groq latency issues
 
 ### Fixed
+- Groq and x.ai API keys now live in the macOS Keychain; existing UserDefaults keys migrate automatically and their plaintext copies are removed
 - Long recordings no longer lose quiet final phrases in FluidAudio's short final decoding window
 - Stopping dictation now captures a 220 ms post-roll, drains its recording session, and flushes the sample-rate converter before transcription
 - Microphone changes preserve already recorded audio, while late callbacks from an old input can no longer contaminate the next dictation
