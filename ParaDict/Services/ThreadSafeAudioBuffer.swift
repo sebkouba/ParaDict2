@@ -3,7 +3,7 @@ import Foundation
 /// Thread-safe audio storage shared by the Core Audio tap and transcription tasks.
 /// Samples are retained as immutable chunks so snapshots do not copy the entire recording
 /// while holding the realtime tap's lock.
-final class ThreadSafeAudioBuffer: @unchecked Sendable {
+nonisolated final class ThreadSafeAudioBuffer: @unchecked Sendable {
     private var chunks: [[Float]] = []
     private var sampleCount = 0
     private var generation: UInt64 = 0

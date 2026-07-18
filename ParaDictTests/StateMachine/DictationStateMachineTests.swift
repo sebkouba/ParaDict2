@@ -26,7 +26,7 @@ final class DictationStateMachineTests: XCTestCase {
     func testIdleToRecordingOnHotkeyDown() {
         let effects = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
 
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.contains(.startRecording(mode: .local, prompt: nil, context: nil)))
         XCTAssertTrue(effects.contains(.showIndicator))
         XCTAssertTrue(effects.contains(.startEscapeMonitor))
@@ -37,7 +37,7 @@ final class DictationStateMachineTests: XCTestCase {
         let prompt = "Test prompt"
         let effects = sut.handle(.hotkeyDown(mode: .enhanced, prompt: prompt, context: nil))
 
-        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: prompt, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: prompt, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.contains(.startRecording(mode: .enhanced, prompt: prompt, context: nil)))
     }
 
@@ -65,12 +65,12 @@ final class DictationStateMachineTests: XCTestCase {
     func testBriefPressActivatesHandsFreeMode() {
         // Start recording
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
 
         // Brief release (< 1 second)
         let effects = sut.handle(.hotkeyUp(duration: 0.3))
 
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.isEmpty, "No side effects for hands-free activation")
     }
 
@@ -101,7 +101,7 @@ final class DictationStateMachineTests: XCTestCase {
         // Start in hands-free mode
         _ = sut.handle(.hotkeyDown(mode: .enhanced, prompt: "test", context: nil))
         _ = sut.handle(.hotkeyUp(duration: 0.2))
-        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: "test", isHandsFree: true, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: "test", isHandsFree: true, enterMonitorPending: false, commandMonitorPending: true))
 
         // Second press
         let effects = sut.handle(.hotkeyDown(mode: .enhanced, prompt: nil, context: nil))
@@ -137,12 +137,12 @@ final class DictationStateMachineTests: XCTestCase {
     func testEnterIgnoredWhenNotHandsFree() {
         // Start recording (not hands-free)
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
 
         // Press Enter - should be ignored
         let effects = sut.handle(.enterPressed)
 
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.isEmpty)
     }
 
@@ -346,7 +346,7 @@ final class DictationStateMachineTests: XCTestCase {
 
         let effects = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
 
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.contains(.startRecording(mode: .local, prompt: nil, context: nil)))
     }
 
@@ -423,7 +423,7 @@ final class DictationStateMachineTests: XCTestCase {
     func testFlow_HoldToRecord() {
         // User holds hotkey
         let startEffects = sut.handle(.hotkeyDown(mode: .enhanced, prompt: "test prompt", context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: "test prompt", isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: "test prompt", isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(startEffects.contains(.startRecording(mode: .enhanced, prompt: "test prompt", context: nil)))
         XCTAssertTrue(startEffects.contains(.showIndicator))
 
@@ -460,11 +460,11 @@ final class DictationStateMachineTests: XCTestCase {
     func testFlow_HandsFreeMode() {
         // Quick tap to start
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
 
         // Quick release activates hands-free
         _ = sut.handle(.hotkeyUp(duration: 0.3))
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: true, enterMonitorPending: false, commandMonitorPending: true))
 
         // Second tap stops recording
         let stopEffects = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
@@ -481,7 +481,7 @@ final class DictationStateMachineTests: XCTestCase {
         // Start hands-free recording
         _ = sut.handle(.hotkeyDown(mode: .enhanced, prompt: "dictation", context: nil))
         _ = sut.handle(.hotkeyUp(duration: 0.2))
-        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: "dictation", isHandsFree: true, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .enhanced, prompt: "dictation", isHandsFree: true, enterMonitorPending: false, commandMonitorPending: true))
 
         // First Enter - submit and continue
         let enter1Effects = sut.handle(.enterPressed)
@@ -553,6 +553,7 @@ final class DictationStateMachineTests: XCTestCase {
 
         let cancelEffects = sut.handle(.escapePressed)
         XCTAssertEqual(sut.state, .idle)
+        XCTAssertTrue(cancelEffects.contains(.cancelProcessing))
         XCTAssertTrue(cancelEffects.contains(.hideIndicator))
     }
 
@@ -570,6 +571,7 @@ final class DictationStateMachineTests: XCTestCase {
 
         let cancelEffects = sut.handle(.escapePressed)
         XCTAssertEqual(sut.state, .idle)
+        XCTAssertTrue(cancelEffects.contains(.cancelProcessing))
         XCTAssertTrue(cancelEffects.contains(.hideIndicator))
     }
 
@@ -617,7 +619,7 @@ final class DictationStateMachineTests: XCTestCase {
         sut.setState(.error(message: "Previous error"))
 
         let effects = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.contains(.startRecording(mode: .local, prompt: nil, context: nil)))
     }
 
@@ -627,6 +629,7 @@ final class DictationStateMachineTests: XCTestCase {
         // Start in hands-free mode
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
         _ = sut.handle(.hotkeyUp(duration: 0.2))
+        _ = sut.handle(.commandMonitorReady)
 
         // Press Command
         let effects = sut.handle(.commandPressed)
@@ -661,12 +664,12 @@ final class DictationStateMachineTests: XCTestCase {
     func testCommandIgnoredWhenNotHandsFree() {
         // Start recording (not hands-free)
         _ = sut.handle(.hotkeyDown(mode: .local, prompt: nil, context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
 
         // Press Command - should be ignored
         let effects = sut.handle(.commandPressed)
 
-        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .local, prompt: nil, isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
         XCTAssertTrue(effects.isEmpty)
     }
 
@@ -674,6 +677,7 @@ final class DictationStateMachineTests: XCTestCase {
         // Start in hands-free mode
         _ = sut.handle(.hotkeyDown(mode: .enhanced, prompt: "dictation", context: nil))
         _ = sut.handle(.hotkeyUp(duration: 0.2))
+        _ = sut.handle(.commandMonitorReady)
 
         // Command press - send and stop
         _ = sut.handle(.commandPressed)

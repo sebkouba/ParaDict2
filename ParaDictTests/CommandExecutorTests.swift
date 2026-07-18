@@ -249,7 +249,7 @@ final class CommandExecutorTests: XCTestCase {
 
         // Start recording in command mode
         _ = sut.handle(.hotkeyDown(mode: .command, prompt: "command prompt", context: nil))
-        XCTAssertEqual(sut.state, .recording(mode: .command, prompt: "command prompt", isHandsFree: false, enterMonitorPending: false))
+        XCTAssertEqual(sut.state, .recording(mode: .command, prompt: "command prompt", isHandsFree: false, enterMonitorPending: false, commandMonitorPending: true))
 
         // Long press to stop
         _ = sut.handle(.hotkeyUp(duration: 1.5))
@@ -307,6 +307,7 @@ final class CommandExecutorTests: XCTestCase {
         let effects = sut.handle(.escapePressed)
 
         XCTAssertEqual(sut.state, .idle)
+        XCTAssertTrue(effects.contains(.cancelProcessing))
         XCTAssertTrue(effects.contains(.hideIndicator))
     }
 

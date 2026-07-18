@@ -9,7 +9,7 @@ struct AudioMeter: Equatable {
     let peakPower: Double
 }
 
-private final class RecordingCaptureSession: @unchecked Sendable {
+nonisolated private final class RecordingCaptureSession: @unchecked Sendable {
     let generation: UInt64
 
     private let lock = NSLock()

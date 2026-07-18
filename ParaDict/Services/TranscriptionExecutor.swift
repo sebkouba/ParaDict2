@@ -37,6 +37,15 @@ actor TranscriptionExecutor {
         }
     }
 
+#if DEBUG
+    /// Allows the test target to verify queue ordering without loading transcription models.
+    func executeForTesting(
+        _ operation: @escaping @Sendable () async throws -> String
+    ) async throws -> String {
+        try await enqueue(operation)
+    }
+#endif
+
     /// Transcribe an audio file (used for final transcription after recording stops)
     func transcribe(audioURL: URL, using service: ParakeetTranscriptionService) async throws -> String {
         logger.notice("Executor: transcribing file \(audioURL.lastPathComponent)")

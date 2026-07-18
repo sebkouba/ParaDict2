@@ -119,7 +119,7 @@ class StreamingTranscriptionService: ObservableObject {
 
                 if !trimmed.isEmpty {
                     let updated = usesRollingWindow
-                        ? mergeRollingWindow(previous: previousFullTranscription, currentWindow: trimmed)
+                        ? Self.mergeRollingWindow(previous: previousFullTranscription, currentWindow: trimmed)
                         : smartDiffUpdate(previous: previousFullTranscription, current: trimmed)
                     partialTranscription = updated
                     previousFullTranscription = trimmed
@@ -193,7 +193,7 @@ class StreamingTranscriptionService: ObservableObject {
     }
 
     /// Merge a bounded rolling transcript into the full preview using its word overlap.
-    private func mergeRollingWindow(previous: String, currentWindow: String) -> String {
+    nonisolated static func mergeRollingWindow(previous: String, currentWindow: String) -> String {
         guard !previous.isEmpty else { return currentWindow }
 
         let previousWords = previous.split(separator: " ", omittingEmptySubsequences: true)
@@ -219,7 +219,7 @@ class StreamingTranscriptionService: ObservableObject {
         return previous
     }
 
-    private static func normalizedWord(_ word: Substring) -> String {
+    nonisolated private static func normalizedWord(_ word: Substring) -> String {
         word.lowercased().trimmingCharacters(in: .punctuationCharacters)
     }
 }

@@ -4,7 +4,7 @@ import os
 /// Pure state machine for dictation flow.
 /// Contains only state transition logic - no side effects are executed here.
 /// The coordinator is responsible for executing the returned side effects.
-final class DictationStateMachine {
+nonisolated final class DictationStateMachine {
     private let logger = Logger(subsystem: "com.paradict", category: "StateMachine")
 
     /// Current state of the dictation flow
