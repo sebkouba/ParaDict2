@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Long recordings no longer lose quiet final phrases in FluidAudio's short final decoding window
+- Stopping dictation now captures a 220 ms post-roll, drains its recording session, and flushes the sample-rate converter before transcription
+- Microphone changes preserve already recorded audio, while late callbacks from an old input can no longer contaminate the next dictation
+- Audio conversion now fails visibly when no converter can be created and supplies each tap buffer exactly once
 - File transcription now uses FluidAudio's format-aware converter instead of assuming a 44-byte, 16-bit WAV header
 - open_project tool parameter mismatch: tools.json defined `project_name` but executor expected `path`, causing all project-open commands to fail
 - Command-mode project opening no longer depends entirely on Groq tool calls: simple commands like "open robin" now resolve recent VS Code projects locally before falling back to the LLM
