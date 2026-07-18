@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - LLM response time logging: enhancement requests now log elapsed time in milliseconds on both success and timeout, making it easy to diagnose Groq latency issues
 
 ### Fixed
-- Dictation no longer truncates trailing words at stop time: recording now drains in-flight audio tap frames and flushes resampler tail before final transcription starts
+- Long recordings no longer lose quiet final phrases in FluidAudio's short final decoding window
+- File transcription now uses FluidAudio's format-aware converter instead of assuming a 44-byte, 16-bit WAV header
 - open_project tool parameter mismatch: tools.json defined `project_name` but executor expected `path`, causing all project-open commands to fail
 - Command-mode project opening no longer depends entirely on Groq tool calls: simple commands like "open robin" now resolve recent VS Code projects locally before falling back to the LLM
 
@@ -56,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
+- Upgrade FluidAudio to pinned commit `300165b` with final-window and chunk-seam transcription fixes
 - Recording archive retention can now be edited by clicking the day count and typing a value
 - Live dictation transcribes directly from in-memory audio buffer, eliminating WAV file round-trip to disk
 - Upgrade FluidAudio from commit 064164de to v0.12.0 (bug fixes for chunk boundary transcription loss, vocabulary rescoring for long audio)

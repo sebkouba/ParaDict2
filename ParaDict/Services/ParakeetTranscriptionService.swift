@@ -1,229 +1,121 @@
 import Foundation
-import CoreML
-import AVFoundation
 import FluidAudio
 import os
 
-enum ASRError: LocalizedError {
-    case notInitialized
+enum ParakeetTranscriptionError: LocalizedError {
     case invalidAudioData
-    case transcriptionFailed(String)
     case emptyAudio
 
     var errorDescription: String? {
         switch self {
-        case .notInitialized:
-            return "ASR Manager not initialized"
         case .invalidAudioData:
             return "Invalid audio data"
-        case .transcriptionFailed(let message):
-            return "Transcription failed: \(message)"
         case .emptyAudio:
             return "Audio contains no speech"
         }
     }
 }
 
-class ParakeetTranscriptionService {
+/// Owns one FluidAudio model instance and protects its model-loading state.
+actor ParakeetTranscriptionService {
     static let shared = ParakeetTranscriptionService()
 
-    /// Separate instance for background batch processing (e.g., directory watcher)
-    /// Using a separate instance prevents long transcriptions from blocking live dictation
+    /// A separate model instance keeps background file transcription from delaying live dictation.
     static let background = ParakeetTranscriptionService()
 
     private var asrManager: AsrManager?
-    private var vadManager: VadManager?
+    private var modelLoadTask: Task<AsrManager, Error>?
     private let logger = Logger(subsystem: "com.paradict", category: "ParakeetTranscriptionService")
 
     private init() {
         logger.notice("ParakeetTranscriptionService initialized")
     }
 
-    /// Preload models in background at app startup to avoid UI blocking on first transcription
-    func preloadModels() {
-        Task.detached(priority: .utility) { [self] in
+    /// Preload models at app startup so the first dictation does not pay the loading cost.
+    nonisolated func preloadModels() {
+        Task(priority: .utility) { [weak self] in
             do {
-                try await ensureModelsLoaded()
+                try await self?.ensureModelsLoaded()
             } catch {
-                logger.error("Failed to preload models: \(error.localizedDescription)")
+                self?.logger.error("Failed to preload models: \(error.localizedDescription)")
             }
         }
     }
 
     private func ensureModelsLoaded() async throws {
         if asrManager != nil {
-            logger.notice("ASR models already loaded")
+            return
+        }
+
+        if let modelLoadTask {
+            asrManager = try await modelLoadTask.value
             return
         }
 
         logger.notice("Loading Parakeet v3 models...")
-        let manager = AsrManager(config: .default)
-        let models = try await AsrModels.loadFromCache(
-            configuration: nil,
-            version: .v3
-        )
-        try await manager.initialize(models: models)
-        self.asrManager = manager
-        logger.notice("Parakeet v3 models loaded successfully")
+        let task = Task(priority: .utility) {
+            let models = try await AsrModels.downloadAndLoad(version: .v3)
+            let manager = AsrManager(config: .default)
+            try await manager.loadModels(models)
+            return manager
+        }
+        modelLoadTask = task
+
+        do {
+            asrManager = try await task.value
+            modelLoadTask = nil
+            logger.notice("Parakeet v3 models loaded successfully")
+        } catch {
+            modelLoadTask = nil
+            throw error
+        }
     }
 
+    /// Let FluidAudio decode and resample the file instead of assuming a fixed 44-byte WAV header.
     func transcribe(audioURL: URL) async throws -> String {
-        logger.notice("transcribe called with URL: \(audioURL.path)")
-
-        // Check file exists
         guard FileManager.default.fileExists(atPath: audioURL.path) else {
             logger.error("Audio file does not exist: \(audioURL.path)")
-            throw ASRError.invalidAudioData
-        }
-
-        // Get file size
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: audioURL.path),
-           let size = attrs[.size] as? Int64 {
-            logger.notice("Audio file size: \(size) bytes")
+            throw ParakeetTranscriptionError.invalidAudioData
         }
 
         try await ensureModelsLoaded()
-
-        guard let asrManager = asrManager else {
-            logger.error("ASR Manager is nil after loading")
+        guard let asrManager else {
             throw ASRError.notInitialized
         }
 
-        // Run heavy audio processing on GCD background queue to avoid blocking UI
-        let audioSamples: [Float] = try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async { [self] in
-                do {
-                    let samples = try readAudioSamples(from: audioURL)
-                    continuation.resume(returning: samples)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-        logger.notice("Read \(audioSamples.count) audio samples")
-
-        if audioSamples.isEmpty {
-            logger.error("No audio samples read from file")
-            throw ASRError.emptyAudio
-        }
-
-        // Check audio levels on background queue
-        let (minSample, maxSample, avgAbsSample): (Float, Float, Float) = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let maxS = audioSamples.max() ?? 0
-                let minS = audioSamples.min() ?? 0
-                let avgS = audioSamples.reduce(0) { $0 + abs($1) } / Float(audioSamples.count)
-                continuation.resume(returning: (minS, maxS, avgS))
-            }
-        }
-        logger.notice("Audio stats - min: \(minSample), max: \(maxSample), avgAbs: \(avgAbsSample)")
-
-        if avgAbsSample < 0.001 {
-            logger.warning("Audio appears to be silent (avgAbs < 0.001)")
-        }
-
-        let durationSeconds = Double(audioSamples.count) / 16000.0
-        logger.notice("Transcribing audio: \(String(format: "%.1f", durationSeconds))s (\(audioSamples.count) samples)")
-
-        var speechAudio = audioSamples
-
-        // Use VAD for longer audio (>20s)
-        if durationSeconds >= 20.0 {
-            logger.notice("Audio > 20s, using VAD")
-            let vadConfig = VadConfig(defaultThreshold: 0.7)
-            if vadManager == nil {
-                do {
-                    vadManager = try await VadManager(config: vadConfig)
-                    logger.notice("VAD initialized")
-                } catch {
-                    logger.notice("VAD init failed; using full audio: \(error.localizedDescription)")
-                }
-            }
-
-            if let vadManager {
-                do {
-                    let segments = try await vadManager.segmentSpeechAudio(audioSamples)
-                    logger.notice("VAD found \(segments.count) speech segments")
-                    speechAudio = segments.isEmpty ? audioSamples : segments.flatMap { $0 }
-                } catch {
-                    logger.notice("VAD segmentation failed; using full audio: \(error.localizedDescription)")
-                }
-            }
-        }
-
-        logger.notice("Starting ASR transcription with \(speechAudio.count) samples...")
-        let result = try await asrManager.transcribe(speechAudio)
-        logger.notice("ASR result - text length: \(result.text.count), text: '\(result.text.prefix(200))'")
-
+        logger.notice("Transcribing file: \(audioURL.lastPathComponent)")
+        var decoderState = TdtDecoderState.make()
+        let result = try await asrManager.transcribe(audioURL, decoderState: &decoderState)
+        logger.notice("ASR file result length: \(result.text.count)")
         return result.text
     }
 
-    private func readAudioSamples(from url: URL) throws -> [Float] {
-        logger.notice("Reading audio samples from: \(url.lastPathComponent)")
-
-        let data = try Data(contentsOf: url)
-        logger.notice("Read \(data.count) bytes from file")
-
-        guard data.count > 44 else {
-            logger.error("File too small - only \(data.count) bytes (need > 44 for WAV header)")
-            throw ASRError.invalidAudioData
-        }
-
-        // Log WAV header info
-        let headerBytes = [UInt8](data.prefix(44))
-        let riff = String(bytes: headerBytes[0..<4], encoding: .ascii) ?? "?"
-        let wave = String(bytes: headerBytes[8..<12], encoding: .ascii) ?? "?"
-        logger.notice("WAV header - RIFF: '\(riff)', WAVE: '\(wave)'")
-
-        // Extract format info from WAV header
-        let audioFormat = UInt16(headerBytes[20]) | (UInt16(headerBytes[21]) << 8)
-        let numChannels = UInt16(headerBytes[22]) | (UInt16(headerBytes[23]) << 8)
-        let sampleRate = UInt32(headerBytes[24]) | (UInt32(headerBytes[25]) << 8) | (UInt32(headerBytes[26]) << 16) | (UInt32(headerBytes[27]) << 24)
-        let bitsPerSample = UInt16(headerBytes[34]) | (UInt16(headerBytes[35]) << 8)
-
-        logger.notice("WAV format - audioFormat: \(audioFormat), channels: \(numChannels), sampleRate: \(sampleRate), bitsPerSample: \(bitsPerSample)")
-
-        // Skip WAV header (44 bytes) and convert 16-bit PCM to float
-        // Use efficient single-pass conversion to avoid creating millions of Data slices
-        let sampleCount = (data.count - 44) / 2
-        var floats = [Float](repeating: 0, count: sampleCount)
-
-        data.withUnsafeBytes { rawBuffer in
-            let int16Ptr = rawBuffer.baseAddress!.advanced(by: 44).assumingMemoryBound(to: Int16.self)
-            for i in 0..<sampleCount {
-                let sample = Int16(littleEndian: int16Ptr[i])
-                floats[i] = max(-1.0, min(Float(sample) / 32767.0, 1.0))
-            }
-        }
-
-        logger.notice("Converted to \(floats.count) float samples")
-        return floats
-    }
-
-    /// Transcribe in-memory Float32 audio samples directly (for streaming preview).
-    /// Skips file I/O and WAV header parsing. No VAD (streaming buffers are short).
+    /// Transcribe 16 kHz mono Float32 samples captured by RecordingService.
     func transcribe(audioSamples: [Float]) async throws -> String {
         guard !audioSamples.isEmpty else {
-            throw ASRError.emptyAudio
+            throw ParakeetTranscriptionError.emptyAudio
         }
 
         try await ensureModelsLoaded()
-
-        guard let asrManager = asrManager else {
+        guard let asrManager else {
             throw ASRError.notInitialized
         }
 
-        let durationSeconds = Double(audioSamples.count) / 16000.0
-        logger.notice("Streaming transcribe: \(String(format: "%.1f", durationSeconds))s (\(audioSamples.count) samples)")
-
-        let result = try await asrManager.transcribe(audioSamples)
+        let durationSeconds = Double(audioSamples.count) / 16_000
+        logger.notice(
+            "Transcribing \(audioSamples.count) samples (\(durationSeconds, format: .fixed(precision: 1))s)"
+        )
+        var decoderState = TdtDecoderState.make()
+        let result = try await asrManager.transcribe(audioSamples, decoderState: &decoderState)
+        logger.notice("ASR sample result length: \(result.text.count)")
         return result.text
     }
 
-    func cleanup() {
+    func cleanup() async {
         logger.notice("Cleaning up ASR resources")
-        asrManager?.cleanup()
+        modelLoadTask?.cancel()
+        modelLoadTask = nil
+        await asrManager?.cleanup()
         asrManager = nil
-        vadManager = nil
     }
 }
