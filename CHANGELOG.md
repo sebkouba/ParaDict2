@@ -64,6 +64,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - Upgrade FluidAudio to pinned commit `300165b` with final-window and chunk-seam transcription fixes
+- Live transcription preview now processes at most the latest 30 seconds and merges overlapping words, keeping long hands-free recordings responsive without changing final transcription
+- Recording level updates are capped at 20 Hz to reduce main-thread work from the realtime audio callback
 - Recording archive retention can now be edited by clicking the day count and typing a value
 - Live dictation transcribes directly from in-memory audio buffer, eliminating WAV file round-trip to disk
 - Upgrade FluidAudio from commit 064164de to v0.12.0 (bug fixes for chunk boundary transcription loss, vocabulary rescoring for long audio)

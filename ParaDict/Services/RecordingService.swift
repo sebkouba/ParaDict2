@@ -20,6 +20,7 @@ private final class RecordingCaptureSession: @unchecked Sendable {
     private var inputFrameCount = 0
     private var outputFrameCount = 0
     private var conversionFailureCount = 0
+    private var lastMeterPublishUptime: UInt64 = 0
 
     init(generation: UInt64) {
         self.generation = generation
@@ -105,6 +106,21 @@ private final class RecordingCaptureSession: @unchecked Sendable {
         let result = (callbackCount, inputFrameCount, outputFrameCount, conversionFailureCount)
         lock.unlock()
         return result
+    }
+
+    /// Cap UI hops from fast hardware callbacks at 20 updates per second.
+    func shouldPublishMeter() -> Bool {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let minimumInterval: UInt64 = 50_000_000
+
+        lock.lock()
+        guard lastMeterPublishUptime == 0 || now - lastMeterPublishUptime >= minimumInterval else {
+            lock.unlock()
+            return false
+        }
+        lastMeterPublishUptime = now
+        lock.unlock()
+        return true
     }
 }
 
@@ -287,10 +303,11 @@ class RecordingService: NSObject, ObservableObject {
                             return
                         }
 
-                        // Compute metering from the samples
-                        let (avg, peak) = Self.computeMetering(samples)
-                        Task { @MainActor [weak self] in
-                            self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
+                        if captureSession.shouldPublishMeter() {
+                            let (avg, peak) = Self.computeMetering(samples)
+                            Task { @MainActor [weak self] in
+                                self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
+                            }
                         }
                     }
                 }
@@ -311,10 +328,11 @@ class RecordingService: NSObject, ObservableObject {
                             return
                         }
 
-                        // Compute metering from the samples
-                        let (avg, peak) = Self.computeMetering(samples)
-                        Task { @MainActor [weak self] in
-                            self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
+                        if captureSession.shouldPublishMeter() {
+                            let (avg, peak) = Self.computeMetering(samples)
+                            Task { @MainActor [weak self] in
+                                self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
+                            }
                         }
                     }
                 }

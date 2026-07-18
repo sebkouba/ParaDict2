@@ -24,8 +24,12 @@ class StreamingTranscriptionService: ObservableObject {
     /// Minimum number of samples before first transcription (0.5s at 16kHz)
     private let minSamples = 8000
 
+    /// Bound preview work even during long hands-free sessions. Final transcription still uses all audio.
+    private let maxPreviewSamples = 480_000
+
     /// Previous full transcription for smart diff
     private var previousFullTranscription: String = ""
+    private var lastTranscribedSampleCount = 0
 
     /// The streaming loop task
     private var streamingTask: Task<Void, Never>?
@@ -53,6 +57,7 @@ class StreamingTranscriptionService: ObservableObject {
         partialTranscription = ""
         confirmedWordCount = 0
         isSilent = false
+        lastTranscribedSampleCount = 0
         isStreaming = true
 
         logger.notice("Starting streaming transcription")
@@ -77,6 +82,7 @@ class StreamingTranscriptionService: ObservableObject {
         previousFullTranscription = ""
         confirmedWordCount = 0
         isSilent = false
+        lastTranscribedSampleCount = 0
     }
 
     // MARK: - Streaming Loop
@@ -89,13 +95,17 @@ class StreamingTranscriptionService: ObservableObject {
 
             // Check minimum audio threshold
             let sampleCount = buffer.count
-            guard sampleCount >= minSamples else {
+            guard sampleCount >= minSamples, sampleCount > lastTranscribedSampleCount else {
                 continue
             }
 
-            // Read the full buffer
-            let samples = buffer.readAll()
+            // Keep long hands-free previews bounded; final transcription uses the full buffer.
+            let usesRollingWindow = sampleCount > maxPreviewSamples
+            let samples = usesRollingWindow
+                ? buffer.readTail(count: maxPreviewSamples)
+                : buffer.readAll()
             guard !samples.isEmpty else { continue }
+            lastTranscribedSampleCount = sampleCount
 
             // Transcribe through the executor (serializes with final transcription)
             do {
@@ -108,7 +118,9 @@ class StreamingTranscriptionService: ObservableObject {
                 guard !Task.isCancelled else { break }
 
                 if !trimmed.isEmpty {
-                    let updated = smartDiffUpdate(previous: previousFullTranscription, current: trimmed)
+                    let updated = usesRollingWindow
+                        ? mergeRollingWindow(previous: previousFullTranscription, currentWindow: trimmed)
+                        : smartDiffUpdate(previous: previousFullTranscription, current: trimmed)
                     partialTranscription = updated
                     previousFullTranscription = trimmed
 
@@ -178,5 +190,36 @@ class StreamingTranscriptionService: ObservableObject {
             return stablePrefix + " " + newSuffix
         }
         return stablePrefix
+    }
+
+    /// Merge a bounded rolling transcript into the full preview using its word overlap.
+    private func mergeRollingWindow(previous: String, currentWindow: String) -> String {
+        guard !previous.isEmpty else { return currentWindow }
+
+        let previousWords = previous.split(separator: " ", omittingEmptySubsequences: true)
+        let currentWords = currentWindow.split(separator: " ", omittingEmptySubsequences: true)
+        let maximumOverlap = min(previousWords.count, currentWords.count)
+
+        for overlap in stride(from: maximumOverlap, through: 2, by: -1) {
+            let previousStart = previousWords.count - overlap
+            let matches = (0..<overlap).allSatisfy { index in
+                Self.normalizedWord(previousWords[previousStart + index]) ==
+                    Self.normalizedWord(currentWords[index])
+            }
+            guard matches else { continue }
+
+            if overlap == currentWords.count {
+                return previous
+            }
+            return previous + " " + currentWords[overlap...].joined(separator: " ")
+        }
+
+        // Recognition around the rolling boundary can be unstable. Keep the accumulated
+        // preview until a reliable overlap appears instead of duplicating or deleting text.
+        return previous
+    }
+
+    private static func normalizedWord(_ word: Substring) -> String {
+        word.lowercased().trimmingCharacters(in: .punctuationCharacters)
     }
 }
