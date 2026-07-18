@@ -184,9 +184,11 @@ struct TranscriptionSettingsView: View {
     }
 
     private func clearAPIKey() {
-        xaiService.clearAPIKey()
-        apiKeyInput = ""
-        testResult = nil
+        Task {
+            await xaiService.clearAPIKey()
+            apiKeyInput = ""
+            testResult = nil
+        }
     }
 
     private func testConnection() {

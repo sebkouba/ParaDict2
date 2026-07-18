@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-final class APIKeyStorageService {
+actor APIKeyStorageService {
     static let shared = APIKeyStorageService()
 
     private let service = "com.hiq.ParaDict.api-keys"

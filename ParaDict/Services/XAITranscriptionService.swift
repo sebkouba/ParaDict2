@@ -42,14 +42,18 @@ class XAITranscriptionService: ObservableObject {
     private let keychainAccount = "xai"
     private let keyStorage = APIKeyStorageService.shared
     private let sampleRate = 16_000
+    private var cachedAPIKey: String?
 
     @Published var isAPIKeyValid = false
     @Published var isValidating = false
     @Published var lastValidationError: String?
 
     private init() {
-        migrateLegacyAPIKeyIfNeeded()
+        cachedAPIKey = UserDefaults.standard.string(forKey: legacyAPIKeyStorageKey)
         isAPIKeyValid = getStoredAPIKey() != nil
+        Task { [weak self] in
+            await self?.loadAndMigrateStoredAPIKey()
+        }
     }
 
     var isConfigured: Bool {
@@ -57,12 +61,8 @@ class XAITranscriptionService: ObservableObject {
     }
 
     func getStoredAPIKey() -> String? {
-        do {
-            if let key = try keyStorage.loadKey(for: keychainAccount) {
-                return key
-            }
-        } catch {
-            logger.error("Unable to read x.ai API key from Keychain: \(error.localizedDescription)")
+        if let cachedAPIKey, !cachedAPIKey.isEmpty {
+            return cachedAPIKey
         }
         if let key = ProcessInfo.processInfo.environment["XAI_API_KEY"], !key.isEmpty {
             return key
@@ -78,8 +78,9 @@ class XAITranscriptionService: ObservableObject {
         do {
             let isValid = try await validateAPIKey(key)
             if isValid {
-                try keyStorage.saveKey(key, for: keychainAccount)
+                try await keyStorage.saveKey(key, for: keychainAccount)
                 UserDefaults.standard.removeObject(forKey: legacyAPIKeyStorageKey)
+                cachedAPIKey = key
                 isAPIKeyValid = true
                 logger.notice("x.ai API key saved and validated successfully")
                 return true
@@ -96,10 +97,11 @@ class XAITranscriptionService: ObservableObject {
         }
     }
 
-    func clearAPIKey() {
+    func clearAPIKey() async {
         do {
-            try keyStorage.deleteKey(for: keychainAccount)
+            try await keyStorage.deleteKey(for: keychainAccount)
             UserDefaults.standard.removeObject(forKey: legacyAPIKeyStorageKey)
+            cachedAPIKey = nil
             isAPIKeyValid = getStoredAPIKey() != nil
             lastValidationError = nil
             logger.notice("x.ai API key cleared")
@@ -110,18 +112,24 @@ class XAITranscriptionService: ObservableObject {
         }
     }
 
-    private func migrateLegacyAPIKeyIfNeeded() {
+    private func loadAndMigrateStoredAPIKey() async {
         let defaults = UserDefaults.standard
-        guard let legacyKey = defaults.string(forKey: legacyAPIKeyStorageKey), !legacyKey.isEmpty else {
-            return
-        }
+        let legacyKey = defaults.string(forKey: legacyAPIKeyStorageKey).flatMap { $0.isEmpty ? nil : $0 }
 
         do {
-            if try keyStorage.loadKey(for: keychainAccount) == nil {
-                try keyStorage.saveKey(legacyKey, for: keychainAccount)
+            if let storedKey = try await keyStorage.loadKey(for: keychainAccount) {
+                cachedAPIKey = storedKey
+                if legacyKey != nil {
+                    defaults.removeObject(forKey: legacyAPIKeyStorageKey)
+                    logger.notice("Removed legacy x.ai API key from UserDefaults")
+                }
+            } else if let legacyKey {
+                try await keyStorage.saveKey(legacyKey, for: keychainAccount)
+                cachedAPIKey = legacyKey
+                defaults.removeObject(forKey: legacyAPIKeyStorageKey)
+                logger.notice("Migrated x.ai API key from UserDefaults to Keychain")
             }
-            defaults.removeObject(forKey: legacyAPIKeyStorageKey)
-            logger.notice("Migrated x.ai API key from UserDefaults to Keychain")
+            isAPIKeyValid = getStoredAPIKey() != nil
         } catch {
             logger.error("Unable to migrate x.ai API key to Keychain: \(error.localizedDescription)")
         }

@@ -175,15 +175,19 @@ class LLMClient: ObservableObject {
     private let legacyAPIKeyStorageKey = "GROQAPIKey"
     private let keychainAccount = "groq"
     private let keyStorage = APIKeyStorageService.shared
+    private var cachedAPIKey: String?
 
     @Published var isAPIKeyValid: Bool = false
     @Published var isValidating: Bool = false
     @Published var lastValidationError: String?
 
     private init() {
-        migrateLegacyAPIKeyIfNeeded()
+        cachedAPIKey = UserDefaults.standard.string(forKey: legacyAPIKeyStorageKey)
         if let _ = getStoredAPIKey() {
             isAPIKeyValid = true
+        }
+        Task { [weak self] in
+            await self?.loadAndMigrateStoredAPIKey()
         }
     }
 
@@ -194,12 +198,8 @@ class LLMClient: ObservableObject {
     }
 
     func getStoredAPIKey() -> String? {
-        do {
-            if let key = try keyStorage.loadKey(for: keychainAccount) {
-                return key
-            }
-        } catch {
-            logger.error("Unable to read Groq API key from Keychain: \(error.localizedDescription)")
+        if let cachedAPIKey, !cachedAPIKey.isEmpty {
+            return cachedAPIKey
         }
         if let key = ProcessInfo.processInfo.environment["GROQ_API_KEY"], !key.isEmpty {
             return key
@@ -217,8 +217,9 @@ class LLMClient: ObservableObject {
         do {
             let isValid = try await validateAPIKey(key)
             if isValid {
-                try keyStorage.saveKey(key, for: keychainAccount)
+                try await keyStorage.saveKey(key, for: keychainAccount)
                 UserDefaults.standard.removeObject(forKey: legacyAPIKeyStorageKey)
+                cachedAPIKey = key
                 isAPIKeyValid = true
                 logger.notice("API key saved and validated successfully")
                 return true
@@ -235,10 +236,11 @@ class LLMClient: ObservableObject {
         }
     }
 
-    func clearAPIKey() {
+    func clearAPIKey() async {
         do {
-            try keyStorage.deleteKey(for: keychainAccount)
+            try await keyStorage.deleteKey(for: keychainAccount)
             UserDefaults.standard.removeObject(forKey: legacyAPIKeyStorageKey)
+            cachedAPIKey = nil
             isAPIKeyValid = getStoredAPIKey() != nil
             lastValidationError = nil
             logger.notice("API key cleared")
@@ -249,18 +251,24 @@ class LLMClient: ObservableObject {
         }
     }
 
-    private func migrateLegacyAPIKeyIfNeeded() {
+    private func loadAndMigrateStoredAPIKey() async {
         let defaults = UserDefaults.standard
-        guard let legacyKey = defaults.string(forKey: legacyAPIKeyStorageKey), !legacyKey.isEmpty else {
-            return
-        }
+        let legacyKey = defaults.string(forKey: legacyAPIKeyStorageKey).flatMap { $0.isEmpty ? nil : $0 }
 
         do {
-            if try keyStorage.loadKey(for: keychainAccount) == nil {
-                try keyStorage.saveKey(legacyKey, for: keychainAccount)
+            if let storedKey = try await keyStorage.loadKey(for: keychainAccount) {
+                cachedAPIKey = storedKey
+                if legacyKey != nil {
+                    defaults.removeObject(forKey: legacyAPIKeyStorageKey)
+                    logger.notice("Removed legacy Groq API key from UserDefaults")
+                }
+            } else if let legacyKey {
+                try await keyStorage.saveKey(legacyKey, for: keychainAccount)
+                cachedAPIKey = legacyKey
+                defaults.removeObject(forKey: legacyAPIKeyStorageKey)
+                logger.notice("Migrated Groq API key from UserDefaults to Keychain")
             }
-            defaults.removeObject(forKey: legacyAPIKeyStorageKey)
-            logger.notice("Migrated Groq API key from UserDefaults to Keychain")
+            isAPIKeyValid = getStoredAPIKey() != nil
         } catch {
             logger.error("Unable to migrate Groq API key to Keychain: \(error.localizedDescription)")
         }

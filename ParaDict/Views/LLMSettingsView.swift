@@ -251,9 +251,11 @@ struct LLMSettingsView: View {
     }
 
     private func clearAPIKey() {
-        llmClient.clearAPIKey()
-        apiKeyInput = ""
-        testResult = nil
+        Task {
+            await llmClient.clearAPIKey()
+            apiKeyInput = ""
+            testResult = nil
+        }
     }
 
     private func testConnection() {
