@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0-beta] - 2026-07-20
+
 ### Added
 - Audio recording archive: Audio settings can store dictation WAV files with JSON sidecars in a chosen folder, with retention configurable up to 999 days
 - x.ai transcription provider option with Settings controls for choosing Parakeet or x.ai and managing the x.ai API key
