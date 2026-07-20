@@ -65,6 +65,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - State machine architecture for dictation flow
 
 ### Changed
+- Release archives now use Developer ID signing with hardened runtime and omit debug-only signing entitlements
 - Upgrade FluidAudio to pinned commit `300165b` with final-window and chunk-seam transcription fixes
 - Live transcription preview now processes at most the latest 30 seconds and merges overlapping words, keeping long hands-free recordings responsive without changing final transcription
 - Recording level updates are capped at 20 Hz to reduce main-thread work from the realtime audio callback
