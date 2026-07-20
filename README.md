@@ -6,6 +6,14 @@ A macOS menu bar voice dictation app with local transcription using Parakeet V3 
 
 **Note on licensing**: This is open source and free to use. I'm releasing it as a public beta to get feedback and let others benefit from it. In the future, I may ask for a one-time payment per major version to support continued development—but the code will remain open.
 
+## What's new in the July 2026 update
+
+- Live transcription preview with stable utterance finalization while you speak
+- More reliable recording shutdown and final-word capture, plus safer cancellation and serialized transcription
+- Optional x.ai transcription, configurable recording archives, and API keys stored in macOS Keychain
+- Restored voice commands, prioritized microphone selection, playback pausing, and send-after-paste controls
+- Developer ID-signed universal release archives for Apple Silicon and Intel Macs
+
 ## Features
 
 - **Local Transcription**: Fast, private speech-to-text using [Parakeet V3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) running entirely on your Mac
