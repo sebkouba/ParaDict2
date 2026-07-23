@@ -2,10 +2,12 @@ import SwiftUI
 
 struct TranscriptionSettingsView: View {
     @StateObject private var xaiService = XAITranscriptionService.shared
+    @StateObject private var elevenLabsService = ElevenLabsTranscriptionService.shared
 
     @AppStorage(SettingsKeys.transcriptionProvider) private var transcriptionProvider = SettingsDefaults.transcriptionProvider
 
-    @State private var apiKeyInput = ""
+    @State private var xaiAPIKeyInput = ""
+    @State private var elevenLabsAPIKeyInput = ""
     @State private var showAPIKey = false
     @State private var testResult: String?
     @State private var isTestingConnection = false
@@ -37,13 +39,15 @@ struct TranscriptionSettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     providerSection
 
-                    Divider()
+                    if selectedProvider != .parakeet {
+                        Divider()
 
-                    xaiStatusSection
+                        providerStatusSection
 
-                    Divider()
+                        Divider()
 
-                    xaiAPIKeySection
+                        providerAPIKeySection
+                    }
                 }
                 .padding(16)
                 .background(Color(NSColor.controlBackgroundColor))
@@ -56,6 +60,10 @@ struct TranscriptionSettingsView: View {
             .padding(24)
         }
         .background(Color(NSColor.windowBackgroundColor))
+        .onChange(of: transcriptionProvider) {
+            testResult = nil
+            showAPIKey = false
+        }
     }
 
     private var selectedProvider: TranscriptionProvider {
@@ -67,7 +75,7 @@ struct TranscriptionSettingsView: View {
             Label("Provider", systemImage: "switch.2")
                 .font(.headline)
 
-            Text("Parakeet runs locally. x.ai sends recorded audio to the x.ai speech-to-text API.")
+            Text("Parakeet stays on-device. x.ai and ElevenLabs send each completed recording to the selected cloud API.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
@@ -78,37 +86,49 @@ struct TranscriptionSettingsView: View {
             }
             .pickerStyle(.segmented)
 
-            if selectedProvider == .xai {
-                Label("Live preview still uses local Parakeet when enabled; final pasted text uses x.ai.", systemImage: "info.circle")
+            if selectedProvider != .parakeet {
+                Label(
+                    "Live preview still uses local Parakeet when enabled; final pasted text uses \(selectedProvider.displayName).",
+                    systemImage: "info.circle"
+                )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            if selectedProvider == .elevenLabs {
+                Label(
+                    "Scribe v2 transcribes synchronously and detects the spoken language automatically.",
+                    systemImage: "globe"
+                )
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
     }
 
-    private var xaiStatusSection: some View {
+    private var providerStatusSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("x.ai Status", systemImage: "network")
+            Label("\(selectedProvider.displayName) Status", systemImage: "network")
                 .font(.headline)
 
             HStack {
                 Circle()
-                    .fill(xaiService.isAPIKeyValid ? Color.green : Color.red)
+                    .fill(selectedProviderAPIKeyIsValid ? Color.green : Color.red)
                     .frame(width: 12, height: 12)
 
-                Text(xaiService.isAPIKeyValid ? "Connected to x.ai" : "Not Connected")
+                Text(selectedProviderAPIKeyIsValid ? "Connected to \(selectedProvider.displayName)" : "Not Connected")
                     .fontWeight(.medium)
 
                 Spacer()
 
-                if xaiService.isValidating || isTestingConnection {
+                if selectedProviderIsValidating || isTestingConnection {
                     ProgressView()
                         .scaleEffect(0.8)
                 } else {
                     Button("Test Connection") {
                         testConnection()
                     }
-                    .disabled(!xaiService.isConfigured)
+                    .disabled(!selectedProviderIsConfigured)
                 }
             }
 
@@ -120,22 +140,22 @@ struct TranscriptionSettingsView: View {
         }
     }
 
-    private var xaiAPIKeySection: some View {
+    private var providerAPIKeySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("x.ai API Key", systemImage: "key")
+            Label("\(selectedProvider.displayName) API Key", systemImage: "key")
                 .font(.headline)
 
-            Text("Enter your x.ai API key to enable cloud transcription.")
+            Text("Stored securely in the macOS Keychain.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
             HStack {
                 if showAPIKey {
-                    TextField("xai-...", text: $apiKeyInput)
+                    TextField(selectedProviderAPIKeyPlaceholder, text: selectedProviderAPIKeyInput)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                 } else {
-                    SecureField("xai-...", text: $apiKeyInput)
+                    SecureField(selectedProviderAPIKeyPlaceholder, text: selectedProviderAPIKeyInput)
                         .textFieldStyle(.roundedBorder)
                 }
 
@@ -151,9 +171,9 @@ struct TranscriptionSettingsView: View {
                 Button("Save & Verify") {
                     saveAPIKey()
                 }
-                .disabled(apiKeyInput.isEmpty || xaiService.isValidating)
+                .disabled(selectedProviderAPIKeyInput.wrappedValue.isEmpty || selectedProviderIsValidating)
 
-                if xaiService.isConfigured {
+                if selectedProviderIsConfigured {
                     Button("Clear Key", role: .destructive) {
                         clearAPIKey()
                     }
@@ -161,11 +181,11 @@ struct TranscriptionSettingsView: View {
 
                 Spacer()
 
-                Link("Get API Key", destination: URL(string: "https://console.x.ai/team/default/api-keys?campaign=voice-docs-stt")!)
+                Link("Get API Key", destination: selectedProviderAPIKeyURL)
                     .font(.caption)
             }
 
-            if let error = xaiService.lastValidationError {
+            if let error = selectedProviderValidationError {
                 Text(error)
                     .font(.caption)
                     .foregroundColor(.red)
@@ -173,32 +193,153 @@ struct TranscriptionSettingsView: View {
         }
     }
 
+    private var selectedProviderAPIKeyInput: Binding<String> {
+        switch selectedProvider {
+        case .xai:
+            return $xaiAPIKeyInput
+        case .elevenLabs:
+            return $elevenLabsAPIKeyInput
+        case .parakeet:
+            return .constant("")
+        }
+    }
+
+    private var selectedProviderAPIKeyIsValid: Bool {
+        switch selectedProvider {
+        case .xai:
+            return xaiService.isAPIKeyValid
+        case .elevenLabs:
+            return elevenLabsService.isAPIKeyValid
+        case .parakeet:
+            return true
+        }
+    }
+
+    private var selectedProviderIsConfigured: Bool {
+        switch selectedProvider {
+        case .xai:
+            return xaiService.isConfigured
+        case .elevenLabs:
+            return elevenLabsService.isConfigured
+        case .parakeet:
+            return true
+        }
+    }
+
+    private var selectedProviderIsValidating: Bool {
+        switch selectedProvider {
+        case .xai:
+            return xaiService.isValidating
+        case .elevenLabs:
+            return elevenLabsService.isValidating
+        case .parakeet:
+            return false
+        }
+    }
+
+    private var selectedProviderValidationError: String? {
+        switch selectedProvider {
+        case .xai:
+            return xaiService.lastValidationError
+        case .elevenLabs:
+            return elevenLabsService.lastValidationError
+        case .parakeet:
+            return nil
+        }
+    }
+
+    private var selectedProviderAPIKeyPlaceholder: String {
+        switch selectedProvider {
+        case .xai:
+            return "xai-..."
+        case .elevenLabs:
+            return "Paste ElevenLabs API key"
+        case .parakeet:
+            return ""
+        }
+    }
+
+    private var selectedProviderAPIKeyURL: URL {
+        switch selectedProvider {
+        case .xai:
+            return URL(string: "https://console.x.ai/team/default/api-keys?campaign=voice-docs-stt")!
+        case .elevenLabs:
+            return URL(string: "https://elevenlabs.io/app/settings/api-keys")!
+        case .parakeet:
+            return URL(string: "https://elevenlabs.io/docs/api-reference/authentication")!
+        }
+    }
+
     private func saveAPIKey() {
+        let provider = selectedProvider
+        let key = selectedProviderAPIKeyInput.wrappedValue
+
         Task {
-            let success = await xaiService.saveAPIKey(apiKeyInput)
+            let success: Bool
+            switch provider {
+            case .xai:
+                success = await xaiService.saveAPIKey(key)
+            case .elevenLabs:
+                success = await elevenLabsService.saveAPIKey(key)
+            case .parakeet:
+                return
+            }
+
             if success {
-                testResult = "x.ai API key verified successfully!"
-                apiKeyInput = ""
+                testResult = "\(provider.displayName) API key verified successfully!"
+                clearAPIKeyInput(for: provider)
             }
         }
     }
 
     private func clearAPIKey() {
+        let provider = selectedProvider
+
         Task {
-            await xaiService.clearAPIKey()
-            apiKeyInput = ""
+            switch provider {
+            case .xai:
+                await xaiService.clearAPIKey()
+            case .elevenLabs:
+                await elevenLabsService.clearAPIKey()
+            case .parakeet:
+                return
+            }
+
+            clearAPIKeyInput(for: provider)
             testResult = nil
         }
     }
 
     private func testConnection() {
+        let provider = selectedProvider
         isTestingConnection = true
         testResult = nil
 
         Task {
-            let result = await xaiService.testConnection()
+            let result: (success: Bool, message: String)
+            switch provider {
+            case .xai:
+                result = await xaiService.testConnection()
+            case .elevenLabs:
+                result = await elevenLabsService.testConnection()
+            case .parakeet:
+                isTestingConnection = false
+                return
+            }
+
             isTestingConnection = false
             testResult = result.success ? "Connection successful!" : result.message
+        }
+    }
+
+    private func clearAPIKeyInput(for provider: TranscriptionProvider) {
+        switch provider {
+        case .xai:
+            xaiAPIKeyInput = ""
+        case .elevenLabs:
+            elevenLabsAPIKeyInput = ""
+        case .parakeet:
+            break
         }
     }
 }
