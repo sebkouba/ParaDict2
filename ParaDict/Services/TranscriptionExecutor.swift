@@ -67,6 +67,10 @@ actor TranscriptionExecutor {
                 return try await XAITranscriptionService.shared.transcribe(
                     audioSamples: audioSamples
                 )
+            case .elevenLabs:
+                return try await ElevenLabsTranscriptionService.shared.transcribe(
+                    audioSamples: audioSamples
+                )
             }
         }
     }

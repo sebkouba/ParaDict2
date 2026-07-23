@@ -208,6 +208,7 @@ enum DictationMode: String, Codable, CaseIterable {
 enum TranscriptionProvider: String, Codable, CaseIterable, Identifiable {
     case parakeet
     case xai
+    case elevenLabs
 
     var id: String { rawValue }
 
@@ -217,6 +218,8 @@ enum TranscriptionProvider: String, Codable, CaseIterable, Identifiable {
             return "Parakeet"
         case .xai:
             return "x.ai"
+        case .elevenLabs:
+            return "ElevenLabs"
         }
     }
 }
