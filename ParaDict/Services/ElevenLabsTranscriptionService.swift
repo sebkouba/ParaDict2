@@ -37,7 +37,6 @@ final class ElevenLabsTranscriptionService: ObservableObject {
 
     private let logger = Logger(subsystem: "com.paradict", category: "ElevenLabsTranscriptionService")
     private let sttURL = URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!
-    private let validationURL = URL(string: "https://api.elevenlabs.io/v1/user")!
     private let keychainAccount = "elevenlabs"
     private let keyStorage = APIKeyStorageService.shared
     private let sampleRate = 16_000
@@ -109,13 +108,19 @@ final class ElevenLabsTranscriptionService: ObservableObject {
     }
 
     func validateAPIKey(_ key: String) async throws -> Bool {
-        var request = URLRequest(url: validationURL)
-        request.httpMethod = "GET"
+        let validationSamples = (0..<(sampleRate / 5)).map { index in
+            Float(sin(2 * Double.pi * 440 * Double(index) / Double(sampleRate)) * 0.01)
+        }
+        let body = Self.transcriptionBody(audioSamples: validationSamples)
+
+        var request = URLRequest(url: sttURL)
+        request.httpMethod = "POST"
         request.setValue(key, forHTTPHeaderField: "xi-api-key")
+        request.setValue("multipart/form-data; boundary=\(body.boundary)", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 15
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.upload(for: request, from: body.data)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ElevenLabsTranscriptionError.invalidResponse
             }
@@ -126,7 +131,8 @@ final class ElevenLabsTranscriptionService: ObservableObject {
             case 401, 403:
                 throw ElevenLabsTranscriptionError.invalidAPIKey
             default:
-                throw ElevenLabsTranscriptionError.requestFailed("HTTP \(httpResponse.statusCode)")
+                let message = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+                throw ElevenLabsTranscriptionError.requestFailed("HTTP \(httpResponse.statusCode): \(message)")
             }
         } catch let error as ElevenLabsTranscriptionError {
             throw error
