@@ -27,6 +27,11 @@ final class AppSettings {
         set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.pauseMediaDuringDictation) }
     }
 
+    var pauseMicrophoneDuringPlayback: Bool {
+        get { UserDefaults.standard.object(forKey: SettingsKeys.pauseMicrophoneDuringPlayback) as? Bool ?? SettingsDefaults.pauseMicrophoneDuringPlayback }
+        set { UserDefaults.standard.set(newValue, forKey: SettingsKeys.pauseMicrophoneDuringPlayback) }
+    }
+
     // MARK: - Audio Settings
 
     var audioDeviceUID: String? {

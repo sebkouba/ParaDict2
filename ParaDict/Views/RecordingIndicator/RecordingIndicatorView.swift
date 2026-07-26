@@ -110,11 +110,17 @@ struct RecordingStatusDisplay: View {
                 } else if case .pasting = displayState {
                     DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)
                 } else if displayState.isRecording {
-                    DotMatrixVisualizer(
-                        recordingService: recordingService,
-                        color: Color(red: 0, green: 1, blue: 0.2),
-                        isActive: true
-                    )
+                    if recordingService.isMicrophonePausedForPlayback {
+                        Text("MIC PAUSED")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(matrixYellow)
+                    } else {
+                        DotMatrixVisualizer(
+                            recordingService: recordingService,
+                            color: matrixGreen,
+                            isActive: true
+                        )
+                    }
                 } else {
                     // Fallback - show blue progress (this shouldn't normally be visible)
                     DotMatrixProgressIndicator(color: matrixBlue, startTime: processingStartTime)

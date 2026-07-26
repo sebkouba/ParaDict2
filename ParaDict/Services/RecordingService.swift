@@ -130,6 +130,7 @@ class RecordingService: NSObject, ObservableObject {
     private let logger = Logger(subsystem: "com.paradict", category: "RecordingService")
     private let deviceManager = AudioDeviceManager.shared
     private let mediaControlService = MediaControlService.shared
+    private let audioCaptureGate = AudioCaptureGateService()
     private var deviceObserver: NSObjectProtocol?
     private var isReconfiguring = false
     private var isFinalizing = false
@@ -139,6 +140,7 @@ class RecordingService: NSObject, ObservableObject {
 
     @Published var audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
     @Published var isRecording = false
+    @Published private(set) var isMicrophonePausedForPlayback = false
 
     /// Shared audio buffer for streaming transcription preview
     let audioBuffer = ThreadSafeAudioBuffer()
@@ -150,6 +152,9 @@ class RecordingService: NSObject, ObservableObject {
     private let tapBufferSize: AVAudioFrameCount = 1024
     /// Keep capturing beyond hotkey release so Core Audio emits the partially filled final tap buffer.
     private let stopPostRollNanoseconds: UInt64 = 220_000_000
+    /// MediaRemote notifications are debounced by 100 ms. Erase a little extra
+    /// audio so the beginning of playback cannot leak through the microphone.
+    private let playbackDetectionLookbackSamples = 4_000
 
     enum RecordingError: LocalizedError {
         case couldNotStartRecording(reason: String)
@@ -192,7 +197,14 @@ class RecordingService: NSObject, ObservableObject {
     }
 
     func startRecording() async throws {
+        endPlaybackCaptureSuppression()
+        audioCaptureGate.reset()
+
         try await startRecording(clearExistingAudio: true)
+
+        if AppSettings.shared.pauseMicrophoneDuringPlayback {
+            beginPlaybackCaptureSuppression()
+        }
     }
 
     private func startRecording(clearExistingAudio: Bool) async throws {
@@ -238,6 +250,7 @@ class RecordingService: NSObject, ObservableObject {
 
             // Install tap on input node — runs on CoreAudio realtime thread
             let buffer = self.audioBuffer
+            let captureGate = self.audioCaptureGate
 
             // Use a converter if the input format doesn't match our target
             // This handles cases where installTap with a different format isn't supported
@@ -298,13 +311,18 @@ class RecordingService: NSObject, ObservableObject {
                     // Append Float32 samples to shared buffer
                     if let channelData = convertedBuffer.floatChannelData {
                         let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(convertedBuffer.frameLength)))
-                        outputFrames = samples.count
-                        guard buffer.append(samples, generation: captureSession.generation) else {
+                        let capture = captureGate.append(
+                            samples,
+                            to: buffer,
+                            generation: captureSession.generation
+                        )
+                        outputFrames = capture.capturedSamples.count
+                        guard capture.didAppend else {
                             return
                         }
 
                         if captureSession.shouldPublishMeter() {
-                            let (avg, peak) = Self.computeMetering(samples)
+                            let (avg, peak) = Self.computeMetering(capture.capturedSamples)
                             Task { @MainActor [weak self] in
                                 self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
                             }
@@ -323,13 +341,18 @@ class RecordingService: NSObject, ObservableObject {
                     // Append Float32 samples to shared buffer
                     if let channelData = pcmBuffer.floatChannelData {
                         let samples = Array(UnsafeBufferPointer(start: channelData[0], count: Int(pcmBuffer.frameLength)))
-                        outputFrames = samples.count
-                        guard buffer.append(samples, generation: captureSession.generation) else {
+                        let capture = captureGate.append(
+                            samples,
+                            to: buffer,
+                            generation: captureSession.generation
+                        )
+                        outputFrames = capture.capturedSamples.count
+                        guard capture.didAppend else {
                             return
                         }
 
                         if captureSession.shouldPublishMeter() {
-                            let (avg, peak) = Self.computeMetering(samples)
+                            let (avg, peak) = Self.computeMetering(capture.capturedSamples)
                             Task { @MainActor [weak self] in
                                 self?.audioMeter = AudioMeter(averagePower: avg, peakPower: peak)
                             }
@@ -344,7 +367,8 @@ class RecordingService: NSObject, ObservableObject {
             isRecording = true
 
             // Mute system audio during recording if enabled
-            if UserDefaults.standard.bool(forKey: SettingsKeys.muteDuringRecording) {
+            if UserDefaults.standard.bool(forKey: SettingsKeys.muteDuringRecording),
+               !AppSettings.shared.pauseMicrophoneDuringPlayback {
                 Task {
                     _ = await mediaControlService.muteSystemAudio()
                 }
@@ -368,6 +392,7 @@ class RecordingService: NSObject, ObservableObject {
     func stopRecording() {
         let session = captureSession
         stopEngine(session: session)
+        endPlaybackCaptureSuppression()
         captureSession = nil
         activeConverter = nil
         activeTapFormat = nil
@@ -382,6 +407,7 @@ class RecordingService: NSObject, ObservableObject {
     func finalizeRecording() async -> [Float] {
         guard let session = captureSession else {
             stopEngine(session: nil)
+            endPlaybackCaptureSuppression()
             await mediaControlService.unmuteSystemAudio()
             return audioBuffer.readAll()
         }
@@ -408,6 +434,7 @@ class RecordingService: NSObject, ObservableObject {
                 generation: session.generation
             )
         }
+        endPlaybackCaptureSuppression()
 
         let metrics = session.metrics()
         let postRollCallbacks = max(0, metrics.callbacks - callbacksAtStopRequest)
@@ -455,6 +482,43 @@ class RecordingService: NSObject, ObservableObject {
         isRecording = false
     }
 
+    func setPlaybackCaptureSuppressionEnabled(_ isEnabled: Bool) {
+        guard isRecording else { return }
+
+        if isEnabled {
+            beginPlaybackCaptureSuppression()
+        } else {
+            endPlaybackCaptureSuppression()
+        }
+    }
+
+    private func beginPlaybackCaptureSuppression() {
+        MediaPlaybackService.shared.startMonitoringPlayback { [weak self] isPlaying in
+            self?.setMicrophonePausedForPlayback(isPlaying)
+        }
+    }
+
+    private func endPlaybackCaptureSuppression() {
+        MediaPlaybackService.shared.stopMonitoringPlayback()
+        audioCaptureGate.reset()
+        isMicrophonePausedForPlayback = false
+    }
+
+    private func setMicrophonePausedForPlayback(_ isPaused: Bool) {
+        guard audioCaptureGate.setSuppressed(isPaused) else { return }
+
+        isMicrophonePausedForPlayback = isPaused
+        if isPaused {
+            let silencedSamples = audioBuffer.silenceTail(count: playbackDetectionLookbackSamples)
+            audioMeter = AudioMeter(averagePower: 0, peakPower: 0)
+            logger.notice(
+                "Microphone capture paused for media playback; silenced \(silencedSamples) recent samples"
+            )
+        } else {
+            logger.notice("Microphone capture resumed after media playback")
+        }
+    }
+
     private func flushConverterTail(
         converter: AVAudioConverter,
         tapFormat: AVAudioFormat,
@@ -483,7 +547,11 @@ class RecordingService: NSObject, ObservableObject {
                 let samples = Array(
                     UnsafeBufferPointer(start: channelData[0], count: Int(convertedBuffer.frameLength))
                 )
-                _ = audioBuffer.append(samples, generation: generation)
+                _ = audioCaptureGate.append(
+                    samples,
+                    to: audioBuffer,
+                    generation: generation
+                )
             }
 
             if status == .endOfStream || convertedBuffer.frameLength == 0 {

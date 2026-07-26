@@ -68,6 +68,16 @@ final class DictationCoordinator: ObservableObject {
     /// Tracks if we actually paused media this session (to know whether to resume)
     private var didPauseMedia = false
 
+    // MARK: - Playback Microphone Pausing
+
+    /// When enabled, microphone capture is replaced with silence while media plays.
+    @Published private(set) var isMicrophonePausingForPlaybackEnabled: Bool {
+        didSet {
+            AppSettings.shared.pauseMicrophoneDuringPlayback =
+                isMicrophonePausingForPlaybackEnabled
+        }
+    }
+
     // MARK: - Text Formatting Options (persisted)
 
     /// When enabled, trailing punctuation (. ? !) is removed before pasting
@@ -92,6 +102,8 @@ final class DictationCoordinator: ObservableObject {
     private init() {
         // Load persisted settings
         isPlaybackPausingEnabled = AppSettings.shared.pauseMediaDuringDictation
+        isMicrophonePausingForPlaybackEnabled =
+            AppSettings.shared.pauseMicrophoneDuringPlayback
         isTrailingPunctuationRemovalEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingPunctuationRemoval) as? Bool ?? SettingsDefaults.trailingPunctuationRemoval
         isTrailingSpaceEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingSpace) as? Bool ?? SettingsDefaults.trailingSpace
         isTrailingLineBreakEnabled = UserDefaults.standard.object(forKey: SettingsKeys.trailingLineBreak) as? Bool ?? SettingsDefaults.trailingLineBreak
@@ -356,6 +368,11 @@ final class DictationCoordinator: ObservableObject {
                 guard !Task.isCancelled else { return }
                 togglePlaybackPausing()
                 send(.transcriptionEmpty)  // Don't paste anything, just toggle setting
+            } else if isMicrophonePausingForPlaybackCommand(trimmed) {
+                await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
+                guard !Task.isCancelled else { return }
+                toggleMicrophonePausingForPlayback()
+                send(.transcriptionEmpty)
             } else if let formattingCommand = parseTextFormattingCommand(trimmed) {
                 // Check for text formatting command
                 await archiveCurrentRecording(rawTranscription: trimmed, enhancedText: nil)
@@ -404,6 +421,21 @@ final class DictationCoordinator: ObservableObject {
             "pause playback", "playback pausing",
             "pause media", "media pausing",
             "toggle playback pausing", "toggle media pausing"
+        ]
+        return patterns.contains(normalized)
+    }
+
+    /// Check for the menu-visible microphone pausing toggle phrase.
+    private func isMicrophonePausingForPlaybackCommand(_ text: String) -> Bool {
+        let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: "")
+
+        let patterns = [
+            "pause mic for playback",
+            "pause microphone for playback",
+            "toggle pause mic for playback",
+            "toggle microphone pausing for playback"
         ]
         return patterns.contains(normalized)
     }
@@ -816,6 +848,18 @@ final class DictationCoordinator: ObservableObject {
     func togglePlaybackPausing() {
         isPlaybackPausingEnabled.toggle()
         logger.notice("Playback pausing toggled: \(self.isPlaybackPausingEnabled)")
+    }
+
+    func setMicrophonePausingForPlaybackEnabled(_ isEnabled: Bool) {
+        guard isMicrophonePausingForPlaybackEnabled != isEnabled else { return }
+
+        isMicrophonePausingForPlaybackEnabled = isEnabled
+        recordingService.setPlaybackCaptureSuppressionEnabled(isEnabled)
+        logger.notice("Microphone pausing for playback set to: \(isEnabled)")
+    }
+
+    func toggleMicrophonePausingForPlayback() {
+        setMicrophonePausingForPlaybackEnabled(!isMicrophonePausingForPlaybackEnabled)
     }
 
     func toggleTrailingPunctuationRemoval() {

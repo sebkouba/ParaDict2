@@ -37,6 +37,26 @@ final class ThreadSafeAudioBufferTests: XCTestCase {
         XCTAssertEqual(buffer.readAll(), [2])
     }
 
+    func testSilenceTailPreservesDurationAcrossChunkBoundaries() {
+        let buffer = ThreadSafeAudioBuffer()
+        let generation = buffer.beginSession()
+        buffer.append([1, 2, 3], generation: generation)
+        buffer.append([4, 5], generation: generation)
+
+        XCTAssertEqual(buffer.silenceTail(count: 4), 4)
+        XCTAssertEqual(buffer.count, 5)
+        XCTAssertEqual(buffer.readAll(), [1, 0, 0, 0, 0])
+    }
+
+    func testSilenceTailClampsToAvailableSamples() {
+        let buffer = ThreadSafeAudioBuffer()
+        let generation = buffer.beginSession()
+        buffer.append([1, 2], generation: generation)
+
+        XCTAssertEqual(buffer.silenceTail(count: 20), 2)
+        XCTAssertEqual(buffer.readAll(), [0, 0])
+    }
+
     func testDeviceRestartPreservesSamplesAndInvalidatesOldTap() {
         let buffer = ThreadSafeAudioBuffer()
         let oldGeneration = buffer.beginSession()

@@ -18,6 +18,7 @@ class StatusBarController: NSObject, NSMenuDelegate {
     // Menu items that need dynamic updates
     private var statusMenuItem: NSMenuItem?
     private var playbackPausingItem: NSMenuItem?
+    private var microphonePausingItem: NSMenuItem?
     private var trailingPunctuationItem: NSMenuItem?
     private var trailingSpaceItem: NSMenuItem?
     private var trailingLineBreakItem: NSMenuItem?
@@ -83,6 +84,16 @@ class StatusBarController: NSObject, NSMenuDelegate {
         playbackPausingItem?.target = self
         playbackPausingItem?.state = dictationCoordinator?.isPlaybackPausingEnabled == true ? .on : .off
         menu?.addItem(playbackPausingItem!)
+
+        microphonePausingItem = NSMenuItem(
+            title: "Pause Mic for Playback",
+            action: #selector(toggleMicrophonePausingForPlayback),
+            keyEquivalent: ""
+        )
+        microphonePausingItem?.target = self
+        microphonePausingItem?.state =
+            dictationCoordinator?.isMicrophonePausingForPlaybackEnabled == true ? .on : .off
+        menu?.addItem(microphonePausingItem!)
 
         menu?.addItem(NSMenuItem.separator())
 
@@ -183,6 +194,13 @@ class StatusBarController: NSObject, NSMenuDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isEnabled in
                 self?.playbackPausingItem?.state = isEnabled ? .on : .off
+            }
+            .store(in: &cancellables)
+
+        dictationCoordinator?.$isMicrophonePausingForPlaybackEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isEnabled in
+                self?.microphonePausingItem?.state = isEnabled ? .on : .off
             }
             .store(in: &cancellables)
 
@@ -306,6 +324,11 @@ class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func togglePlaybackPausing() {
         logger.notice("Toggling playback pausing")
         dictationCoordinator?.togglePlaybackPausing()
+    }
+
+    @objc private func toggleMicrophonePausingForPlayback() {
+        logger.notice("Toggling microphone pausing for playback")
+        dictationCoordinator?.toggleMicrophonePausingForPlayback()
     }
 
     @objc private func toggleTrailingPunctuation() {

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AdvancedSettingsView: View {
+    @EnvironmentObject private var dictationCoordinator: DictationCoordinator
     @AppStorage(SettingsKeys.enhancementTimeoutBaseMs) private var enhancementTimeoutBaseMs = SettingsDefaults.enhancementTimeoutBaseMs
     @AppStorage(SettingsKeys.enhancementTimeoutPerTokenMs) private var enhancementTimeoutPerTokenMs = SettingsDefaults.enhancementTimeoutPerTokenMs
     @AppStorage(SettingsKeys.obsidianDailyNoteEnabled) private var obsidianDailyNoteEnabled = SettingsDefaults.obsidianDailyNoteEnabled
@@ -48,6 +49,31 @@ struct AdvancedSettingsView: View {
                                 Text("Pause Playback During Dictation")
                                     .font(.body)
                                 Text("Pauses system media (including browser audio) while recording")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .padding(.vertical, 4)
+
+                        Divider()
+
+                        Toggle(
+                            isOn: Binding(
+                                get: {
+                                    dictationCoordinator
+                                        .isMicrophonePausingForPlaybackEnabled
+                                },
+                                set: {
+                                    dictationCoordinator
+                                        .setMicrophonePausingForPlaybackEnabled($0)
+                                }
+                            )
+                        ) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Pause Mic for Playback")
+                                    .font(.body)
+                                Text("Keeps media playing but records silence until playback has stopped for a moment")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -286,4 +312,5 @@ struct AdvancedSettingsView: View {
 
 #Preview {
     AdvancedSettingsView()
+        .environmentObject(DictationCoordinator.shared)
 }

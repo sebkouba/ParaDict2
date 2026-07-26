@@ -7,6 +7,7 @@ enum SettingsKeys {
     static let hideDockIcon = "hideDockIcon"
     static let muteDuringRecording = "muteDuringRecording"
     static let pauseMediaDuringDictation = "pauseMediaDuringDictation"
+    static let pauseMicrophoneDuringPlayback = "pauseMicrophoneDuringPlayback"
 
     // MARK: - Audio
     static let audioDeviceUID = "audioDeviceUID"  // deprecated, kept for migration
@@ -63,6 +64,7 @@ enum SettingsDefaults {
     static let hideDockIcon = true
     static let muteDuringRecording = true
     static let pauseMediaDuringDictation = false
+    static let pauseMicrophoneDuringPlayback = false
 
     // Audio
     static let audioDeviceUID: String? = nil  // deprecated

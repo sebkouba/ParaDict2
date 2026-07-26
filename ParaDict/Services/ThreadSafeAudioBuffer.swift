@@ -93,6 +93,32 @@ nonisolated final class ThreadSafeAudioBuffer: @unchecked Sendable {
         return result
     }
 
+    /// Replace recent samples with silence without changing the recording duration.
+    ///
+    /// Used when playback detection arrives shortly after audible output starts,
+    /// removing the small amount that may already have reached the microphone.
+    @discardableResult
+    func silenceTail(count requestedCount: Int) -> Int {
+        guard requestedCount > 0 else { return 0 }
+
+        lock.lock()
+        var remaining = min(requestedCount, sampleCount)
+        let silencedCount = remaining
+
+        for index in chunks.indices.reversed() where remaining > 0 {
+            let countToSilence = min(remaining, chunks[index].count)
+            let startIndex = chunks[index].count - countToSilence
+            chunks[index].replaceSubrange(
+                startIndex..<chunks[index].count,
+                with: repeatElement(Float.zero, count: countToSilence)
+            )
+            remaining -= countToSilence
+        }
+
+        lock.unlock()
+        return silencedCount
+    }
+
     var count: Int {
         lock.lock()
         let count = sampleCount
