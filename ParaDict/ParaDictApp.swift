@@ -135,6 +135,11 @@ struct MainContentView: View {
                     Label("Transcription", systemImage: "waveform")
                 }
 
+            DictationHistoryView()
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+
             ShortcutsSettingsView()
                 .tabItem {
                     Label("Shortcuts", systemImage: "keyboard")

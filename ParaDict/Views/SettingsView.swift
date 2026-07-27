@@ -23,29 +23,35 @@ struct SettingsView: View {
                 }
                 .tag(2)
 
+            DictationHistoryView()
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+                .tag(3)
+
             ShortcutsSettingsView()
                 .tabItem {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
-                .tag(3)
+                .tag(4)
 
             LLMSettingsView()
                 .tabItem {
                     Label("LLM", systemImage: "brain.head.profile")
                 }
-                .tag(4)
+                .tag(5)
 
             AdvancedSettingsView()
                 .tabItem {
                     Label("Advanced", systemImage: "gearshape.2")
                 }
-                .tag(5)
+                .tag(6)
 
             DirectoryWatcherView()
                 .tabItem {
                     Label("Watcher", systemImage: "folder.badge.gearshape")
                 }
-                .tag(6)
+                .tag(7)
         }
         .frame(minWidth: 600, minHeight: 500)
     }

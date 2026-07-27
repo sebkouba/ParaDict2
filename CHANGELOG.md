@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - ElevenLabs transcription provider selectable in Settings, using synchronous Scribe v2 with automatic language detection and Keychain-backed API credentials
 - Optional "Pause Mic for Playback" mode keeps media playing while replacing microphone capture with silence, then resumes after playback has fully stopped
-- SQLite-backed dictation history storage imports existing transcription history and supports keeping all entries or a selected recent limit
+- History settings tab shows searchable dictation text with one-click clipboard copying; SQLite storage imports existing transcription history and can keep all entries or a selected recent limit
 
 ## [1.1.0-beta] - 2026-07-20
 
