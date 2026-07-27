@@ -90,6 +90,19 @@ final class AppSettings {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: SettingsKeys.transcriptionProvider) }
     }
 
+    var dictationHistoryRetentionLimit: Int {
+        get {
+            let value = UserDefaults.standard.integer(forKey: SettingsKeys.dictationHistoryRetentionLimit)
+            return max(0, value)
+        }
+        set {
+            UserDefaults.standard.set(
+                max(0, newValue),
+                forKey: SettingsKeys.dictationHistoryRetentionLimit
+            )
+        }
+    }
+
     /// Calculate timeout for enhancement based on text length (estimates ~4 characters per token)
     func calculateEnhancementTimeout(forText text: String) -> TimeInterval {
         let estimatedTokens = max(1, text.count / 4)

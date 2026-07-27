@@ -33,7 +33,7 @@ final class DictationCoordinator: ObservableObject {
     private let llmClient = LLMClient.shared
     private let indicatorManager = RecordingIndicatorWindowManager.shared
     private let previewManager = TranscriptionPreviewWindowManager.shared
-    private let historyLogger = TranscriptionHistoryLogger.shared
+    private let historyService = DictationHistoryService.shared
     private let recordingArchiveService = RecordingArchiveService.shared
     private let correctionWindowManager = CorrectionWindowManager.shared
 
@@ -750,19 +750,22 @@ final class DictationCoordinator: ObservableObject {
 
     private func logTranscription(transcription: String, enhanced: String?, mode: DictationMode) {
         let targetApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let retentionLimit = AppSettings.shared.dictationHistoryRetentionLimit
 
-        if let enhanced = enhanced {
-            historyLogger.logEnhancedTranscription(
-                transcription: transcription,
-                llmPrompt: "",  // We don't have access to the full prompt here
-                llmResponse: enhanced,
-                targetApp: targetApp
-            )
-        } else {
-            historyLogger.logLocalTranscription(
-                transcription: transcription,
-                targetApp: targetApp
-            )
+        Task {
+            do {
+                try await historyService.save(
+                    transcription: transcription,
+                    enhancedText: enhanced,
+                    mode: mode,
+                    targetApp: targetApp,
+                    retentionLimit: retentionLimit
+                )
+            } catch {
+                logger.error(
+                    "Failed to save dictation history: \(error.localizedDescription)"
+                )
+            }
         }
     }
 

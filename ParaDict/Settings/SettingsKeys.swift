@@ -24,6 +24,7 @@ enum SettingsKeys {
 
     // MARK: - Transcription Settings
     static let transcriptionProvider = "transcriptionProvider"
+    static let dictationHistoryRetentionLimit = "dictationHistoryRetentionLimit"
 
     // MARK: - Directory Watcher
     static let directoryWatcherEnabled = "directoryWatcherEnabled"
@@ -81,6 +82,7 @@ enum SettingsDefaults {
 
     // Transcription
     static let transcriptionProvider = TranscriptionProvider.parakeet.rawValue
+    static let dictationHistoryRetentionLimit = DictationHistoryService.RetentionLimit.all.rawValue
 
     // Directory Watcher
     static let directoryWatcherEnabled = false
