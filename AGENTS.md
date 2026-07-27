@@ -28,6 +28,18 @@ osascript -e 'tell application "Xcode" to activate' -e 'delay 0.3' -e 'tell appl
 
 **After successful builds:** Always stop and restart Xcode using the osascript command above. This lets the user see logs in the Xcode console.
 
+### Required Deployment and Relaunch
+
+After completing any user-requested change in this repository, do not stop at a successful Xcode build or leave a DerivedData copy running. Before reporting completion:
+
+1. Build the current `ParaDict` Debug scheme successfully.
+2. Terminate any running `ParaDict` process.
+3. Replace `/Applications/ParaDict.app` with the freshly built app bundle.
+4. Launch `/Applications/ParaDict.app`.
+5. Verify that ParaDict is running and that its executable path is `/Applications/ParaDict.app/Contents/MacOS/ParaDict`.
+
+The user should always have the newly changed version installed and running when the task is handed back.
+
 ### Changelog Maintenance
 
 After every successful build that includes functional changes, update `CHANGELOG.md` in the project root. This tracks what has been implemented.
