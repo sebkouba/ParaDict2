@@ -274,6 +274,16 @@ final class DictationCoordinator: ObservableObject {
             }
             logger.notice("Recording started successfully")
 
+            // Keep the MediaRemote listener alive before issuing a pause command.
+            // Spotify can miss the fire-and-forget command if monitoring starts
+            // concurrently afterward. Ignore the current playback session so it
+            // cannot suppress the microphone while ParaDict pauses it.
+            if isMicrophonePausingForPlaybackEnabled {
+                recordingService.startPlaybackCaptureSuppression(
+                    ignoreCurrentPlaybackUntilStopped: isPlaybackPausingEnabled
+                )
+            }
+
             // Pause media AFTER successful audio setup to avoid pausing for sessions that fail to start.
             // Playback that was already active belongs to this pause operation, not to
             // the "playback began during dictation" microphone suppression path.
@@ -295,12 +305,11 @@ final class DictationCoordinator: ObservableObject {
                 logger.notice(
                     "Playback pausing: didPauseMedia=\(pausedInitialPlayback)"
                 )
-            }
 
-            if isMicrophonePausingForPlaybackEnabled {
-                recordingService.startPlaybackCaptureSuppression(
-                    ignoreCurrentPlaybackUntilStopped: pausedInitialPlayback
-                )
+                if isMicrophonePausingForPlaybackEnabled &&
+                    !pausedInitialPlayback {
+                    recordingService.startPlaybackCaptureSuppression()
+                }
             }
         } catch {
             resumeMediaIfNeeded()

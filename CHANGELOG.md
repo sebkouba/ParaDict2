@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - History settings tab shows searchable dictation text with one-click clipboard copying; SQLite storage imports existing transcription history and can keep all entries or a selected recent limit
 
 ### Fixed
-- Starting dictation while media is already playing now pauses playback without briefly suppressing microphone capture
+- Starting dictation while media is already playing now reliably pauses playback without briefly suppressing microphone capture
 
 ## [1.1.0-beta] - 2026-07-20
 

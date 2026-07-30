@@ -1,0 +1,9 @@
+import Foundation
+
+/// Commands and queries the system's current media playback session.
+@MainActor
+protocol MediaPlaybackCommandClient: AnyObject {
+    func isPlaying() async -> Bool?
+    func pause()
+    func play()
+}

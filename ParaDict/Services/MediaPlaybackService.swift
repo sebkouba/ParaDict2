@@ -12,12 +12,16 @@ import MediaRemoteAdapter
 /// all media sources including browser-based media (YouTube, etc.).
 @MainActor
 final class MediaPlaybackService {
-    static let shared = MediaPlaybackService()
+    static let shared = MediaPlaybackService(
+        commandClient: MediaRemotePlaybackClient()
+    )
 
     private let logger = Logger(subsystem: "com.paradict", category: "MediaPlaybackService")
+    private let commandClient: any MediaPlaybackCommandClient
+    private let pauseConfirmationPollNanoseconds: UInt64
+    private let pauseConfirmationAttempts: Int
 
     #if arch(arm64)
-    private let mediaController = MediaController()
     private var monitoringController: MediaController?
     private var monitoringGeneration: UInt64 = 0
     private var playbackStopGraceTask: Task<Void, Never>?
@@ -28,7 +32,16 @@ final class MediaPlaybackService {
     private let playbackStopGraceNanoseconds: UInt64 = 800_000_000
     #endif
 
-    private init() {}
+    init(
+        commandClient: any MediaPlaybackCommandClient,
+        pauseConfirmationPollNanoseconds: UInt64 = 100_000_000,
+        pauseConfirmationAttempts: Int = 8
+    ) {
+        self.commandClient = commandClient
+        self.pauseConfirmationPollNanoseconds =
+            pauseConfirmationPollNanoseconds
+        self.pauseConfirmationAttempts = max(1, pauseConfirmationAttempts)
+    }
 
     // MARK: - Public API
 
@@ -38,40 +51,49 @@ final class MediaPlaybackService {
     /// - Returns: `true` if we successfully paused playback, `false` if nothing was playing
     ///   or if we couldn't determine playback state.
     func pauseIfPlaying() async -> Bool {
-        return await withCheckedContinuation { continuation in
-            self.mediaController.getTrackInfo { [weak self] trackInfo in
-                guard let self = self else {
-                    continuation.resume(returning: false)
-                    return
-                }
+        guard let isPlaying = await commandClient.isPlaying() else {
+            logger.notice("No playback state available, nothing to pause")
+            return false
+        }
 
-                guard let trackInfo = trackInfo else {
-                    self.logger.notice("No track info available, nothing to pause")
-                    continuation.resume(returning: false)
-                    return
-                }
+        guard isPlaying else {
+            logger.notice("Media is not playing, no action needed")
+            return false
+        }
 
-                // Determine if media is currently playing
-                // Use isPlaying if available, otherwise check playbackRate
-                let isPlaying: Bool
-                if let playing = trackInfo.payload.isPlaying {
-                    isPlaying = playing
-                } else {
-                    isPlaying = (trackInfo.payload.playbackRate ?? 0.0) > 0.0
-                }
+        logger.notice("Media is playing, sending pause command")
+        commandClient.pause()
 
-                self.logger.notice("Track: \(trackInfo.payload.applicationName ?? "Unknown") - \(trackInfo.payload.title ?? "Unknown"), isPlaying=\(trackInfo.payload.isPlaying?.description ?? "nil"), playbackRate=\(trackInfo.payload.playbackRate?.description ?? "nil"), determined=\(isPlaying)")
+        for attempt in 1...pauseConfirmationAttempts {
+            do {
+                try await Task.sleep(
+                    nanoseconds: pauseConfirmationPollNanoseconds
+                )
+            } catch {
+                logger.notice("Pause confirmation cancelled")
+                return true
+            }
 
-                if isPlaying {
-                    self.logger.notice("Media is playing, sending pause command")
-                    self.mediaController.pause()
-                    continuation.resume(returning: true)
-                } else {
-                    self.logger.notice("Media is not playing, no action needed")
-                    continuation.resume(returning: false)
-                }
+            if await commandClient.isPlaying() == false {
+                logger.notice(
+                    "Confirmed media playback paused after \(attempt) check(s)"
+                )
+                return true
+            }
+
+            if attempt.isMultiple(of: 3),
+               attempt < pauseConfirmationAttempts {
+                logger.notice(
+                    "Playback is still active; retrying pause command"
+                )
+                commandClient.pause()
             }
         }
+
+        logger.warning(
+            "Pause command was sent, but playback did not report a stopped state"
+        )
+        return true
     }
 
     /// Resumes media playback only if we were the ones who paused it.
@@ -84,7 +106,7 @@ final class MediaPlaybackService {
 
         logger.notice("Resuming media playback (we paused it)")
         // Use explicit play() command — never toggle (following cm rule b-mlrn5o09)
-        mediaController.play()
+        commandClient.play()
     }
 
     /// Monitor changes from the system's current media session.
