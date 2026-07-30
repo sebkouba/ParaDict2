@@ -22,7 +22,7 @@ final class MediaPlaybackService {
     private var monitoringGeneration: UInt64 = 0
     private var playbackStopGraceTask: Task<Void, Never>?
     private var playbackStateHandler: ((Bool) -> Void)?
-    private var reportsPlaybackActive = false
+    private var playbackMonitoringState = PlaybackMonitoringStateMachine()
 
     /// Avoid reopening capture during short pauses or while speaker output decays.
     private let playbackStopGraceNanoseconds: UInt64 = 800_000_000
@@ -89,16 +89,22 @@ final class MediaPlaybackService {
 
     /// Monitor changes from the system's current media session.
     ///
-    /// Playback starts are reported immediately. Stops are reported after a short
+    /// Playback starts are reported immediately unless the caller is already
+    /// pausing the current playback session. Stops are reported after a short
     /// grace period so buffering pauses and speaker tails do not briefly reopen
     /// microphone capture.
-    func startMonitoringPlayback(onStateChange: @escaping (Bool) -> Void) {
+    func startMonitoringPlayback(
+        ignoreCurrentPlaybackUntilStopped: Bool = false,
+        onStateChange: @escaping (Bool) -> Void
+    ) {
         stopMonitoringPlayback()
 
         monitoringGeneration &+= 1
         let generation = monitoringGeneration
         playbackStateHandler = onStateChange
-        reportsPlaybackActive = false
+        playbackMonitoringState = PlaybackMonitoringStateMachine(
+            ignoreCurrentPlaybackUntilStopped: ignoreCurrentPlaybackUntilStopped
+        )
 
         let controller = MediaController()
         monitoringController = controller
@@ -116,7 +122,9 @@ final class MediaPlaybackService {
         }
 
         controller.startListening()
-        logger.notice("Started media playback monitoring")
+        logger.notice(
+            "Started media playback monitoring; ignoreCurrentPlaybackUntilStopped=\(ignoreCurrentPlaybackUntilStopped)"
+        )
     }
 
     func stopMonitoringPlayback() {
@@ -124,7 +132,7 @@ final class MediaPlaybackService {
         playbackStopGraceTask?.cancel()
         playbackStopGraceTask = nil
         playbackStateHandler = nil
-        reportsPlaybackActive = false
+        playbackMonitoringState = PlaybackMonitoringStateMachine()
 
         let controller = monitoringController
         monitoringController = nil
@@ -149,31 +157,63 @@ final class MediaPlaybackService {
     private func handleMonitoredPlaybackState(_ isPlaying: Bool, generation: UInt64) {
         guard generation == monitoringGeneration else { return }
 
-        if isPlaying {
-            playbackStopGraceTask?.cancel()
-            playbackStopGraceTask = nil
+        let wasWaitingForInitialStop =
+            playbackMonitoringState.isWaitingForInitialPlaybackStop
+        let actions = playbackMonitoringState.observe(isPlaying: isPlaying)
 
-            guard !reportsPlaybackActive else { return }
-            reportsPlaybackActive = true
-            logger.notice("Media playback started")
-            playbackStateHandler?(true)
-            return
+        if wasWaitingForInitialStop &&
+            !playbackMonitoringState.isWaitingForInitialPlaybackStop {
+            logger.notice(
+                "Initial playback paused by ParaDict has stopped; monitoring is now armed"
+            )
         }
 
-        guard reportsPlaybackActive, playbackStopGraceTask == nil else { return }
+        performMonitoringActions(actions, generation: generation)
+    }
+
+    private func performMonitoringActions(
+        _ actions: [PlaybackMonitoringStateMachine.Action],
+        generation: UInt64
+    ) {
+        for action in actions {
+            switch action {
+            case .reportPlaybackStarted:
+                logger.notice("Media playback started")
+                playbackStateHandler?(true)
+
+            case .schedulePlaybackStopped:
+                schedulePlaybackStopped(generation: generation)
+
+            case .cancelPendingPlaybackStop:
+                playbackStopGraceTask?.cancel()
+                playbackStopGraceTask = nil
+
+            case .reportPlaybackStopped:
+                logger.notice(
+                    "Media playback remained stopped; microphone capture may resume"
+                )
+                playbackStateHandler?(false)
+            }
+        }
+    }
+
+    private func schedulePlaybackStopped(generation: UInt64) {
         playbackStopGraceTask = Task { [weak self] in
             guard let self else { return }
+
             do {
-                try await Task.sleep(nanoseconds: self.playbackStopGraceNanoseconds)
+                try await Task.sleep(
+                    nanoseconds: self.playbackStopGraceNanoseconds
+                )
             } catch {
                 return
             }
 
             guard generation == self.monitoringGeneration else { return }
             self.playbackStopGraceTask = nil
-            self.reportsPlaybackActive = false
-            self.logger.notice("Media playback remained stopped; microphone capture may resume")
-            self.playbackStateHandler?(false)
+            let actions =
+                self.playbackMonitoringState.completePlaybackStopGracePeriod()
+            self.performMonitoringActions(actions, generation: generation)
         }
     }
     #else
@@ -187,7 +227,10 @@ final class MediaPlaybackService {
         // No-op on Intel
     }
 
-    func startMonitoringPlayback(onStateChange: @escaping (Bool) -> Void) {
+    func startMonitoringPlayback(
+        ignoreCurrentPlaybackUntilStopped: Bool = false,
+        onStateChange: @escaping (Bool) -> Void
+    ) {
         logger.notice("Media playback monitoring is not available on Intel Macs")
     }
 

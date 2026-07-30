@@ -274,11 +274,33 @@ final class DictationCoordinator: ObservableObject {
             }
             logger.notice("Recording started successfully")
 
-            // Pause media AFTER successful audio setup to avoid pausing for sessions that fail to start
+            // Pause media AFTER successful audio setup to avoid pausing for sessions that fail to start.
+            // Playback that was already active belongs to this pause operation, not to
+            // the "playback began during dictation" microphone suppression path.
+            var pausedInitialPlayback = false
             if isPlaybackPausingEnabled {
-                let paused = await MediaPlaybackService.shared.pauseIfPlaying()
-                didPauseMedia = paused
-                logger.notice("Playback pausing: didPauseMedia=\(paused)")
+                pausedInitialPlayback =
+                    await MediaPlaybackService.shared.pauseIfPlaying()
+
+                guard !Task.isCancelled, recordingService.isRecording else {
+                    MediaPlaybackService.shared.resumeIfWePaused(
+                        pausedInitialPlayback
+                    )
+                    recordingService.stopRecording()
+                    clearCurrentRecordingArchiveState()
+                    return
+                }
+
+                didPauseMedia = pausedInitialPlayback
+                logger.notice(
+                    "Playback pausing: didPauseMedia=\(pausedInitialPlayback)"
+                )
+            }
+
+            if isMicrophonePausingForPlaybackEnabled {
+                recordingService.startPlaybackCaptureSuppression(
+                    ignoreCurrentPlaybackUntilStopped: pausedInitialPlayback
+                )
             }
         } catch {
             resumeMediaIfNeeded()

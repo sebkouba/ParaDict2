@@ -201,10 +201,6 @@ class RecordingService: NSObject, ObservableObject {
         audioCaptureGate.reset()
 
         try await startRecording(clearExistingAudio: true)
-
-        if AppSettings.shared.pauseMicrophoneDuringPlayback {
-            beginPlaybackCaptureSuppression()
-        }
     }
 
     private func startRecording(clearExistingAudio: Bool) async throws {
@@ -486,14 +482,20 @@ class RecordingService: NSObject, ObservableObject {
         guard isRecording else { return }
 
         if isEnabled {
-            beginPlaybackCaptureSuppression()
+            startPlaybackCaptureSuppression()
         } else {
             endPlaybackCaptureSuppression()
         }
     }
 
-    private func beginPlaybackCaptureSuppression() {
-        MediaPlaybackService.shared.startMonitoringPlayback { [weak self] isPlaying in
+    func startPlaybackCaptureSuppression(
+        ignoreCurrentPlaybackUntilStopped: Bool = false
+    ) {
+        guard isRecording else { return }
+
+        MediaPlaybackService.shared.startMonitoringPlayback(
+            ignoreCurrentPlaybackUntilStopped: ignoreCurrentPlaybackUntilStopped
+        ) { [weak self] isPlaying in
             self?.setMicrophonePausedForPlayback(isPlaying)
         }
     }

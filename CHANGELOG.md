@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Optional "Pause Mic for Playback" mode keeps media playing while replacing microphone capture with silence, then resumes after playback has fully stopped
 - History settings tab shows searchable dictation text with one-click clipboard copying; SQLite storage imports existing transcription history and can keep all entries or a selected recent limit
 
+### Fixed
+- Starting dictation while media is already playing now pauses playback without briefly suppressing microphone capture
+
 ## [1.1.0-beta] - 2026-07-20
 
 ### Added
