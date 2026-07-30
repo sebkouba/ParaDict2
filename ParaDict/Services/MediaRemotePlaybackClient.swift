@@ -8,6 +8,7 @@ import MediaRemoteAdapter
 final class MediaRemotePlaybackClient: MediaPlaybackCommandClient {
     #if arch(arm64)
     private let controller = MediaController()
+    private var commandSessionController: MediaController?
     #endif
 
     func isPlaying() async -> Bool? {
@@ -30,6 +31,23 @@ final class MediaRemotePlaybackClient: MediaPlaybackCommandClient {
         }
         #else
         return nil
+        #endif
+    }
+
+    func startCommandSession() {
+        #if arch(arm64)
+        guard commandSessionController == nil else { return }
+
+        let controller = MediaController()
+        commandSessionController = controller
+        controller.startListening()
+        #endif
+    }
+
+    func endCommandSession() {
+        #if arch(arm64)
+        commandSessionController?.stopListening()
+        commandSessionController = nil
         #endif
     }
 

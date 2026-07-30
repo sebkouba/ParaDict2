@@ -20,6 +20,7 @@ final class MediaPlaybackService {
     private let commandClient: any MediaPlaybackCommandClient
     private let pauseConfirmationPollNanoseconds: UInt64
     private let pauseConfirmationAttempts: Int
+    private var playbackResumeTask: Task<Void, Never>?
 
     #if arch(arm64)
     private var monitoringController: MediaController?
@@ -51,6 +52,10 @@ final class MediaPlaybackService {
     /// - Returns: `true` if we successfully paused playback, `false` if nothing was playing
     ///   or if we couldn't determine playback state.
     func pauseIfPlaying() async -> Bool {
+        playbackResumeTask?.cancel()
+        await playbackResumeTask?.value
+        playbackResumeTask = nil
+
         guard let isPlaying = await commandClient.isPlaying() else {
             logger.notice("No playback state available, nothing to pause")
             return false
@@ -62,6 +67,8 @@ final class MediaPlaybackService {
         }
 
         logger.notice("Media is playing, sending pause command")
+        commandClient.startCommandSession()
+        defer { commandClient.endCommandSession() }
         commandClient.pause()
 
         for attempt in 1...pauseConfirmationAttempts {
@@ -104,9 +111,53 @@ final class MediaPlaybackService {
             return
         }
 
+        playbackResumeTask?.cancel()
+        playbackResumeTask = Task { [weak self] in
+            await self?.resumePlayback()
+        }
+    }
+
+    func waitForPendingPlaybackResume() async {
+        await playbackResumeTask?.value
+    }
+
+    private func resumePlayback() async {
         logger.notice("Resuming media playback (we paused it)")
-        // Use explicit play() command — never toggle (following cm rule b-mlrn5o09)
+        commandClient.startCommandSession()
+        defer { commandClient.endCommandSession() }
+
+        // Use explicit play() commands — never toggle (following cm rule b-mlrn5o09).
         commandClient.play()
+
+        for attempt in 1...pauseConfirmationAttempts {
+            do {
+                try await Task.sleep(
+                    nanoseconds: pauseConfirmationPollNanoseconds
+                )
+            } catch {
+                logger.notice("Playback resume confirmation cancelled")
+                return
+            }
+
+            if await commandClient.isPlaying() == true {
+                logger.notice(
+                    "Confirmed media playback resumed after \(attempt) check(s)"
+                )
+                return
+            }
+
+            if attempt.isMultiple(of: 3),
+               attempt < pauseConfirmationAttempts {
+                logger.notice(
+                    "Playback is still stopped; retrying play command"
+                )
+                commandClient.play()
+            }
+        }
+
+        logger.warning(
+            "Play command was sent, but playback did not report an active state"
+        )
     }
 
     /// Monitor changes from the system's current media session.
