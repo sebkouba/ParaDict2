@@ -16,8 +16,21 @@ extension KeyboardShortcuts.Name {
 /// Using NSStatusItem instead of SwiftUI MenuBarExtra to avoid ghost window issues
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarController: StatusBarController?
+    private var isDuplicateInstance = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        isDuplicateInstance = ApplicationInstanceService.shared.shouldTerminateCurrentInstance()
+
+        if isDuplicateInstance {
+            DispatchQueue.main.async {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isDuplicateInstance else { return }
+
         logger.notice("AppDelegate: applicationDidFinishLaunching")
 
         // Run settings migration from old YAML config (if exists)

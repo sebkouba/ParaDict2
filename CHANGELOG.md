@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Starting dictation while media is already playing now reliably pauses playback without briefly suppressing microphone capture, then reliably resumes it afterward
+- ParaDict now prevents multiple app copies from handling the same dictation, so an unchecked "Send Enter After Paste" option cannot be overridden by another running copy
 
 ## [1.1.0-beta] - 2026-07-20
 
