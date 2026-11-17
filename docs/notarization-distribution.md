@@ -1,5 +1,11 @@
 # Notarization & Distribution Guide
 
+## ParaDict release credentials on this Mac
+
+The existing notarization profile is **`ParaDict-notary`** (case-sensitive), stored in the iCloud keychain. In Keychain Access, search for `notary`; its account is `com.apple.gke.notary.tool.saved-creds.ParaDict-notary`. Do not recreate credentials when this profile is available.
+
+After running `script/archive_release.sh`, submit the generated ZIP with `xcrun notarytool submit <zip-path> --keychain-profile ParaDict-notary --wait`. Once accepted, staple the app inside the archive, verify it with `stapler validate` and `spctl`, and create a fresh ZIP from that stapled app for GitHub.
+
 ## Problem
 
 Even after notarization, macOS Sequoia blocks the app — users must go to Privacy & Security settings to launch it. This is because:
@@ -120,7 +126,7 @@ If the app isn't stapled yet (e.g., you exported without uploading via Xcode):
 # Notarize manually
 ditto -c -k --keepParent build/export/ParaDict.app ParaDict-notarize.zip
 xcrun notarytool submit ParaDict-notarize.zip \
-    --keychain-profile "notary-profile" --wait
+    --keychain-profile "ParaDict-notary" --wait
 rm ParaDict-notarize.zip
 
 # Staple the .app
@@ -262,10 +268,10 @@ codesign -d --entitlements :- ParaDict.app
 spctl -a -vvv -t execute ParaDict.app
 
 # Check notarization history
-xcrun notarytool history --keychain-profile "notary-profile"
+xcrun notarytool history --keychain-profile "ParaDict-notary"
 
 # Get log for a specific submission
-xcrun notarytool log <submission-id> --keychain-profile "notary-profile"
+xcrun notarytool log <submission-id> --keychain-profile "ParaDict-notary"
 ```
 
 ### Common Pitfalls

@@ -6,12 +6,12 @@ A macOS menu bar voice dictation app with local transcription using Parakeet V3 
 
 **Note on licensing**: This is open source and free to use. I'm releasing it as a public beta to get feedback and let others benefit from it. In the future, I may ask for a one-time payment per major version to support continued development—but the code will remain open.
 
-## What's new in the July 2026 update
+## What's new in the November 2026 update
 
-- Live transcription preview with stable utterance finalization while you speak
-- More reliable recording shutdown and final-word capture, plus safer cancellation and serialized transcription
-- Optional x.ai transcription, configurable recording archives, and API keys stored in macOS Keychain
-- Restored voice commands, prioritized microphone selection, playback pausing, and send-after-paste controls
+- Shortcut recording, replacement, and clearing fixes for macOS 26 and 27 using KeyboardShortcuts 3.1.0
+- Optional ElevenLabs Scribe v2 transcription with automatic language detection and Keychain-backed credentials
+- Searchable dictation history with one-click copying and configurable retention
+- Optional playback-aware microphone pausing, more reliable media pause/resume, and protection against duplicate app instances
 - Developer ID-signed universal release archives for Apple Silicon and Intel Macs
 
 ## Features
