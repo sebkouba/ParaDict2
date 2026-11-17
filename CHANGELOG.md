@@ -6,12 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0-beta] - 2026-11-17
+
 ### Added
 - ElevenLabs transcription provider selectable in Settings, using synchronous Scribe v2 with automatic language detection and Keychain-backed API credentials
 - Optional "Pause Mic for Playback" mode keeps media playing while replacing microphone capture with silence, then resumes after playback has fully stopped
 - History settings tab shows searchable dictation text with one-click clipboard copying; SQLite storage imports existing transcription history and can keep all entries or a selected recent limit
 
 ### Fixed
+- Shortcut fields now reliably record, replace, and clear shortcuts on macOS 26 and 27 by upgrading KeyboardShortcuts to 3.1.0
 - Starting dictation while media is already playing now reliably pauses playback without briefly suppressing microphone capture, then reliably resumes it afterward
 - ParaDict now prevents multiple app copies from handling the same dictation, so an unchecked "Send Enter After Paste" option cannot be overridden by another running copy
 
