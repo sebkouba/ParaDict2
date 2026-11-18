@@ -83,6 +83,29 @@ After every successful build that includes functional changes, update `CHANGELOG
 
 The agent costs ~10k tokens per invocation. Don't use it for simple verification builds.
 
+### Building and installing a signed release locally
+
+`script/build_and_run.sh` (Debug build, see "Required Deployment and Relaunch") needs an **Apple Development** certificate for team `2VVZV5X37Y`. On a Mac that only has the **Developer ID Application** certificate, use `script/archive_release.sh` instead to do the same deployment: it builds a Developer ID-signed Release, which then replaces `/Applications/ParaDict.app`.
+
+macOS keeps Microphone/Accessibility permissions based on the code signature (bundle ID `com.hiq.ParaDict` + signing certificate). Rebuilding with the same certificate keeps the existing permissions. Switching between Apple Development (Debug) and Developer ID (Release) builds counts as a different app, so macOS asks again.
+
+```bash
+# Build and sign. Output goes to build/release.XXXXXX/ (the script prints the .app path)
+# Leave off DEVELOPER_DIR if `xcode-select -p` already points at /Applications/Xcode.app
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./script/archive_release.sh
+
+# Install and relaunch (replace release.XXXXXX with the folder the script printed)
+osascript -e 'quit app "ParaDict"'
+rm -rf /Applications/ParaDict.app
+ditto build/release.XXXXXX/ParaDict.xcarchive/Products/Applications/ParaDict.app /Applications/ParaDict.app
+open /Applications/ParaDict.app
+```
+
+Requirements:
+- The "Developer ID Application: Sebastian Kouba (2VVZV5X37Y)" certificate with its private key must be in the login keychain (check with `security find-identity -v -p codesigning`).
+- Local installs don't need notarization. Only downloaded copies do.
+- Set `PARADICT_RELEASE_OUTPUT_DIR` to choose a fixed output folder (it must not already contain an archive).
+
 ## Architecture Overview
 
 ParaDict is a macOS menu bar voice dictation app using Parakeet V3 for local transcription with optional LLM enhancement via Groq.

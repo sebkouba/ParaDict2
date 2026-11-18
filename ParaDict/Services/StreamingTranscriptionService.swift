@@ -70,6 +70,7 @@ class StreamingTranscriptionService: ObservableObject {
 
     /// Stop the streaming loop (keeps last partial text visible)
     func stop() {
+        guard isStreaming || streamingTask != nil else { return }
         streamingTask?.cancel()
         streamingTask = nil
         isStreaming = false

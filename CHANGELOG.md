@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Faster paste after dictation ends: recording now stops as soon as the last audio chunk arrives (typically ~100 ms) instead of always waiting 220 ms, while still capturing audio up to the moment the hotkey is released
+
+### Fixed
+- "Stopped streaming transcription" no longer appears in the logs when Live Preview is off
+
 ## [1.2.0-beta] - 2026-11-17
 
 ### Added

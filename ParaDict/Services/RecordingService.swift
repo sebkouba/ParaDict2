@@ -150,8 +150,11 @@ class RecordingService: NSObject, ObservableObject {
     private let targetChannels: AVAudioChannelCount = 1
     /// Smaller tap buffers reduce how much trailing speech can be stranded at stop time.
     private let tapBufferSize: AVAudioFrameCount = 1024
-    /// Keep capturing beyond hotkey release so Core Audio emits the partially filled final tap buffer.
-    private let stopPostRollNanoseconds: UInt64 = 220_000_000
+    /// Upper bound for waiting on the tap buffer that contains the hotkey release.
+    /// macOS delivers ~100 ms chunks regardless of `tapBufferSize`, so one chunk normally arrives well before this.
+    private let stopPostRollMaxNanoseconds: UInt64 = 220_000_000
+    /// Polling interval while waiting for the first post-stop tap callback.
+    private let stopPostRollPollNanoseconds: UInt64 = 5_000_000
     /// MediaRemote notifications are debounced by 100 ms. Erase a little extra
     /// audio so the beginning of playback cannot leak through the microphone.
     private let playbackDetectionLookbackSamples = 4_000
@@ -413,9 +416,15 @@ class RecordingService: NSObject, ObservableObject {
 
         let callbacksAtStopRequest = session.metrics().callbacks
 
-        // A tap only emits complete buffers. Keep the engine alive long enough for the
-        // buffer containing hotkey release (and therefore the final syllable) to be delivered.
-        try? await Task.sleep(nanoseconds: stopPostRollNanoseconds)
+        // A tap only emits complete buffers. Keep the engine alive until the buffer that was
+        // filling at hotkey release has been delivered (first callback after the stop request),
+        // capped so a stalled device can't hold up pasting.
+        let postRollStart = DispatchTime.now().uptimeNanoseconds
+        while session.metrics().callbacks <= callbacksAtStopRequest,
+              DispatchTime.now().uptimeNanoseconds - postRollStart < stopPostRollMaxNanoseconds {
+            try? await Task.sleep(nanoseconds: stopPostRollPollNanoseconds)
+        }
+        let postRollMs = Double(DispatchTime.now().uptimeNanoseconds - postRollStart) / 1_000_000
 
         let converter = activeConverter
         let tapFormat = activeTapFormat
@@ -436,7 +445,7 @@ class RecordingService: NSObject, ObservableObject {
         let postRollCallbacks = max(0, metrics.callbacks - callbacksAtStopRequest)
         let finalSamples = audioBuffer.readAll()
         logger.notice(
-            "Capture finalized: callbacks=\(metrics.callbacks), postRollCallbacks=\(postRollCallbacks), inputFrames=\(metrics.inputFrames), convertedFrames=\(metrics.outputFrames), conversionFailures=\(metrics.conversionFailures), finalSamples=\(finalSamples.count)"
+            "Capture finalized: postRollWait=\(String(format: "%.0f", postRollMs))ms, callbacks=\(metrics.callbacks), postRollCallbacks=\(postRollCallbacks), inputFrames=\(metrics.inputFrames), convertedFrames=\(metrics.outputFrames), conversionFailures=\(metrics.conversionFailures), finalSamples=\(finalSamples.count)"
         )
 
         captureSession = nil
